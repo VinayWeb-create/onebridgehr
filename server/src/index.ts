@@ -74,6 +74,16 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+// Root Welcome Endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'Welcome to the OneBridge HR Management API Service!',
+    version: '1.0.0',
+    health: `${req.protocol}://${req.get('host')}/health`,
+  });
+});
+
 // 8. API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
