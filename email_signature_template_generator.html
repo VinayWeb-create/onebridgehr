@@ -1,0 +1,1818 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+    <title>Multi-Brand Signature & Doc Template Generator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- docx.js for DOCX generation -->
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+    <!-- FileSaver.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- html2canvas for image generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Google Fonts: Inter & Outfit -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #f37021;
+            --secondary: #202020;
+            --accent-bg: #FFF3EB;
+            --button-hover: #ea580c;
+            --text-main: #0f172a;
+            --gold: #eab308;
+            --navy: #00173d;
+            --royal: #0052cc;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Prevent iOS font-size boost on inputs */
+        input,
+        select,
+        textarea {
+            font-size: 16px !important;
+        }
+
+        @media (min-width: 640px) {
+
+            input,
+            select,
+            textarea {
+                font-size: 14px !important;
+            }
+        }
+
+        /* Smooth horizontal scroll on mobile for signature cards */
+        .overflow-x-auto {
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+
+        .overflow-x-auto::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .overflow-x-auto::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .font-brand {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .brand-primary {
+            color: var(--primary) !important;
+        }
+
+        .brand-secondary {
+            color: var(--secondary) !important;
+        }
+
+        .bg-accent {
+            background-color: var(--accent-bg) !important;
+        }
+
+        .border-primary {
+            border-color: var(--primary) !important;
+        }
+
+        .accent-line {
+            background-color: var(--primary) !important;
+        }
+
+        .icon-badge {
+            background-color: var(--accent-bg) !important;
+            color: var(--primary) !important;
+        }
+
+        .button-primary {
+            background-color: var(--primary) !important;
+            border-color: var(--primary) !important;
+            color: #ffffff !important;
+        }
+
+        .button-primary:hover {
+            background-color: var(--button-hover) !important;
+        }
+
+        .confidentiality-accent {
+            border-color: var(--primary) !important;
+            color: var(--primary) !important;
+        }
+
+        .text-secondary {
+            color: var(--secondary) !important;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .card-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+        }
+
+        /* ====== GoLive Premium Multi-Color Theme ====== */
+        #cardPreview.golive-theme {
+            background: #f0f4ff;
+            border-color: #c7d7f8;
+            box-shadow: 0 12px 40px -8px rgba(0, 82, 204, 0.18), 0 4px 16px -4px rgba(0, 23, 61, 0.12);
+        }
+
+        /* Gold top accent stripe */
+        #cardPreview.golive-theme::before {
+            content: '';
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #00173d 0%, #0052cc 45%, #eab308 75%, #facc15 100%);
+            border-radius: 12px 12px 0 0;
+        }
+
+        /* Navy-to-blue gradient branding column */
+        #cardPreview.golive-theme #glBrandCol {
+            background: linear-gradient(160deg, #00173d 0%, #0a2d6e 55%, #0052cc 100%);
+            border-radius: 12px;
+            padding: 18px 12px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #cardPreview.golive-theme #glBrandCol::after {
+            content: '';
+            position: absolute;
+            bottom: -20px;
+            right: -20px;
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, rgba(234, 179, 8, 0.18) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* Logo wrapper in GoLive theme */
+        #cardPreview.golive-theme #glLogoWrapper {
+            background: rgba(255, 255, 255, 0.07);
+            border-radius: 10px;
+            padding: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        /* Brand text in GoLive theme */
+        #cardPreview.golive-theme #brandText {
+            color: #ffffff !important;
+        }
+
+        #cardPreview.golive-theme #brandText span {
+            color: #facc15 !important;
+        }
+
+        #cardPreview.golive-theme #brandSuffix {
+            color: rgba(250, 204, 21, 0.85) !important;
+            letter-spacing: 0.08em;
+        }
+
+        #cardPreview.golive-theme .gl-accent-line {
+            background: linear-gradient(90deg, #eab308, #facc15) !important;
+        }
+
+        #cardPreview.golive-theme #previewSlogan {
+            color: rgba(255, 255, 255, 0.75) !important;
+            font-size: 10.5px;
+        }
+
+        #cardPreview.golive-theme #previewSlogan span {
+            color: #facc15 !important;
+        }
+
+        /* Details column */
+        #cardPreview.golive-theme #glDetailsCol {
+            border-left: 2px solid rgba(0, 82, 204, 0.2) !important;
+        }
+
+        #cardPreview.golive-theme #previewName {
+            color: #00173d !important;
+        }
+
+        #cardPreview.golive-theme #previewDesignation {
+            color: #0052cc !important;
+            font-weight: 700;
+        }
+
+        #cardPreview.golive-theme #miniAccentLine {
+            background: linear-gradient(90deg, #0052cc, #eab308) !important;
+            height: 3px !important;
+            width: 48px !important;
+        }
+
+        /* Gold icon badges */
+        #cardPreview.golive-theme .gl-icon-badge {
+            background: linear-gradient(135deg, #00173d, #0052cc) !important;
+            color: #facc15 !important;
+            border: none;
+        }
+
+        /* QR section */
+        #cardPreview.golive-theme #glQrCol {
+            border-left: 2px solid rgba(0, 82, 204, 0.2) !important;
+        }
+
+        #cardPreview.golive-theme #glQrBox {
+            border: 2px solid #0052cc !important;
+            background: linear-gradient(135deg, #f0f4ff, #e8eeff) !important;
+            box-shadow: 0 4px 14px rgba(0, 82, 204, 0.15) !important;
+        }
+
+        #cardPreview.golive-theme #qrTitleText {
+            color: #475569 !important;
+        }
+
+        #cardPreview.golive-theme #qrSubtitleText {
+            color: #00173d !important;
+            font-weight: 800;
+        }
+
+        /* Footer confidentiality bar */
+        #cardPreview.golive-theme #glFooterBar {
+            background: linear-gradient(90deg, rgba(0, 23, 61, 0.05), rgba(0, 82, 204, 0.04)) !important;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 82, 204, 0.1);
+            padding: 8px 12px;
+        }
+
+        #cardPreview.golive-theme #glShieldIcon {
+            background: linear-gradient(135deg, #00173d, #0052cc);
+            color: #facc15;
+            border: none;
+        }
+
+        #cardPreview.golive-theme #glConfidentialLabel {
+            background: linear-gradient(90deg, #0052cc, #eab308);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Divider in golive */
+        #cardPreview.golive-theme #glDivider {
+            background: linear-gradient(90deg, #00173d, #0052cc 50%, #eab308) !important;
+            height: 2px !important;
+        }
+
+        /* ====== Mode Tabs ====== */
+        .mode-tab {
+            padding: 8px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            border: 2px solid transparent;
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        .mode-tab:hover {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .mode-tab.active {
+            background: var(--primary, #f37021);
+            color: #ffffff;
+            border-color: var(--primary, #f37021);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+        }
+
+        /* ====== High-Precision ID Card Canvas ====== */
+        .id-card-wrapper {
+            width: 336px;
+            aspect-ratio: 56 / 88;
+            position: relative;
+            border-radius: 0;
+            border: none;
+            overflow: hidden;
+            background: #ffffff;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45), 0 0 2px rgba(255, 255, 255, 0.2);
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+        }
+
+        .id-card-bg-layer {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .id-photo-upload {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            background: #f8fafc;
+        }
+
+        .id-photo-upload:hover {
+            border-color: var(--primary, #f37021);
+            background: #fff7ed;
+        }
+
+        .id-photo-upload.has-photo {
+            padding: 8px;
+            border-style: solid;
+            border-color: var(--primary, #f37021);
+            background: #fff7ed;
+        }
+
+        /* Scanner / Camera overlay */
+        .camera-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .camera-overlay video {
+            max-width: 90%;
+            max-height: 60vh;
+            border-radius: 12px;
+            border: 3px solid #fff;
+        }
+
+        .camera-overlay canvas {
+            display: none;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen text-slate-800 flex flex-col">
+
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div
+                    class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl brand-primary flex items-center justify-center text-white font-bold text-base sm:text-xl shadow-sm shrink-0">
+                    <i class="fa-solid fa-id-card"></i>
+                </div>
+                <div class="min-w-0">
+                    <h1 id="headerTitle"
+                        class="font-brand text-sm sm:text-lg font-bold text-slate-900 leading-tight truncate">OneBridge
+                        Template Generator</h1>
+                    <p id="headerSubtitle" class="text-[10px] sm:text-xs text-slate-500 hidden sm:block">Live Editor
+                        &bull; DOCX Exporter &bull; HTML Signature</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
+                <button id="copyHtmlBtn" onclick="copySignatureHTML()" title="Copy HTML"
+                    class="p-2 sm:px-3.5 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm sm:text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5">
+                    <i class="fa-regular fa-copy"></i>
+                    <span class="hidden sm:inline text-xs">Copy HTML</span>
+                </button>
+                <button id="downloadPngBtn" onclick="downloadAsPNG()" title="Export PNG"
+                    class="p-2 sm:px-3.5 sm:py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5">
+                    <i class="fa-regular fa-image"></i>
+                    <span class="hidden sm:inline text-xs">Export PNG</span>
+                </button>
+                <button id="generateDocxBtn" onclick="generateDOCX()" title="Download DOCX"
+                    class="p-2 sm:px-4 sm:py-2 button-primary text-sm font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5">
+                    <i class="fa-solid fa-file-word"></i>
+                    <span class="hidden sm:inline text-xs">Download .DOCX</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 lg:p-8">
+
+        <!-- Mode Switcher Tabs -->
+        <div class="flex items-center justify-center gap-3 mb-6">
+            <button class="mode-tab active" id="tabSignature" onclick="switchMode('signature')">
+                <i class="fa-solid fa-envelope mr-1"></i> Email Signature
+            </button>
+            <button class="mode-tab" id="tabIdCard" onclick="switchMode('idcard')">
+                <i class="fa-solid fa-id-card-clip mr-1"></i> ID Card Generator
+            </button>
+        </div>
+
+        <!-- ===== SIGNATURE MODE ===== -->
+        <div id="signatureMode" class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8">
+
+            <!-- Sidebar Input Controls -->
+            <div
+                class="lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-6 h-fit">
+                <div
+                    class="border-b border-slate-100 pb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 class="font-brand font-bold text-slate-900 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-sliders brand-primary"></i> Edit Template Fields
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">Changes immediately sync with preview & document
+                            export.
+                        </p>
+                    </div>
+                    <button onclick="resetDefaults()"
+                        class="text-xs brand-primary font-semibold hover:underline">Reset</button>
+                </div>
+
+                <!-- Form Fields -->
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label for="companySelector" class="block text-xs font-semibold text-slate-700 mb-1">Choose
+                            Company</label>
+                        <select id="companySelector" onchange="setCompany(this.value)"
+                            class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent bg-white"
+                            style="box-shadow: inset 0 0 0 1px #cbd5e1;">
+                            <option value="onebridge">OneBridge Infotech</option>
+                        </select>
+                    </div>
+                    <div class="sm:col-span-1">
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Active Company</label>
+                        <div id="companyNameTitle"
+                            class="px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-sm font-semibold text-slate-800">
+                            OneBridge Infotech</div>
+                    </div>
+                </div>
+
+                <!-- Form Fields -->
+                <div class="space-y-4">
+                    <!-- Name & Designation -->
+                    <div class="space-y-3 bg-accent p-3.5 rounded-xl border border-slate-200">
+                        <span class="text-xs font-bold brand-primary uppercase tracking-wider block">Primary
+                            Information</span>
+                        <div>
+                            <label for="inputName" class="block text-xs font-semibold text-slate-700 mb-1">Full
+                                Name</label>
+                            <input type="text" id="inputName" value="Avala Vinay" oninput="updatePreview()"
+                                class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A3D7A] focus:border-transparent bg-white">
+                        </div>
+
+                        <div>
+                            <label for="inputDesignation"
+                                class="block text-xs font-semibold text-slate-700 mb-1">Designation / Role</label>
+                            <input type="text" id="inputDesignation" value="Full Stack Developer"
+                                oninput="updatePreview()"
+                                class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A3D7A] focus:border-transparent bg-white">
+                        </div>
+                    </div>
+
+                    <!-- Contact Info -->
+                    <div class="space-y-4">
+                        <div>
+                            <label for="inputEmail" class="block text-xs font-semibold text-slate-700 mb-1">Email
+                                Address</label>
+                            <input type="email" id="inputEmail" value="info@onebridgeinfotech.com" oninput="updatePreview()"
+                                class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f97316] focus:border-transparent">
+                        </div>
+
+                        <div>
+                            <label for="inputPhone" class="block text-xs font-semibold text-slate-700 mb-1">Phone
+                                Number</label>
+                            <input type="text" id="inputPhone" value="+91 93983 55196" oninput="updatePreview()"
+                                class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f97316] focus:border-transparent">
+                        </div>
+
+                        <div>
+                            <label for="inputWebsite" class="block text-xs font-semibold text-slate-700 mb-1">Website
+                                URL</label>
+                            <input type="text" id="inputWebsite" value="www.onebridgeinfotech.com" oninput="updatePreview()"
+                                class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f97316] focus:border-transparent">
+                        </div>
+
+                        <div>
+                            <label for="inputAddress" class="block text-xs font-semibold text-slate-700 mb-1">Office
+                                Address</label>
+                            <textarea id="inputAddress" rows="2" oninput="updatePreview()"
+                                class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f97316] focus:border-transparent resize-none">#202, Sathyabama Complex, Bhagyanagar Colony, KPHB, Hyderabad, Telangana 500072</textarea>
+                        </div>
+
+                        <!-- Tagline & Slogan -->
+                        <div>
+                            <label for="inputSlogan" class="block text-xs font-semibold text-slate-700 mb-1">Company
+                                Slogan</label>
+                            <input type="text" id="inputSlogan" value="Your Success. Our Passion."
+                                oninput="updatePreview()"
+                                class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f97316] focus:border-transparent">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Asset Badges -->
+                <div class="pt-2 border-t border-slate-100">
+                    <label class="block text-xs font-semibold text-slate-700 mb-2">Embedded Visual Assets</label>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="p-2 border border-slate-200 rounded-lg flex items-center gap-2 bg-slate-50">
+                            <img id="thumbLogo" class="w-6 h-6 object-contain" alt="Logo">
+                            <span class="truncate text-slate-700 font-semibold text-[11px]">Logo + ® Badge</span>
+                        </div>
+                        <div class="p-2 border border-slate-200 rounded-lg flex items-center gap-2 bg-slate-50">
+                            <img id="thumbQr" class="w-6 h-6 object-contain" alt="QR">
+                            <span class="truncate text-slate-700 font-semibold text-[11px]">QR Code Ready</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-8 flex flex-col gap-4">
+
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span
+                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                            <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Live
+                            Preview
+                        </span>
+                        <span id="activeBrandLabel" class="text-xs text-slate-500 hidden sm:inline">OneBridge Infotech
+                            Signature</span>
+                    </div>
+                    <div class="text-xs text-slate-400 font-mono hidden sm:block">Dynamic Brand Switch</div>
+                </div>
+
+                <!-- Mobile scroll hint -->
+                <p class="text-[11px] text-slate-400 sm:hidden text-center">↔ Scroll sideways to view full signature</p>
+
+                <!-- ONEBRIDGE SIGNATURE CARD -->
+                <div id="onebridgeCard" style="display:none;">
+                    <div class="overflow-x-auto -mx-3 sm:mx-0 pb-2">
+                        <div class="bg-white rounded-xl card-shadow border border-slate-200 overflow-hidden p-4 sm:p-6 lg:p-8 relative"
+                            style="min-width:520px;">
+                            <!-- Orange top stripe -->
+                            <div
+                                style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg, #f37021 0%, #ea580c 50%, #c2410c 100%);border-radius:12px 12px 0 0;">
+                            </div>
+
+                            <div class="grid grid-cols-12 gap-4 items-center pb-6 mt-2">
+                                <!-- Col 1: OB Branding -->
+                                <div class="col-span-4 flex flex-col items-center justify-center text-center pr-3">
+                                    <div class="mb-3 flex items-center justify-center w-full" style="height:120px;">
+                                        <img id="obLogoImg" src="image.png" class="object-contain"
+                                            style="max-height:120px;" alt="OneBridge Logo">
+                                    </div>
+                                    <div class="font-black text-2xl tracking-tight font-brand leading-none"
+                                        style="color:#bb5f25;">ONE<span style="color:#202020;">BRIDGE</span></div>
+                                    <div class="flex items-center justify-center gap-1.5 my-1.5">
+                                        <div class="h-[1px] w-5" style="background:#f37021;"></div>
+                                        <span class="text-[9px] font-bold tracking-wider uppercase"
+                                            style="color:#202020;">INFOTECH PVT. LTD.</span>
+                                        <div class="h-[1px] w-5" style="background:#f37021;"></div>
+                                    </div>
+                                    <div class="w-28 h-[1px] my-2" style="background:#f37021;"></div>
+                                    <p id="obSlogan" class="text-xs font-medium text-slate-700"></p>
+                                </div>
+
+                                <!-- Col 2: OB Contact Details -->
+                                <div class="col-span-5 px-4 border-l border-slate-200 flex flex-col justify-center">
+                                    <h3 id="obName"
+                                        class="text-2xl sm:text-[26px] font-extrabold font-brand leading-tight tracking-tight"
+                                        style="color:#111827;">Avala Vinay</h3>
+                                    <p id="obDesignation" class="text-sm font-semibold mt-0.5" style="color:#f37021;">
+                                        Full Stack Developer</p>
+                                    <div class="w-9 h-[2px] rounded-full mt-2 mb-3.5" style="background:#f37021;"></div>
+                                    <div class="space-y-2.5">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0"
+                                                style="background:#FFF3EB;color:#f37021;"><i
+                                                    class="fa-solid fa-envelope"></i></div>
+                                            <span id="obEmail"
+                                                class="truncate font-medium text-[11.5px] text-slate-800"></span>
+                                        </div>
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0"
+                                                style="background:#FFF3EB;color:#f37021;"><i
+                                                    class="fa-solid fa-phone"></i></div>
+                                            <span id="obPhone" class="font-medium text-[11.5px] text-slate-800"></span>
+                                        </div>
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0"
+                                                style="background:#FFF3EB;color:#f37021;"><i
+                                                    class="fa-solid fa-globe"></i></div>
+                                            <span id="obWebsite"
+                                                class="font-medium text-[11.5px] text-slate-800"></span>
+                                        </div>
+                                        <div class="flex items-start gap-3">
+                                            <div class="w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0 mt-0.5"
+                                                style="background:#FFF3EB;color:#f37021;"><i
+                                                    class="fa-solid fa-location-dot"></i></div>
+                                            <span id="obAddress"
+                                                class="font-medium text-[11px] leading-snug text-slate-800"></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Col 3: OB QR Code -->
+                                <div
+                                    class="col-span-3 pl-3 border-l border-slate-200 flex flex-col items-center justify-center text-center">
+                                    <div class="p-2 border border-slate-200 rounded-xl bg-white shadow-sm mb-2">
+                                        <img id="obQrImg" src="image copy.png"
+                                            class="w-24 h-24 sm:w-28 sm:h-28 object-contain" alt="QR Code">
+                                    </div>
+                                    <span class="text-[11px] font-medium text-slate-700 leading-snug">Scan to
+                                        Visit<br><span class="font-bold text-slate-900">Our Website</span></span>
+                                    <div class="w-6 h-[2px] rounded-full mt-2" style="background:#f37021;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Divider -->
+                            <div class="w-full h-[1px] bg-slate-200 my-1"></div>
+
+                            <!-- Footer -->
+                            <div class="pt-4 flex items-center gap-4 text-left">
+                                <div class="flex items-center gap-2.5 shrink-0 border-r border-slate-200 pr-4">
+                                    <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0"
+                                        style="border:1px solid #f37021;color:#f37021;background:#fff;">
+                                        <i class="fa-solid fa-shield-halved"></i>
+                                    </div>
+                                    <span class="text-[10px] font-extrabold tracking-wider uppercase"
+                                        style="color:#f37021;">CONFIDENTIALITY NOTICE</span>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="text-[9.5px] text-slate-500 leading-normal">This email and any attachments
+                                        are confidential and intended solely for the named recipient. If you received
+                                        this email in error, please notify the sender and delete it.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div><!-- /overflow-x-auto -->
+                </div>
+
+                <!-- GOLIVE CLASSES SIGNATURE CARD -->
+                <div id="goliveCard" style="display:block;">
+                    <div class="overflow-x-auto -mx-3 sm:mx-0 pb-2">
+                        <div class="rounded-xl overflow-hidden relative"
+                            style="background:#ffffff;border:1.5px solid #c7d7f8;box-shadow:0 12px 40px -8px rgba(0,82,204,0.14),0 4px 16px -4px rgba(0,23,61,0.08);min-width:520px;">
+                            <!-- Premium top stripe: thin gold-to-blue gradient -->
+                            <div
+                                style="height:4px;background:linear-gradient(90deg,#1e40af 0%,#3b82f6 45%,#eab308 75%,#facc15 100%);">
+                            </div>
+
+                            <div class="p-6 sm:p-8">
+                                <div class="grid grid-cols-12 gap-4 items-center pb-6">
+
+                                    <!-- Col 1: GoLive Branding — light premium panel -->
+                                    <div class="col-span-4 flex flex-col items-center justify-center text-center rounded-xl px-3 py-4 relative overflow-hidden"
+                                        style="background:linear-gradient(160deg,#dbeafe 0%,#eff6ff 60%,#f0f9ff 100%);border:1.5px solid #bfdbfe;">
+                                        <!-- Decorative top-left corner accent -->
+                                        <div
+                                            style="position:absolute;top:0;left:0;width:40px;height:40px;background:linear-gradient(135deg, rgba(30,64,175,0.1) 0%, rgba(255,255,255,0) 100%);border-radius:0 0 100% 0;pointer-events:none;">
+                                        </div>
+                                        <!-- Decorative bottom-right corner gold -->
+                                        <div
+                                            style="position:absolute;bottom:0;right:0;width:40px;height:40px;background:linear-gradient(315deg, rgba(234,179,8,0.12) 0%, rgba(255,255,255,0) 100%);border-radius:100% 0 0 0;pointer-events:none;">
+                                        </div>
+
+                                        <!-- Logo: clean white card with elegant border -->
+                                        <div class="mb-3 flex items-center justify-center w-full rounded-xl p-2"
+                                            style="background:#ffffff;border:1.5px solid #dbeafe;box-shadow:0 2px 12px rgba(30,64,175,0.10);">
+                                            <img id="glLogoImg" src="image-1784886273966.png"
+                                                class="object-contain w-full" style="max-height:120px;display:block;"
+                                                alt="GoLive Classes Logo">
+                                        </div>
+
+                                        <!-- Brand name -->
+                                        <div class="font-black text-xl tracking-tight font-brand leading-none"
+                                            style="color:#1e3a8a;">GoLive <span style="color:#d97706;">Classes</span>
+                                        </div>
+                                        <div class="flex items-center justify-center gap-1.5 my-1.5">
+                                            <div class="h-[1px] w-4"
+                                                style="background:linear-gradient(90deg, #1e40af 0%, #3b82f6 100%);"></div>
+                                            <span class="text-[8px] font-bold tracking-wider uppercase"
+                                                style="color:#1e40af;">Accelerate Your Learning</span>
+                                            <div class="h-[1px] w-4"
+                                                style="background:linear-gradient(90deg, #3b82f6 0%, #1e40af 100%);"></div>
+                                        </div>
+                                        <div class="w-24 my-1.5"
+                                            style="height:1.5px;background:linear-gradient(90deg, #1e40af 0%, #eab308 100%);border-radius:2px;">
+                                        </div>
+                                        <p id="glSlogan" class="text-[10px] font-semibold" style="color:#1e3a8a;"></p>
+                                    </div>
+
+                                    <!-- Col 2: GoLive Contact Details -->
+                                    <div class="col-span-5 px-4 flex flex-col justify-center"
+                                        style="border-left:2px solid #bfdbfe;">
+                                        <h3 id="glName"
+                                            class="text-2xl sm:text-[26px] font-extrabold font-brand leading-tight tracking-tight"
+                                            style="color:#0f172a;">Avala Vinay</h3>
+                                        <p id="glDesignation" class="text-sm font-bold mt-0.5" style="color:#1e40af;">
+                                            Full Stack Developer</p>
+                                        <div class="rounded-full mt-2 mb-3.5"
+                                            style="width:48px;height:2.5px;background:linear-gradient(90deg, #1e40af 0%, #eab308 100%);">
+                                        </div>
+                                        <div class="space-y-2.5">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0"
+                                                    style="background:linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);color:#fbbf24;">
+                                                    <i class="fa-solid fa-envelope"></i>
+                                                </div>
+                                                <span id="glEmail"
+                                                    class="truncate font-medium text-[11.5px] text-slate-700"></span>
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0"
+                                                    style="background:linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);color:#fbbf24;">
+                                                    <i class="fa-solid fa-phone"></i>
+                                                </div>
+                                                <span id="glPhone"
+                                                    class="font-medium text-[11.5px] text-slate-700"></span>
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0"
+                                                    style="background:linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);color:#fbbf24;">
+                                                    <i class="fa-solid fa-globe"></i>
+                                                </div>
+                                                <span id="glWebsite"
+                                                    class="font-medium text-[11.5px] text-slate-700"></span>
+                                            </div>
+                                            <div class="flex items-start gap-3">
+                                                <div class="w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0 mt-0.5"
+                                                    style="background:linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);color:#fbbf24;">
+                                                    <i class="fa-solid fa-location-dot"></i>
+                                                </div>
+                                                <span id="glAddress"
+                                                    class="font-medium text-[11px] leading-snug text-slate-700"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Col 3: GoLive QR Code -->
+                                    <div class="col-span-3 pl-3 flex flex-col items-center justify-center text-center"
+                                        style="border-left:2px solid #bfdbfe;">
+                                        <div class="p-2 rounded-xl mb-2"
+                                            style="border:1.5px solid #3b82f6;background:#ffffff;box-shadow:0 4px 14px rgba(30,64,175,0.10);">
+                                            <img id="glQrImg" src="GoLiveClasses_QR_Code.png"
+                                                class="w-24 h-24 sm:w-28 sm:h-28 object-contain" alt="GoLive QR Code">
+                                        </div>
+                                        <span class="text-[11px] font-medium leading-snug" style="color:#475569;">Scan
+                                            to Join<br><span class="font-extrabold" style="color:#1e3a8a;">GoLive
+                                                Classes</span></span>
+                                        <div class="rounded-full mt-2"
+                                            style="width:24px;height:2px;background:linear-gradient(90deg, #1e40af 0%, #eab308 100%);">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Elegant gradient divider -->
+                                <div class="my-1"
+                                    style="height:1.5px;background:linear-gradient(90deg, #1e40af 0%, #3b82f6 50%, #eab308 100%);border-radius:2px;opacity:0.5;">
+                                </div>
+
+                                <!-- Footer confidentiality bar -->
+                                <div class="pt-3 flex items-center gap-4 text-left rounded-lg"
+                                    style="background:linear-gradient(90deg, rgba(30,64,175,0.04) 0%, rgba(59,130,246,0.03) 100%);border:1px solid #dbeafe;padding:8px 12px;">
+                                    <div class="flex items-center gap-2.5 shrink-0 border-r border-slate-200 pr-4">
+                                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0"
+                                            style="background:linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);color:#fbbf24;">
+                                            <i class="fa-solid fa-shield-halved"></i>
+                                        </div>
+                                        <span class="text-[10px] font-extrabold tracking-wider uppercase"
+                                            style="background:linear-gradient(90deg,#1e40af,#d97706);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">CONFIDENTIALITY
+                                            NOTICE</span>
+                                    </div>
+                                    <div class="flex-1">
+                                        <p class="text-[9.5px] text-slate-500 leading-normal">This email and any
+                                            attachments are confidential and intended solely for the named recipient. If
+                                            you received this email in error, please notify the sender and delete it.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div><!-- /inner card -->
+                    </div><!-- /overflow-x-auto -->
+                </div>
+
+                <!-- Instructions & Download Banner -->
+                <div
+                    class="bg-slate-900 text-white p-4 sm:p-5 rounded-2xl flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mt-1">
+                    <div class="space-y-0.5 text-center sm:text-left">
+                        <h4
+                            class="font-brand font-bold text-sm flex items-center justify-center sm:justify-start gap-2">
+                            <i class="fa-solid fa-file-contract brand-primary"></i> Ready for Word &amp; Outlook
+                        </h4>
+                        <p class="text-xs text-slate-400 hidden sm:block">Generates a fully formatted Word `.docx` file
+                            with embedded images, matching tables, and typography.</p>
+                    </div>
+                    <div class="flex items-center justify-center gap-2 shrink-0">
+                        <button onclick="downloadAsPNG()"
+                            class="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all border border-slate-700">
+                            <i class="fa-regular fa-image mr-1"></i> Save PNG
+                        </button>
+                        <button onclick="generateDOCX()"
+                            class="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 button-primary font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-download text-sm"></i> Download .DOCX
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Notification Toast -->
+                <div id="toast"
+                    class="fixed bottom-6 right-6 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-2xl transition-all duration-300 transform translate-y-20 opacity-0 flex items-center gap-2.5 z-50">
+                    <i id="toastIcon" class="fa-solid fa-check-circle text-emerald-400 text-base"></i>
+                    <span id="toastMessage">Action completed successfully!</span>
+                </div>
+
+            </div>
+        </div><!-- /signatureMode -->
+
+        <!-- ===== ID CARD MODE ===== -->
+        <div id="idCardMode" style="display:none;" class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8">
+
+            <!-- ID Card Form Sidebar -->
+            <div
+                class="lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-5 h-fit">
+                <div class="border-b border-slate-100 pb-3">
+                    <h2 class="font-brand font-bold text-slate-900 text-base flex items-center gap-2">
+                        <i class="fa-solid fa-id-card-clip brand-primary"></i> ID Card Fields
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Fill details and upload a photo. Preview updates live.</p>
+                </div>
+
+                <!-- Company Logo Upload -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-2">Company Logo</label>
+                    <div id="idLogoUpload" class="id-photo-upload"
+                        onclick="document.getElementById('idLogoInput').click()">
+                        <input type="file" id="idLogoInput" accept="image/*" style="display:none;"
+                            onchange="handleIdLogo(event)">
+                        <div id="idLogoPlaceholder">
+                            <i class="fa-solid fa-image text-2xl text-slate-300 mb-1"></i>
+                            <p class="text-xs text-slate-500 font-medium">Click to upload logo</p>
+                        </div>
+                        <img id="idLogoPreview"
+                            style="display:none;max-height:80px;max-width:100%;border-radius:8px;object-fit:contain;"
+                            alt="Logo Preview">
+                    </div>
+                </div>
+
+                <!-- Photo Upload -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-2">Employee Photo</label>
+                    <div id="idPhotoUpload" class="id-photo-upload"
+                        onclick="document.getElementById('idPhotoInput').click()">
+                        <input type="file" id="idPhotoInput" accept="image/*" style="display:none;"
+                            onchange="handleIdPhoto(event)">
+                        <div id="idPhotoPlaceholder">
+                            <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-300 mb-2"></i>
+                            <p class="text-xs text-slate-500 font-medium">Click to upload photo</p>
+                            <p class="text-[10px] text-slate-400 mt-1">or use camera below</p>
+                        </div>
+                        <img id="idPhotoPreview" style="display:none;max-height:120px;border-radius:8px;" alt="Preview">
+                    </div>
+                    <div class="flex gap-2 mt-2">
+                        <button onclick="openCamera()"
+                            class="flex-1 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 transition-colors">
+                            <i class="fa-solid fa-camera mr-1"></i> Camera
+                        </button>
+                        <button onclick="clearIdPhoto()"
+                            class="flex-1 text-xs font-semibold px-3 py-2 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 transition-colors">
+                            <i class="fa-solid fa-xmark mr-1"></i> Remove
+                        </button>
+                    </div>
+                </div>
+
+                <!-- QR / Scanner Upload -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-2">QR / Scanner Code</label>
+                    <label
+                        class="flex items-center gap-2 text-xs font-semibold bg-white border border-slate-300 rounded-lg py-2.5 px-3 hover:bg-slate-50 transition-colors cursor-pointer">
+                        <i class="fa-solid fa-upload text-slate-400"></i> <span>Choose QR Image (manual)</span>
+                        <input type="file" accept="image/*" class="hidden" onchange="handleQrUpload(event)">
+                    </label>
+                    <p class="text-[10px] text-slate-400 mt-1">Upload any QR code image you already generated.</p>
+                </div>
+
+                <!-- Footer Tagline -->
+                <div>
+                    <label for="inputIdTagline" class="block text-xs font-semibold text-slate-700 mb-1">Footer
+                        Tagline</label>
+                    <input type="text" id="inputIdTagline" value="INNOVATE | AUTOMATE | TRANSFORM"
+                        oninput="updateIdCardPreview()"
+                        class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A3D7A] bg-white">
+                </div>
+
+                <!-- Employee Details -->
+                <div class="space-y-3 bg-accent p-3.5 rounded-xl border border-slate-200">
+                    <span class="text-xs font-bold brand-primary uppercase tracking-wider block">Employee Details</span>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
+                        <input type="text" id="idNameInput" value="Uday Kumar C" oninput="updateIdCardPreview()"
+                            class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A3D7A] bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Designation</label>
+                        <input type="text" id="idDesignationInput" value="Managing Director & CEO"
+                            oninput="updateIdCardPreview()"
+                            class="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A3D7A] bg-white">
+                    </div>
+                </div>
+
+                <!-- Export Buttons -->
+                <div class="flex gap-2 pt-2 border-t border-slate-100">
+                    <button onclick="downloadIdCardPNG()"
+                        class="flex-1 px-4 py-2.5 button-primary font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-download"></i> Export ID Card PNG
+                    </button>
+                </div>
+            </div>
+
+            <!-- ID Card Preview Area -->
+            <div class="lg:col-span-8 flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span
+                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                            <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-blue-500 animate-pulse"></span> Live Preview
+                        </span>
+                        <span id="idActiveBrandLabel" class="text-xs text-slate-500 hidden sm:inline">OneBridge Employee
+                            ID Card</span>
+                    </div>
+                    <div class="text-xs text-slate-400 font-mono hidden sm:block">Portrait ID Card (88 x 56 mm)</div>
+                </div>
+
+                <!-- ID Card Preview -->
+                <div class="flex items-center justify-center p-6 sm:p-10"
+                    style="background:linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);border-radius:16px;min-height:580px;">
+                    <div id="idCardPreview" class="id-card-wrapper" style="--idc-primary:#f97316; --idc-dark:#334155;">
+
+                        <!-- SVG Layer: Side Ribbons, Charcoal Wings, Skyline Vector & Orange Border Contour -->
+                        <svg class="id-card-bg-layer" viewBox="0 0 640 1010" preserveAspectRatio="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <pattern id="dotPattern" x="0" y="0" width="22" height="22"
+                                    patternUnits="userSpaceOnUse">
+                                    <circle cx="6" cy="6" r="2.8" fill="var(--idc-primary)" opacity="0.75" />
+                                </pattern>
+                                <linearGradient id="skylineFade" x1="0%" y1="100%" x2="0%" y2="0%">
+                                    <stop offset="0" stop-color="#ffffff" stop-opacity="0.22" />
+                                    <stop offset="1" stop-color="#ffffff" stop-opacity="0.03" />
+                                </linearGradient>
+                            </defs>
+                            <rect x="0" y="0" width="640" height="1010" fill="#ffffff" />
+                            <rect x="15" y="20" width="160" height="140" fill="url(#dotPattern)" />
+                            <g fill="none" stroke="var(--idc-primary)" stroke-width="2" opacity="0.20">
+                                <circle cx="720" cy="-40" r="260" />
+                                <circle cx="720" cy="-40" r="200" />
+                                <circle cx="720" cy="-40" r="140" />
+                                <circle cx="720" cy="-40" r="80" />
+                            </g>
+                            <path d="M 0,280 L 75,370 L 75,640 L 150,830 L 150,950 L 0,950 Z"
+                                fill="var(--idc-dark)" />
+                            <path d="M 640,280 L 565,370 L 565,640 L 490,830 L 490,950 L 640,950 Z"
+                                fill="var(--idc-dark)" />
+                            <g stroke="url(#skylineFade)" stroke-width="2" fill="none">
+                                <path
+                                    d="M 10,950 V 710 H 25 V 950 M 30,950 V 680 H 45 V 950 M 50,950 V 740 H 65 V 950 M 70,950 V 780 H 80 V 950" />
+                                <path
+                                    d="M 15,720 H 22 M 15,740 H 22 M 35,695 H 42 M 35,715 H 42 M 35,735 H 42 M 35,755 H 42" />
+                                <path
+                                    d="M 560,950 V 780 H 570 V 950 M 575,950 V 740 H 590 V 950 M 595,950 V 680 H 610 V 950 M 615,950 V 710 H 630 V 950" />
+                                <path
+                                    d="M 578,695 H 587 M 578,715 H 587 M 578,735 H 587 M 598,720 H 607" />
+                            </g>
+                            <path d="M 0,280 L 75,370 L 60,430 L 0,350 Z" fill="var(--idc-primary)" />
+                            <path d="M 0,350 L 60,430 L 0,660 Z" fill="var(--idc-primary)" opacity="0.85" />
+                            <path d="M 640,280 L 565,370 L 580,430 L 640,350 Z" fill="var(--idc-primary)" />
+                            <path d="M 640,350 L 580,430 L 640,660 Z" fill="var(--idc-primary)" opacity="0.85" />
+                            <path
+                                d="M 0,280 L 75,370 L 75,640 L 150,830 L 150,950 L 490,950 L 490,830 L 565,640 L 565,370 L 640,280"
+                                fill="none" stroke="var(--idc-primary)" stroke-width="12" stroke-linejoin="round"
+                                stroke-linecap="round" />
+                            <rect x="0" y="942" width="640" height="68" fill="var(--idc-primary)" />
+                        </svg>
+
+
+
+                        <!-- Main Content Column -->
+                        <div style="
+position:relative;
+z-index:5;
+display:flex;
+flex-direction:column;
+align-items:center;
+text-align:center;
+padding:30px 18px 0;
+height:calc(100% - 60px);
+box-sizing:border-box;
+">
+                            <div id="idLogoWrap" style="
+        height:90px;
+        width:200px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        margin:0 auto 0;
+        background:transparent;
+        mix-blend-mode:multiply;
+        position:relative;
+        z-index:20;
+    ">
+                            </div>
+                            <div id="idBrandName" class="font-brand"
+                                style="font-weight:800; font-size:20px; letter-spacing:-0.02em; white-space:nowrap; margin-top:0; margin-bottom:10px;">
+                                <span style="color:var(--idc-primary);">Onebridge</span> <span
+                                    style="color:#111827;">Infotech</span>
+                            </div>
+                            <div style="
+    width:140px;
+    height:140px;
+    margin:0 auto 5px;
+    padding:4px;
+    border:6px solid var(--idc-primary);
+    border-radius:50%;
+    background:#ffffff;
+    position:relative;
+    overflow:hidden;
+    flex-shrink:0;
+    box-shadow:0 12px 24px rgba(0,0,0,.15);
+">
+
+                                <img id="idPhotoImg" style="
+        position:absolute;
+        top:4px;
+        left:4px;
+        width:calc(100% - 8px);
+        height:calc(100% - 8px);
+        border-radius:50%;
+        object-fit:cover;
+        object-position:center top;
+        display:none;
+        z-index:2;
+     " alt="ID Photo">
+
+                                <div id="idPhotoPlaceholderCard" style="
+            position:absolute;
+            top:4px;
+            left:4px;
+            width:calc(100% - 8px);
+            height:calc(100% - 8px);
+            border-radius:50%;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            background:#f8fafc;
+            z-index:1;
+        ">
+                                    <i class="fa-solid fa-user" style="font-size:60px;color:#cbd5e1;"></i>
+                                </div>
+
+                            </div>
+                            <h3 id="idName" class="font-brand"
+                                style="margin-top:5px; font-weight:800; font-size:24px; line-height:1.1;margin-bottom: 2px; text-align:center; padding:0 12px; color:#0f172a;">
+                                Uday Kumar C</h3>
+                            <div
+                                style="width:50px; height:3px; border-radius:2px; background:var(--idc-primary); margin:6px 0 6px 0;">
+                            </div>
+                            <p id="idDesignation" style="
+    font-size:11px;
+    font-weight:600;
+    color:#334155;
+    line-height:1.2;
+    text-align:center;
+    max-width:200px;
+    margin:0 auto 10px;
+    word-wrap:break-word;
+">
+                                Managing Director &amp; CEO
+                            </p>
+                            <!-- QR Code -->
+                            <div style="
+margin-top:5px;
+display:flex;
+justify-content:center;
+align-items:center;
+position:relative;
+z-index:20;
+flex-shrink:0;
+">
+
+                                <div style="
+    width:90px;
+    height:90px;
+    padding:6px;
+    background:#fff;
+    border-radius:10px;
+    border:1px solid #e2e8f0;
+    box-shadow:0 8px 16px rgba(0,0,0,.1);
+    ">
+
+                                    <img id="idQrImg" style="width:100%;height:100%;object-fit:contain;display:none;"
+                                        alt="QR Code">
+
+                                    <i id="idQrPlaceholderCard" class="fa-solid fa-qrcode text-slate-300"
+                                        style="font-size:42px;line-height:78px;width:100%;text-align:center;"></i>
+
+                                </div>
+
+                            </div>
+
+                        </div> <!-- Close Main Content Column -->
+
+                        <!-- Footer -->
+                        <div style="
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:0;
+    height:36px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:30;
+    padding-bottom: 24px;
+">
+                            <span id="idTagline" style="
+            color:#ffffff;
+            font-size:10px;
+            font-weight:600;
+            letter-spacing:0.12em;
+            text-transform:uppercase;
+            white-space:nowrap;
+          ">
+                                INNOVATE &nbsp; | &nbsp; AUTOMATE &nbsp; | &nbsp; TRANSFORM
+                            </span>
+                        </div>
+
+                    </div> <!-- Close idCardPreview -->
+                </div> <!-- Close preview wrapper -->
+
+                <!-- Info Banner -->
+                <div
+                    class="bg-slate-900 text-white p-4 sm:p-5 rounded-2xl flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    <div class="space-y-0.5 text-center sm:text-left">
+                        <h4
+                            class="font-brand font-bold text-sm flex items-center justify-center sm:justify-start gap-2">
+                            <i class="fa-solid fa-id-card brand-primary"></i> Corporate ID Card Generator
+                        </h4>
+                        <p class="text-xs text-slate-400 hidden sm:block">Upload employee photo, fill details, and
+                            export as high-res PNG. Switch companies using the dropdown above.</p>
+                    </div>
+                    <div class="flex items-center justify-center gap-2 shrink-0">
+                        <button onclick="downloadIdCardPNG()"
+                            class="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 button-primary font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-download text-sm"></i> Export PNG
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /idCardMode -->
+
+    </main>
+
+    <script>
+        const COMPANY_CONFIG = {
+            onebridge: {
+                label: 'OneBridge Infotech',
+                logo: 'image.png',
+                qr: 'image copy.png',
+                brandSuffix: 'INFOTECH PVT. LTD.',
+                sloganDefault: 'Your Success. Our Passion.',
+                websiteDefault: 'www.onebridgeinfotech.com',
+                emailDefault: 'info@onebridgeinfotech.com',
+                phoneDefault: '+91 93983 55196',
+                addressDefault: '#202, Sathyabama Complex, Bhagyanagar Colony, KPHB, Hyderabad, Telangana 500072',
+                qrTitle: 'Scan to Visit',
+                qrSubtitle: 'Our Website',
+                primaryColor: '#f97316',
+                secondaryColor: '#334155',
+                accentBg: '#FFF3EB',
+                buttonHover: '#ea580c',
+                filePrefix: 'OneBridge',
+                logoHeight: 200,
+                headerTitle: 'OneBridge Template Generator',
+                headerSubtitle: 'Live Editor \u2022 DOCX Exporter \u2022 HTML Signature',
+                idcardDark: '#334155',
+                idTaglineDefault: 'INNOVATE   |   AUTOMATE   |   TRANSFORM',
+                idBrandHTML: '<span style="color:var(--idc-primary);">Onebridge</span> <span style="color:#334155;">Infotech</span>',
+                idLogoSVG: '<svg width="150" height="130" viewBox="0 0 120 96" xmlns="http://www.w3.org/2000/svg"><path d="M6,74 Q32,20 58,74 Z" fill="#f97316"/><path d="M40,74 Q66,32 94,74 Z" fill="#334155"/><circle cx="95" cy="20" r="10" fill="#f97316"/><text x="107" y="14" font-size="9" font-family="Arial" fill="#334155" font-weight="700">\u00AE</text></svg>'
+            },
+            golive: {
+                label: 'GoLive Classes',
+                logo: 'image-1784886273966.png',
+                qr: 'GoLiveClasses_QR_Code.png',
+                brandSuffix: 'Accelerate Your Learning',
+                sloganDefault: 'Learn Fast. Succeed Faster.',
+                websiteDefault: 'www.goliveclasses.co',
+                emailDefault: 'info@goliveclasses.co',
+                phoneDefault: '+91 9398355196',
+                addressDefault: 'Plot No:41, Survey No:331, Bachupally, Hyderabad, India-500090',
+                qrTitle: 'Scan to Join',
+                qrSubtitle: 'GoLive Classes',
+                primaryColor: '#0A3D7A',
+                secondaryColor: '#1E5EA8',
+                accentBg: '#FFFFFF',
+                buttonHover: '#0A3D7A',
+                filePrefix: 'GoLiveClasses',
+                logoHeight: 150,
+                headerTitle: 'GoLive Classes Signature Generator',
+                headerSubtitle: 'Premium Corporate Email Signature \u2022 Live Editor \u2022 Export',
+                idcardDark: '#00173d',
+                idTaglineDefault: 'LEARN   |   PRACTICE   |   SUCCEED',
+                idBrandHTML: '<span style="color:#0A3D7A;">GoLive</span> <span style="color:#d97706;">Classes</span>',
+                idLogoSVG: '<svg width="70" height="70" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg"><circle cx="48" cy="48" r="44" fill="none" stroke="#0A3D7A" stroke-width="4"/><text x="48" y="58" font-size="30" font-family="Outfit, Arial" font-weight="800" fill="#0A3D7A" text-anchor="middle">GL</text><circle cx="80" cy="20" r="7" fill="#eab308"/></svg>'
+            }
+        };
+
+        let selectedCompany = 'onebridge';
+        let idPhotoDataUrl = null;
+        let cameraStream = null;
+
+        function applyTheme(config) {
+            document.documentElement.style.setProperty('--primary', config.primaryColor);
+            document.documentElement.style.setProperty('--secondary', config.secondaryColor);
+            document.documentElement.style.setProperty('--accent-bg', config.accentBg);
+            document.documentElement.style.setProperty('--button-hover', config.buttonHover);
+        }
+
+        function setCompany(companyId) {
+            selectedCompany = companyId;
+            const config = COMPANY_CONFIG[companyId];
+
+            applyTheme(config);
+            document.getElementById('companyNameTitle').innerText = config.label;
+            document.getElementById('companySelector').value = companyId;
+
+            document.getElementById('onebridgeCard').style.display = (companyId === 'onebridge') ? 'block' : 'none';
+            if (document.getElementById('goliveCard')) document.getElementById('goliveCard').style.display = (companyId === 'golive') ? 'block' : 'none';
+
+            document.getElementById('headerTitle').innerText = config.headerTitle;
+            document.getElementById('headerSubtitle').innerText = config.headerSubtitle;
+            document.getElementById('activeBrandLabel').innerText = config.label + ' Signature';
+
+            document.getElementById('thumbLogo').src = config.logo;
+            document.getElementById('thumbQr').src = config.qr;
+
+            document.getElementById('inputSlogan').value = config.sloganDefault;
+            document.getElementById('inputWebsite').value = config.websiteDefault;
+            document.getElementById('inputEmail').value = config.emailDefault;
+            document.getElementById('inputPhone').value = config.phoneDefault;
+            document.getElementById('inputAddress').value = config.addressDefault;
+
+            document.getElementById('idCardPreview').style.setProperty('--idc-primary', config.primaryColor);
+            document.getElementById('idCardPreview').style.setProperty('--idc-dark', config.idcardDark);
+            document.getElementById('idLogoWrap').innerHTML = config.idLogoSVG;
+            document.getElementById('idBrandName').innerHTML = config.idBrandHTML;
+            document.getElementById('inputIdTagline').value = config.idTaglineDefault;
+            document.getElementById('idActiveBrandLabel').innerText = config.label + ' Employee ID Card';
+
+            updatePreview();
+            updateIdCardPreview();
+        }
+
+        window.addEventListener('DOMContentLoaded', function () {
+            setCompany('onebridge');
+        });
+
+        function updatePreview() {
+            const config = COMPANY_CONFIG[selectedCompany];
+            const name = document.getElementById('inputName').value || 'Avala Vinay';
+            const designation = document.getElementById('inputDesignation').value || 'Full Stack Developer';
+            const email = document.getElementById('inputEmail').value || config.emailDefault;
+            const phone = document.getElementById('inputPhone').value || config.phoneDefault;
+            const website = document.getElementById('inputWebsite').value || config.websiteDefault;
+            const address = document.getElementById('inputAddress').value || config.addressDefault;
+            const slogan = document.getElementById('inputSlogan').value || config.sloganDefault;
+
+            const p = (selectedCompany === 'golive') ? 'gl' : 'ob';
+            document.getElementById(p + 'Name').innerText = name;
+            document.getElementById(p + 'Designation').innerText = designation;
+            document.getElementById(p + 'Email').innerText = email;
+            document.getElementById(p + 'Phone').innerText = phone;
+            document.getElementById(p + 'Website').innerText = website;
+            document.getElementById(p + 'Address').innerText = address;
+
+            const parts = slogan.split('.');
+            const sloganEl = document.getElementById(p + 'Slogan');
+            if (parts.length >= 2) {
+                sloganEl.innerHTML = parts[0] + '. <span style="font-weight:700;color:' + (selectedCompany === 'golive' ? '#facc15' : config.primaryColor) + '">' + parts.slice(1).join('.') + '</span>';
+            } else {
+                sloganEl.innerText = slogan;
+            }
+        }
+
+        function resetDefaults() {
+            const config = COMPANY_CONFIG[selectedCompany];
+            document.getElementById('inputName').value = 'Avala Vinay';
+            document.getElementById('inputDesignation').value = 'Full Stack Developer';
+            document.getElementById('inputEmail').value = config.emailDefault;
+            document.getElementById('inputPhone').value = config.phoneDefault;
+            document.getElementById('inputWebsite').value = config.websiteDefault;
+            document.getElementById('inputAddress').value = config.addressDefault;
+            document.getElementById('inputSlogan').value = config.sloganDefault;
+            updatePreview();
+            showToast('Form fields reset to defaults.');
+        }
+
+        function showToast(msg, isSuccess) {
+            if (isSuccess === undefined) isSuccess = true;
+            var toast = document.getElementById('toast');
+            var toastMsg = document.getElementById('toastMessage');
+            var toastIcon = document.getElementById('toastIcon');
+            toastMsg.innerText = msg;
+            toastIcon.className = isSuccess
+                ? "fa-solid fa-check-circle text-emerald-400 text-base"
+                : "fa-solid fa-triangle-exclamation text-amber-400 text-base";
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(function () {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3200);
+        }
+
+        function copySignatureHTML() {
+            var cardId = (selectedCompany === 'golive') ? 'goliveCard' : 'onebridgeCard';
+            var card = document.getElementById(cardId);
+            var range = document.createRange();
+            range.selectNode(card);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+            try {
+                document.execCommand('copy');
+                showToast('Signature copied! Paste into Email / Outlook settings');
+            } catch (err) {
+                showToast('Failed to copy automatically. Please select manually.', false);
+            }
+            window.getSelection().removeAllRanges();
+        }
+
+        function downloadAsPNG() {
+            showToast('Rendering PNG image...');
+            var cardId = (selectedCompany === 'golive') ? 'goliveCard' : 'onebridgeCard';
+            var card = document.getElementById(cardId);
+
+            // html2canvas crashes on gradients with non-finite color stop values.
+            // Workaround: temporarily replace all gradient backgrounds with a solid fallback.
+            var saved = [];
+            var allEls = card.querySelectorAll('*');
+            allEls.forEach(function (el) {
+                var bg = getComputedStyle(el).backgroundImage;
+                if (bg && bg.indexOf('gradient') !== -1) {
+                    saved.push({ el: el, orig: el.style.backgroundImage });
+                    // Extract the first hex/rgb color from the gradient as a solid fallback
+                    var colorMatch = bg.match(/#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)/);
+                    el.style.backgroundImage = 'none';
+                    if (colorMatch) {
+                        el.style.backgroundColor = colorMatch[0];
+                    }
+                }
+            });
+            // Also handle the card's own background
+            var cardBg = getComputedStyle(card).backgroundImage;
+            if (cardBg && cardBg.indexOf('gradient') !== -1) {
+                saved.push({ el: card, orig: card.style.backgroundImage });
+                var cardColorMatch = cardBg.match(/#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)/);
+                card.style.backgroundImage = 'none';
+                if (cardColorMatch) {
+                    card.style.backgroundColor = cardColorMatch[0];
+                }
+            }
+
+            html2canvas(card, { scale: 2, useCORS: true, backgroundColor: '#ffffff' }).then(function (canvas) {
+                // Restore all original backgrounds
+                saved.forEach(function (s) { s.el.style.backgroundImage = s.orig; });
+                var name = document.getElementById('inputName').value || 'Avala_Vinay';
+                var config = COMPANY_CONFIG[selectedCompany];
+                var fileName = name.replace(/\s+/g, '_') + '_' + config.filePrefix + '_Signature.png';
+                canvas.toBlob(function (blob) {
+                    if (blob) {
+                        saveAs(blob, fileName);
+                        showToast('PNG image downloaded!');
+                    } else {
+                        showToast('Failed to create PNG blob.', false);
+                    }
+                }, 'image/png');
+            }).catch(function (err) {
+                // Restore even on failure
+                saved.forEach(function (s) { s.el.style.backgroundImage = s.orig; });
+                console.error(err);
+                showToast('Failed to export PNG.', false);
+            });
+        }
+
+        function dataURLToUint8Array(dataUrl) {
+            var base64 = dataUrl.split(',')[1];
+            var binaryString = window.atob(base64);
+            var bytes = new Uint8Array(binaryString.length);
+            for (var i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+            return bytes;
+        }
+
+        function loadImageAsUint8Array(url, width, height) {
+            return new Promise(function (resolve, reject) {
+                var img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = function () {
+                    var canvas = document.createElement('canvas');
+                    canvas.width = width; canvas.height = height;
+                    var ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, width, height);
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(dataURLToUint8Array(canvas.toDataURL('image/png')));
+                };
+                img.onerror = function () { reject(new Error('Failed to load image: ' + url)); };
+                img.src = url;
+            });
+        }
+
+        async function generateDOCX() {
+            if (!window.docx) { showToast('DOCX Library loading... Please try again in a moment.', false); return; }
+            showToast('Generating .DOCX File...');
+
+            var name = document.getElementById('inputName').value || 'Avala Vinay';
+            var designation = document.getElementById('inputDesignation').value || 'Full Stack Developer';
+            var config = COMPANY_CONFIG[selectedCompany];
+            var email = document.getElementById('inputEmail').value || config.emailDefault;
+            var phone = document.getElementById('inputPhone').value || config.phoneDefault;
+            var website = document.getElementById('inputWebsite').value || config.websiteDefault;
+            var address = document.getElementById('inputAddress').value || config.addressDefault;
+
+            try {
+                var logoH = config.logoHeight || 80;
+                var logoW = Math.round(logoH * (240 / 130));
+                var logoPngBytes = await loadImageAsUint8Array(config.logo, logoW, logoH);
+                var qrPngBytes = await loadImageAsUint8Array(config.qr, 300, 300);
+
+                var docxObj = window.docx;
+                var doc = new docxObj.Document({
+                    sections: [{
+                        properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } },
+                        children: [
+                            new docxObj.Paragraph({
+                                children: [new docxObj.TextRun({ text: config.label.toUpperCase() + ' \u2014 OFFICIAL SIGNATURE & TEMPLATE', bold: true, size: 20, color: config.primaryColor.replace('#', ''), font: "Arial" })],
+                                space: { after: 240 }
+                            }),
+                            new docxObj.Table({
+                                width: { size: 100, type: docxObj.WidthType.PERCENTAGE },
+                                borders: {
+                                    top: { style: docxObj.BorderStyle.SINGLE, size: 6, color: "E5E7EB" },
+                                    bottom: { style: docxObj.BorderStyle.SINGLE, size: 6, color: "E5E7EB" },
+                                    left: { style: docxObj.BorderStyle.SINGLE, size: 6, color: "E5E7EB" },
+                                    right: { style: docxObj.BorderStyle.SINGLE, size: 6, color: "E5E7EB" },
+                                    insideHorizontal: { style: docxObj.BorderStyle.SINGLE, size: 4, color: "E5E7EB" },
+                                    insideVertical: { style: docxObj.BorderStyle.SINGLE, size: 4, color: "E5E7EB" },
+                                },
+                                rows: [
+                                    new docxObj.TableRow({
+                                        children: [
+                                            new docxObj.TableCell({
+                                                width: { size: 34, type: docxObj.WidthType.PERCENTAGE }, margins: { top: 160, bottom: 160, left: 160, right: 160 },
+                                                children: [
+                                                    new docxObj.Paragraph({ alignment: docxObj.AlignmentType.CENTER, children: [new docxObj.ImageRun({ data: logoPngBytes, transformation: { width: logoW, height: logoH } })], space: { after: 120 } }),
+                                                    new docxObj.Paragraph({ alignment: docxObj.AlignmentType.CENTER, children: [new docxObj.TextRun({ text: config.label, bold: true, size: 26, color: config.primaryColor.replace('#', ''), font: "Arial" })] }),
+                                                    new docxObj.Paragraph({ alignment: docxObj.AlignmentType.CENTER, children: [new docxObj.TextRun({ text: '\u2014 ' + config.brandSuffix + ' \u2014', bold: true, size: 13, color: config.secondaryColor.replace('#', ''), font: "Arial" })], space: { after: 120 } }),
+                                                    new docxObj.Paragraph({ alignment: docxObj.AlignmentType.CENTER, children: [new docxObj.TextRun({ text: config.sloganDefault, size: 16, color: config.secondaryColor.replace('#', ''), font: "Arial" })] }),
+                                                ]
+                                            }),
+                                            new docxObj.TableCell({
+                                                width: { size: 42, type: docxObj.WidthType.PERCENTAGE }, margins: { top: 160, bottom: 160, left: 200, right: 160 },
+                                                children: [
+                                                    new docxObj.Paragraph({ children: [new docxObj.TextRun({ text: name, bold: true, size: 28, color: "111827", font: "Arial" })] }),
+                                                    new docxObj.Paragraph({ children: [new docxObj.TextRun({ text: designation, bold: true, size: 20, color: config.primaryColor.replace('#', ''), font: "Arial" })], space: { after: 120 } }),
+                                                    new docxObj.Paragraph({ children: [new docxObj.TextRun({ text: "\u2709  ", size: 18 }), new docxObj.TextRun({ text: email, size: 17, color: config.secondaryColor.replace('#', ''), font: "Arial" })], space: { after: 60 } }),
+                                                    new docxObj.Paragraph({ children: [new docxObj.TextRun({ text: "\uD83D\uDCDE  ", size: 18 }), new docxObj.TextRun({ text: phone, size: 17, color: config.secondaryColor.replace('#', ''), font: "Arial" })], space: { after: 60 } }),
+                                                    new docxObj.Paragraph({ children: [new docxObj.TextRun({ text: "\uD83C\uDF10  ", size: 18 }), new docxObj.TextRun({ text: website, size: 17, color: config.secondaryColor.replace('#', ''), font: "Arial" })], space: { after: 60 } }),
+                                                    new docxObj.Paragraph({ children: [new docxObj.TextRun({ text: "\uD83D\uDCCD  ", size: 18 }), new docxObj.TextRun({ text: address, size: 16, color: config.secondaryColor.replace('#', ''), font: "Arial" })] }),
+                                                ]
+                                            }),
+                                            new docxObj.TableCell({
+                                                width: { size: 24, type: docxObj.WidthType.PERCENTAGE }, margins: { top: 160, bottom: 160, left: 120, right: 120 },
+                                                children: [
+                                                    new docxObj.Paragraph({ alignment: docxObj.AlignmentType.CENTER, children: [new docxObj.ImageRun({ data: qrPngBytes, transformation: { width: 95, height: 95 } })], space: { after: 100 } }),
+                                                    new docxObj.Paragraph({ alignment: docxObj.AlignmentType.CENTER, children: [new docxObj.TextRun({ text: config.qrTitle + "\n", size: 15, color: "4B5563", font: "Arial" }), new docxObj.TextRun({ text: config.qrSubtitle, bold: true, size: 15, color: "111827", font: "Arial" })] }),
+                                                ]
+                                            }),
+                                        ]
+                                    }),
+                                    new docxObj.TableRow({
+                                        children: [
+                                            new docxObj.TableCell({
+                                                columnSpan: 3, margins: { top: 120, bottom: 120, left: 160, right: 160 },
+                                                children: [new docxObj.Paragraph({
+                                                    children: [
+                                                        new docxObj.TextRun({ text: "\uD83D\uDEE1 CONFIDENTIALITY NOTICE: ", bold: true, size: 15, color: config.primaryColor.replace('#', ''), font: "Arial" }),
+                                                        new docxObj.TextRun({ text: "This email and any attachments are confidential and intended solely for the named recipient. If you received this email in error, please notify the sender and delete it.", size: 14, color: "6B7280", font: "Arial" })
+                                                    ]
+                                                })]
+                                            })
+                                        ]
+                                    }),
+                                ]
+                            })
+                        ]
+                    }]
+                });
+
+                var blob = await docxObj.Packer.toBlob(doc);
+                var fileName = name.replace(/\s+/g, '_') + '_' + config.filePrefix + '_Template.docx';
+                saveAs(blob, fileName);
+                showToast('Downloaded ' + fileName + '!', true);
+
+            } catch (error) {
+                console.error("Error generating docx:", error);
+                showToast("Failed to generate DOCX file. Check console.", false);
+            }
+        }
+
+        // ===== ID CARD MODE FUNCTIONS =====
+
+        function switchMode(mode) {
+            document.getElementById('signatureMode').style.display = (mode === 'signature') ? 'grid' : 'none';
+            document.getElementById('idCardMode').style.display = (mode === 'idcard') ? 'grid' : 'none';
+            document.getElementById('tabSignature').classList.toggle('active', mode === 'signature');
+            document.getElementById('tabIdCard').classList.toggle('active', mode === 'idcard');
+        }
+
+        function handleIdLogo(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function (ev) {
+                var dataUrl = ev.target.result;
+                document.getElementById('idLogoPreview').src = dataUrl;
+                document.getElementById('idLogoPreview').style.display = 'block';
+                document.getElementById('idLogoPlaceholder').style.display = 'none';
+                document.getElementById('idLogoUpload').classList.add('has-photo');
+                document.getElementById('idLogoWrap').innerHTML = '<img src="' + dataUrl + '" style="max-height:100%; max-width:100%; object-fit:contain; mix-blend-mode:multiply; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.06));" alt="Company Logo">';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleIdPhoto(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function (ev) {
+                idPhotoDataUrl = ev.target.result;
+                document.getElementById('idPhotoPreview').src = idPhotoDataUrl;
+                document.getElementById('idPhotoPreview').style.display = 'block';
+                document.getElementById('idPhotoPlaceholder').style.display = 'none';
+                document.getElementById('idPhotoUpload').classList.add('has-photo');
+                var photoImg = document.getElementById('idPhotoImg');
+                var photoIcon = document.getElementById('idPhotoPlaceholderCard');
+                photoImg.src = idPhotoDataUrl;
+                photoImg.style.display = 'block';
+                photoIcon.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearIdPhoto() {
+            idPhotoDataUrl = null;
+            document.getElementById('idPhotoInput').value = '';
+            document.getElementById('idPhotoPreview').style.display = 'none';
+            document.getElementById('idPhotoPlaceholder').style.display = 'block';
+            document.getElementById('idPhotoUpload').classList.remove('has-photo');
+            var photoImg = document.getElementById('idPhotoImg');
+            var photoIcon = document.getElementById('idPhotoPlaceholderCard');
+            photoImg.style.display = 'none';
+            photoIcon.style.display = 'flex';
+        }
+
+        function openCamera() {
+            var overlay = document.createElement('div');
+            overlay.className = 'camera-overlay';
+            overlay.id = 'cameraOverlay';
+            overlay.innerHTML = '<video id="cameraVideo" autoplay playsinline></video><canvas id="cameraCanvas"></canvas><div style="display:flex;gap:12px;"><button id="captureBtn" style="padding:12px 28px;border-radius:12px;background:#f37021;color:#fff;font-weight:700;font-size:14px;border:none;cursor:pointer;"><i class="fa-solid fa-camera mr-1"></i> Capture</button><button id="closeCamBtn" style="padding:12px 28px;border-radius:12px;background:#334155;color:#fff;font-weight:700;font-size:14px;border:none;cursor:pointer;"><i class="fa-solid fa-xmark mr-1"></i> Close</button></div>';
+            document.body.appendChild(overlay);
+
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } })
+                .then(function (stream) {
+                    cameraStream = stream;
+                    document.getElementById('cameraVideo').srcObject = stream;
+                })
+                .catch(function () {
+                    showToast('Camera access denied. Please upload a file instead.', false);
+                    overlay.remove();
+                });
+
+            document.getElementById('captureBtn').onclick = function () {
+                var video = document.getElementById('cameraVideo');
+                var canvas = document.getElementById('cameraCanvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                idPhotoDataUrl = canvas.toDataURL('image/png');
+                document.getElementById('idPhotoPreview').src = idPhotoDataUrl;
+                document.getElementById('idPhotoPreview').style.display = 'block';
+                document.getElementById('idPhotoPlaceholder').style.display = 'none';
+                document.getElementById('idPhotoUpload').classList.add('has-photo');
+                var photoImg = document.getElementById('idPhotoImg');
+                var photoIcon = document.getElementById('idPhotoPlaceholderCard');
+                photoImg.src = idPhotoDataUrl;
+                photoImg.style.display = 'block';
+                photoIcon.style.display = 'none';
+                closeCamera();
+                showToast('Photo captured successfully!');
+            };
+
+            document.getElementById('closeCamBtn').onclick = closeCamera;
+        }
+
+        function closeCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(function (t) { t.stop(); });
+                cameraStream = null;
+            }
+            var overlay = document.getElementById('cameraOverlay');
+            if (overlay) overlay.remove();
+        }
+
+        function handleQrUpload(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function (ev) {
+                var qrImg = document.getElementById('idQrImg');
+                var qrIcon = document.getElementById('idQrPlaceholderCard');
+                qrImg.src = ev.target.result;
+                qrImg.style.display = 'block';
+                qrIcon.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function updateIdCardPreview() {
+            var name = document.getElementById('idNameInput').value || 'Uday Kumar C';
+            var designation = document.getElementById('idDesignationInput').value || 'Managing Director & CEO';
+            var tagline = document.getElementById('inputIdTagline').value || COMPANY_CONFIG[selectedCompany].idTaglineDefault;
+
+            document.getElementById('idName').innerText = name;
+            document.getElementById('idDesignation').innerText = designation;
+            document.getElementById('idTagline').innerText = tagline;
+
+            var photoImg = document.getElementById('idPhotoImg');
+            var photoIcon = document.getElementById('idPhotoPlaceholderCard');
+            if (idPhotoDataUrl) {
+                photoImg.src = idPhotoDataUrl;
+                photoImg.style.display = 'block';
+                photoIcon.style.display = 'none';
+            } else {
+                photoImg.style.display = 'none';
+                photoIcon.style.display = 'flex';
+            }
+
+            var qrImg = document.getElementById('idQrImg');
+            var qrIcon = document.getElementById('idQrPlaceholderCard');
+            if (qrImg && qrImg.src && qrImg.style.display !== 'none') {
+            } else if (qrIcon) {
+                qrIcon.style.display = 'block';
+            }
+        }
+
+        function downloadIdCardPNG() {
+            showToast('Rendering ID Card PNG...');
+            var card = document.getElementById('idCardPreview');
+            var config = COMPANY_CONFIG[selectedCompany];
+
+            // html2canvas cannot render inline SVGs with patterns/gradients/CSS vars.
+            // Strategy: rasterize the SVG to an <img>, swap it in, capture, then restore.
+
+            var svg = card.querySelector('svg.id-card-bg-layer');
+            if (!svg) {
+                showToast('SVG background not found.', false);
+                return;
+            }
+
+            // Clone the SVG and resolve all CSS variables in the clone
+            var svgClone = svg.cloneNode(true);
+            var allSvgEls = svgClone.querySelectorAll('*');
+            allSvgEls.forEach(function (el) {
+                ['fill', 'stroke'].forEach(function (attr) {
+                    var val = el.getAttribute(attr);
+                    if (val && val.indexOf('var(') !== -1) {
+                        el.setAttribute(attr, val
+                            .replace('var(--idc-primary)', config.primaryColor)
+                            .replace('var(--idc-dark)', config.idcardDark));
+                    }
+                });
+            });
+
+            // Serialize the resolved SVG to a data URL
+            var svgData = new XMLSerializer().serializeToString(svgClone);
+            var svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+            var svgUrl = URL.createObjectURL(svgBlob);
+
+            var img = new Image();
+            img.onload = function () {
+                // Create a rasterized canvas from the SVG
+                var rasterCanvas = document.createElement('canvas');
+                rasterCanvas.width = img.naturalWidth || 640;
+                rasterCanvas.height = img.naturalHeight || 1010;
+                var ctx = rasterCanvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, rasterCanvas.width, rasterCanvas.height);
+                URL.revokeObjectURL(svgUrl);
+
+                // Create an <img> element with the rasterized PNG
+                var rasterImg = document.createElement('img');
+                rasterImg.src = rasterCanvas.toDataURL('image/png');
+                rasterImg.style.cssText = svg.style.cssText;
+                rasterImg.className = svg.className.baseVal || '';
+                rasterImg.style.position = 'absolute';
+                rasterImg.style.top = '0';
+                rasterImg.style.left = '0';
+                rasterImg.style.width = '100%';
+                rasterImg.style.height = '100%';
+                rasterImg.style.pointerEvents = 'none';
+                rasterImg.style.zIndex = '0';
+
+                // Swap: hide SVG, insert rasterized image
+                svg.style.display = 'none';
+                card.insertBefore(rasterImg, card.firstChild);
+
+                // Strip any remaining CSS gradients
+                var savedBg = [];
+                var allEls = card.querySelectorAll('*');
+                allEls.forEach(function (el) {
+                    if (el === rasterImg) return;
+                    var bg = getComputedStyle(el).backgroundImage;
+                    if (bg && bg.indexOf('gradient') !== -1) {
+                        savedBg.push({ el: el, origBg: el.style.backgroundImage, origBgColor: el.style.backgroundColor });
+                        var colorMatch = bg.match(/#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)/);
+                        el.style.backgroundImage = 'none';
+                        if (colorMatch) {
+                            el.style.backgroundColor = colorMatch[0];
+                        }
+                    }
+                });
+
+                html2canvas(card, { scale: 3, useCORS: true, backgroundColor: '#f8fafc' }).then(function (canvas) {
+                    // Restore everything
+                    card.removeChild(rasterImg);
+                    svg.style.display = '';
+                    savedBg.forEach(function (s) {
+                        s.el.style.backgroundImage = s.origBg;
+                        s.el.style.backgroundColor = s.origBgColor;
+                    });
+
+                    var nameEl = document.getElementById('idNameInput');
+                    var name = (nameEl && nameEl.value) ? nameEl.value : (document.getElementById('inputName').value || 'Employee');
+                    var fileName = name.replace(/\s+/g, '_') + '_' + config.filePrefix + '_ID_Card.png';
+                    canvas.toBlob(function (blob) {
+                        if (blob) {
+                            saveAs(blob, fileName);
+                            showToast('ID Card PNG downloaded!');
+                        } else {
+                            showToast('Failed to create PNG blob.', false);
+                        }
+                    }, 'image/png');
+                }).catch(function (err) {
+                    card.removeChild(rasterImg);
+                    svg.style.display = '';
+                    savedBg.forEach(function (s) {
+                        s.el.style.backgroundImage = s.origBg;
+                        s.el.style.backgroundColor = s.origBgColor;
+                    });
+                    console.error(err);
+                    showToast('Failed to export ID Card PNG.', false);
+                });
+            };
+
+            img.onerror = function () {
+                URL.revokeObjectURL(svgUrl);
+                showToast('Failed to rasterize SVG background.', false);
+            };
+
+            img.src = svgUrl;
+        }
+    </script>
+</body>
+
+</html>

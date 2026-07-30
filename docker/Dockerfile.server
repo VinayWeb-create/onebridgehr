@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+# Generate prisma client (schema is in ../prisma/schema.prisma)
+RUN npx prisma generate --schema=../prisma/schema.prisma
+
+RUN npm run build
+
+EXPOSE 5000
+
+CMD ["npm", "start"]

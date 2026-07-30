@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: onebridge_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - onebridge_net
+
+  server:
+    build:
+      context: ./server
+      dockerfile: ../docker/Dockerfile.server
+    container_name: onebridge_api
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=mongodb://mongodb:27017/onebridge_hr?directConnection=true
+      - JWT_SECRET=onebridge_secret_key_123456_super_secure
+      - JWT_REFRESH_SECRET=onebridge_refresh_secret_key_7890_super_secure
+      - PORT=5000
+      - NODE_ENV=production
+      - FRONTEND_URL=http://localhost
+    depends_on:
+      - mongodb
+    volumes:
+      - server_uploads:/app/uploads
+      - server_documents:/app/documents
+    networks:
+      - onebridge_net
+
+  client:
+    build:
+      context: ./client
+      dockerfile: ../docker/Dockerfile.client
+    container_name: onebridge_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - onebridge_net
+
+volumes:
+  mongo_data:
+  server_uploads:
+  server_documents:
+
+networks:
+  onebridge_net:
+    driver: bridge

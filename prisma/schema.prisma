@@ -1,0 +1,280 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  HR
+  TEAM_LEAD
+  EMPLOYEE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+  REJECTED
+  OVERDUE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  HOLIDAY
+  WORK_FROM_HOME
+}
+
+enum LeaveType {
+  CASUAL
+  SICK
+  EARNED
+  MATERNITY
+  PATERNITY
+  LOSS_OF_PAY
+}
+
+enum LeaveStatus {
+  PENDING
+  MANAGER_APPROVED
+  HR_APPROVED
+  REJECTED
+}
+
+model User {
+  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+  email               String    @unique
+  passwordHash        String
+  role                Role      @default(EMPLOYEE)
+  employeeId          String    @unique
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  refreshToken        String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model Employee {
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId      String           @unique // Unique string like OBI0001
+  firstName       String
+  lastName        String
+  email           String           @unique
+  phone           String
+  department      String
+  designation     String
+  bloodGroup      String
+  validity        DateTime
+  qrCodeUrl       String?
+  profileImageUrl String?
+  signatureUrl    String?          // Transparent PNG URL (max 2MB)
+  personalInfo    PersonalInfo?
+  professionalInfo ProfessionalInfo?
+  emergencyContact EmergencyContact?
+  education       Education[]
+  experience      Experience[]
+  skills          String[]
+  certificates    Certificate[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  attendances     Attendance[]
+  leaves          Leave[]
+  payrolls        Payroll[]
+  tasks           Task[]           @relation("EmployeeTasks")
+  assignedTasks   Task[]           @relation("AssignedTasks")
+  documents       Document[]
+  activityLogs    AuditLog[]
+  notifications   Notification[]
+}
+
+type PersonalInfo {
+  panCard        String?
+  aadharCard     String?
+  passportNumber String?
+  drivingLicense String?
+  dob            DateTime
+  gender         String
+}
+
+type ProfessionalInfo {
+  dateOfJoining    DateTime
+  offerLetterUrl   String?
+  joiningLetterUrl String?
+  resumeUrl        String?
+}
+
+type EmergencyContact {
+  name         String
+  relationship String
+  phone        String
+  email        String?
+}
+
+type Education {
+  degree      String
+  institution String
+  passingYear Int
+  percentage  Float?
+}
+
+type Experience {
+  company     String
+  designation String
+  years       Float
+  description String?
+}
+
+type Certificate {
+  name          String
+  issuedBy      String
+  issueDate     DateTime
+  expiryDate    DateTime?
+  credentialUrl String?
+}
+
+model Attendance {
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId      String
+  employee        Employee         @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  date            DateTime
+  checkIn         DateTime?
+  checkOut        DateTime?
+  breaks          BreakSession[]
+  status          AttendanceStatus @default(ABSENT)
+  overtimeMinutes Int              @default(0)
+  lateMinutes     Int              @default(0)
+  latitude        Float?
+  longitude       Float?
+  workFromHome    Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+}
+
+type BreakSession {
+  start DateTime
+  end   DateTime?
+}
+
+model Leave {
+  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId        String
+  employee          Employee    @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  leaveType         LeaveType
+  startDate         DateTime
+  endDate           DateTime
+  reason            String
+  status            LeaveStatus @default(PENDING)
+  managerApprovalId String?
+  hrApprovalId      String?
+  managerComment    String?
+  hrComment         String?
+  createdAt         DateTime    @default(now())
+}
+
+model Task {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  title          String
+  description    String
+  priority       TaskPriority @default(MEDIUM)
+  status         TaskStatus   @default(PENDING)
+  dueDate        DateTime
+  progress       Int          @default(0)
+  attachments    String[]
+  employeeId     String
+  employee       Employee     @relation("EmployeeTasks", fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  assignedById   String
+  assignedBy     Employee     @relation("AssignedTasks", fields: [assignedById], references: [employeeId], onDelete: Cascade)
+  comments       Comment[]
+  timeLogs       TimeLog[]
+  subtasks       SubTask[]
+  dependencies   String[]
+  isRecurring    Boolean      @default(false)
+  recurrenceCron String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+type Comment {
+  authorId   String
+  authorName String
+  content    String
+  timestamp  DateTime @default(now())
+}
+
+type TimeLog {
+  employeeId      String
+  durationMinutes Int
+  loggedAt        DateTime @default(now())
+}
+
+type SubTask {
+  title       String
+  isCompleted Boolean @default(false)
+}
+
+model Payroll {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId      String
+  employee        Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  month           Int
+  financialYear   String
+  payslipNumber   String   @unique
+  basic           Float
+  hra             Float
+  da              Float
+  allowance       Float
+  bonus           Float
+  pf              Float
+  esi             Float
+  professionalTax Float
+  incomeTax       Float
+  netSalary       Float
+  payslipPdfUrl   String?
+  status          String   @default("GENERATED")
+  createdAt       DateTime @default(now())
+}
+
+model Document {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  name       String
+  category   String
+  fileUrl    String
+  uploadedAt DateTime @default(now())
+}
+
+model AuditLog {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [employeeId], onDelete: SetNull)
+  action     String
+  details    String
+  ipAddress  String?
+  userAgent  String?
+  timestamp  DateTime  @default(now())
+}
+
+model Notification {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  title      String
+  message    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
