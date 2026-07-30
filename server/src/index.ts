@@ -39,7 +39,7 @@ app.use(
 // 2. CORS Integration
 app.use(
   cors({
-    origin: [FRONTEND_URL, 'http://localhost:5173'],
+    origin: [FRONTEND_URL, 'http://localhost:5173', 'https://onebridgehr.vercel.app'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true,
   })
