@@ -3,6 +3,9 @@ import api from '../services/api';
 import {
   Search, Plus, UserPlus, Eye, Edit2, Upload, FileText, X, Check, Trash2, CalendarDays
 } from 'lucide-react';
+import Docxtemplater from 'docxtemplater';
+import PizZip from 'pizzip';
+import { saveAs } from 'file-saver';
 
 interface Employee {
   employeeId: string;
@@ -37,14 +40,14 @@ export const Employees: React.FC = () => {
   // Modal / Drawer control
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [createdEmp, setCreatedEmp] = useState<any>(null);
 
   // New Employee Form State
   const [newEmp, setNewEmp] = useState({
-    employeeId: '',
     firstName: '',
     lastName: '',
     email: '',
-    password: 'password123', // default temp password
     phone: '',
     department: 'Engineering',
     designation: 'Software Engineer',
@@ -91,11 +94,9 @@ export const Employees: React.FC = () => {
     e.preventDefault();
     try {
       const payload: any = {
-        employeeId: newEmp.employeeId,
         firstName: newEmp.firstName,
         lastName: newEmp.lastName,
         email: newEmp.email,
-        password: newEmp.password,
         phone: newEmp.phone,
         department: newEmp.department,
         designation: newEmp.designation,
@@ -122,14 +123,20 @@ export const Employees: React.FC = () => {
       }
 
       await api.post('/employees', payload);
+      setCreatedEmp({
+        ...payload,
+        firstName: newEmp.firstName,
+        lastName: newEmp.lastName,
+        designation: newEmp.designation,
+        dateOfJoining: newEmp.dateOfJoining,
+      });
       setShowAddModal(false);
+      setShowSuccessPopup(true);
       // Reset form
       setNewEmp({
-        employeeId: '',
         firstName: '',
         lastName: '',
         email: '',
-        password: 'password123',
         phone: '',
         department: 'Engineering',
         designation: 'Software Engineer',
@@ -148,6 +155,55 @@ export const Employees: React.FC = () => {
       fetchEmployees();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to register employee');
+    }
+  };
+
+  const handleGenerateOfferLetter = async () => {
+    if (!createdEmp) return;
+    try {
+      const response = await fetch('/Onebridge-Internship-Offer-Letter.docx');
+      const blob = await response.blob();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as ArrayBuffer;
+        const zip = new PizZip(content);
+        const doc = new Docxtemplater(zip, {
+          paragraphLoop: true,
+          linebreaks: true,
+        });
+
+        doc.render({
+          firstName: createdEmp.firstName,
+          lastName: createdEmp.lastName,
+          designation: createdEmp.designation,
+          dateOfJoining: new Date(createdEmp.dateOfJoining).toLocaleDateString(),
+          name: `${createdEmp.firstName} ${createdEmp.lastName}`,
+          date: new Date().toLocaleDateString(),
+        });
+
+        const out = doc.getZip().generate({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+        saveAs(out, `Offer_Letter_${createdEmp.firstName}_${createdEmp.lastName}.docx`);
+      };
+      reader.readAsArrayBuffer(blob);
+    } catch (error) {
+      console.error('Error generating document:', error);
+      alert('Failed to generate offer letter.');
+    }
+  };
+
+  const handleDeleteEmployee = async (employeeId: string) => {
+    if (!window.confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
+      return;
+    }
+    try {
+      await api.delete(`/employees/${employeeId}`);
+      alert('Employee deleted successfully');
+      fetchEmployees();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to delete employee');
     }
   };
 
@@ -263,13 +319,22 @@ export const Employees: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => setSelectedEmp(emp)}
-                        className="p-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900 text-indigo-600 rounded-xl transition-all"
-                        title="View Profile Details"
-                      >
-                        <Eye size={14} />
-                      </button>
+                      <div className="flex items-center justify-end space-x-2">
+                        <button
+                          onClick={() => setSelectedEmp(emp)}
+                          className="p-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900 text-indigo-600 rounded-xl transition-all"
+                          title="View Profile Details"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteEmployee(emp.employeeId)}
+                          className="p-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900 text-red-600 rounded-xl transition-all"
+                          title="Delete Employee"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -295,17 +360,6 @@ export const Employees: React.FC = () => {
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider">1. Basic Info</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Employee ID</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="OBI0005"
-                      value={newEmp.employeeId}
-                      onChange={(e) => setNewEmp({ ...newEmp, employeeId: e.target.value })}
-                      className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600"
-                    />
-                  </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Email Address</label>
                     <input
@@ -607,6 +661,34 @@ export const Employees: React.FC = () => {
                 className="w-full bg-brand-900 text-white dark:bg-brand-200 dark:text-brand-950 py-3 rounded-xl font-bold uppercase tracking-wider text-xs"
               >
                 Close File
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUCCESS POPUP */}
+      {showSuccessPopup && (
+        <div className="fixed inset-0 z-[60] bg-brand-950/40 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-brand-950 border border-emerald-500/30 rounded-3xl p-8 max-w-sm w-full shadow-2xl shadow-emerald-500/10 flex flex-col items-center text-center scale-100 transition-transform">
+            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/40 rounded-full flex items-center justify-center mb-4 shadow-inner">
+              <Check size={32} className="text-emerald-500" />
+            </div>
+            <h2 className="text-xl font-extrabold text-brand-950 dark:text-white mb-2">Registration Complete!</h2>
+            <p className="text-sm font-semibold text-brand-500 mb-6">Employee has been successfully added to the directory.</p>
+            <div className="w-full flex flex-col space-y-3">
+              <button 
+                onClick={handleGenerateOfferLetter}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold uppercase tracking-wider text-xs transition-colors shadow-lg shadow-indigo-600/20 flex items-center justify-center space-x-2"
+              >
+                <FileText size={16} />
+                <span>Generate Offer Letter</span>
+              </button>
+              <button 
+                onClick={() => setShowSuccessPopup(false)}
+                className="w-full bg-brand-100 hover:bg-brand-200 text-brand-800 dark:bg-brand-800 dark:hover:bg-brand-700 dark:text-white py-3 rounded-xl font-bold uppercase tracking-wider text-xs transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

@@ -7,12 +7,16 @@ import { qrService } from '../services/qrService';
 import { logActivity } from '../middleware/auditLogger';
 import { calculateEmployeeRating } from './reportController';
 import { emailService } from '../services/emailService';
+import fs from 'fs';
+import path from 'path';
+import PizZip from 'pizzip';
+import Docxtemplater from 'docxtemplater';
 
 export const registerEmployee = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = registerEmployeeSchema.parse(req.body);
     
-    // Check if email or employeeId already exists
+    // Check if email already exists
     const existingUser = await prisma.user.findUnique({
       where: { email: parsed.email },
     });
@@ -20,25 +24,38 @@ export const registerEmployee = async (req: Request, res: Response, next: NextFu
       return next(new AppError('Email address already registered', 400));
     }
 
-    const existingEmp = await prisma.employee.findUnique({
-      where: { employeeId: parsed.employeeId },
+    // Auto-generate employeeId
+    const latestEmployee = await prisma.employee.findFirst({
+      orderBy: { employeeId: 'desc' },
     });
-    if (existingEmp) {
-      return next(new AppError(`Employee ID ${parsed.employeeId} already exists`, 400));
+    
+    let generatedEmployeeId = 'OBI0001';
+    if (latestEmployee && latestEmployee.employeeId.startsWith('OBI')) {
+      const currentNumber = parseInt(latestEmployee.employeeId.replace('OBI', ''), 10);
+      if (!isNaN(currentNumber)) {
+        generatedEmployeeId = `OBI${String(currentNumber + 1).padStart(4, '0')}`;
+      }
     }
 
+    // Generate password from DOB in ddmmyy format
+    const dob = parsed.personalInfo.dob;
+    const day = String(dob.getDate()).padStart(2, '0');
+    const month = String(dob.getMonth() + 1).padStart(2, '0');
+    const year = String(dob.getFullYear()).slice(-2);
+    const generatedPassword = `${day}${month}${year}`;
+
     // Generate dynamic QR Code for Employee Profile URL
-    const qrCodeUrl = await qrService.generateEmployeeQr(parsed.employeeId);
+    const qrCodeUrl = await qrService.generateEmployeeQr(generatedEmployeeId);
 
     // Create User credentials
     const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(parsed.password, salt);
+    const passwordHash = await bcrypt.hash(generatedPassword, salt);
 
     // Transaction to create User and Employee details
     const result = await prisma.$transaction(async (tx) => {
       const newEmp = await tx.employee.create({
         data: {
-          employeeId: parsed.employeeId,
+          employeeId: generatedEmployeeId,
           firstName: parsed.firstName,
           lastName: parsed.lastName,
           email: parsed.email,
@@ -63,14 +80,14 @@ export const registerEmployee = async (req: Request, res: Response, next: NextFu
           email: parsed.email,
           passwordHash,
           role: parsed.role,
-          employeeId: parsed.employeeId,
+          employeeId: generatedEmployeeId,
         },
       });
 
       return { employee: newEmp, user: newUser };
     });
 
-    await logActivity(req.user?.employeeId || 'SYSTEM', 'EMPLOYEE_CREATE', `Created employee ${parsed.employeeId}`, req);
+    await logActivity(req.user?.employeeId || 'SYSTEM', 'EMPLOYEE_CREATE', `Created employee ${generatedEmployeeId}`, req);
 
     // Send welcome email with login credentials
     try {
@@ -93,11 +110,11 @@ export const registerEmployee = async (req: Request, res: Response, next: NextFu
             </tr>
             <tr>
               <td style="padding: 8px; font-weight: bold;">Password:</td>
-              <td style="padding: 8px; font-family: monospace; font-size: 14px;">${parsed.password}</td>
+              <td style="padding: 8px; font-family: monospace; font-size: 14px;">${generatedPassword}</td>
             </tr>
             <tr>
               <td style="padding: 8px; font-weight: bold;">Employee ID:</td>
-              <td style="padding: 8px; font-family: monospace; font-size: 14px;">${parsed.employeeId}</td>
+              <td style="padding: 8px; font-family: monospace; font-size: 14px;">${generatedEmployeeId}</td>
             </tr>
           </table>
           <p style="color: #dc2626; font-size: 12px; font-weight: bold;">Please change your temporary password immediately upon logging in for security purposes.</p>
@@ -106,7 +123,36 @@ export const registerEmployee = async (req: Request, res: Response, next: NextFu
         </div>
       `;
 
-      await emailService.sendMail(parsed.email, emailSubject, emailHtml);
+      let attachments: any[] = [];
+      try {
+        const templatePath = path.resolve(__dirname, '../templates/Onebridge-Internship-Offer-Letter.docx');
+        if (fs.existsSync(templatePath)) {
+          const content = fs.readFileSync(templatePath, 'binary');
+          const zip = new PizZip(content);
+          const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+          
+          doc.render({
+            firstName: parsed.firstName,
+            lastName: parsed.lastName,
+            designation: parsed.designation,
+            dateOfJoining: new Date(parsed.professionalInfo?.dateOfJoining || new Date()).toLocaleDateString(),
+            name: `${parsed.firstName} ${parsed.lastName}`,
+            date: new Date().toLocaleDateString(),
+          });
+          
+          const buf = doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' });
+          attachments.push({
+            filename: `Offer_Letter_${parsed.firstName}_${parsed.lastName}.docx`,
+            content: buf,
+          });
+        } else {
+          console.warn('Template not found at', templatePath);
+        }
+      } catch (docErr) {
+        console.error('Failed to generate offer letter document:', docErr);
+      }
+
+      await emailService.sendMail(parsed.email, emailSubject, emailHtml, attachments);
       console.log(`Welcome email dispatched successfully to ${parsed.email}`);
     } catch (mailErr) {
       console.error('Welcome email dispatch failed:', mailErr);
@@ -321,6 +367,48 @@ export const uploadDocument = async (req: Request, res: Response, next: NextFunc
       status: 'success',
       data: document,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteEmployee = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { employeeId } = req.params;
+
+    // RBAC: Only Super Admin or HR should be able to delete
+    if (req.user?.role !== 'SUPER_ADMIN' && req.user?.role !== 'HR') {
+      return next(new AppError('You are not authorized to delete an employee', 403));
+    }
+
+    const employee = await prisma.employee.findUnique({
+      where: { employeeId },
+    });
+
+    if (!employee) {
+      return next(new AppError('Employee not found', 404));
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Delete user
+      await tx.user.deleteMany({
+        where: { employeeId }
+      });
+      
+      // Delete documents
+      await tx.document.deleteMany({
+        where: { employeeId }
+      });
+
+      // Delete employee
+      await tx.employee.delete({
+        where: { employeeId }
+      });
+    });
+
+    await logActivity(req.user?.employeeId || 'SYSTEM', 'EMPLOYEE_DELETE', `Deleted employee ${employeeId}`, req);
+
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

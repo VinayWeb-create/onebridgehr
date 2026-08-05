@@ -53,9 +53,7 @@ export const certificateSchema = z.object({
 
 export const registerEmployeeSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters long'),
   role: z.enum(['SUPER_ADMIN', 'HR', 'TEAM_LEAD', 'EMPLOYEE']),
-  employeeId: z.string().regex(/^OBI\d{4}$/, 'Employee ID must be in format OBIxxxx (e.g. OBI0001)'),
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   phone: z.string().min(10, 'Valid phone number is required'),
@@ -64,7 +62,7 @@ export const registerEmployeeSchema = z.object({
   bloodGroup: z.string().min(1, 'Blood group is required'),
   validity: z.string().or(z.date()).transform((val) => new Date(val)),
   
-  personalInfo: personalInfoSchema.optional(),
+  personalInfo: personalInfoSchema,
   professionalInfo: professionalInfoSchema.optional(),
   emergencyContact: emergencyContactSchema.optional(),
   education: z.array(educationSchema).optional(),
