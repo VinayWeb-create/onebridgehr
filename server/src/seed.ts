@@ -68,7 +68,7 @@ async function seed() {
       employeeId: 'OBI1117',
       firstName: 'Mohammed',
       lastName: 'Irfan',
-      email: 'irfan@onebridge.com',
+      email: 'mohammed.irfan@onebridgeinfotech.com',
       phone: '9876543211',
       department: 'Management',
       designation: 'Associate Director',
@@ -90,7 +90,7 @@ async function seed() {
 
   await prisma.user.create({
     data: {
-      email: 'irfan@onebridge.com',
+      email: 'mohammed.irfan@onebridgeinfotech.com',
       passwordHash: adminHash,
       role: 'SUPER_ADMIN',
       employeeId: 'OBI1117',
