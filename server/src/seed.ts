@@ -27,14 +27,15 @@ async function seed() {
   const qrOBI0001 = await qrService.generateEmployeeQr('OBI0001');
   const qrOBI111 = await qrService.generateEmployeeQr('OBI111');
 
+
   // 1. Uday Kumar C (OBI0001) - SUPER_ADMIN
   await prisma.employee.create({
     data: {
       employeeId: 'OBI0001',
       firstName: 'Uday Kumar',
       lastName: 'C',
-      email: 'uday@onebridge.com',
-      phone: '9876543210',
+      email: 'hr@onebridgeinfotech.com',
+      phone: '9398355196',
       department: 'Management',
       designation: 'Founder & Managing Director',
       bloodGroup: 'O+',
@@ -55,14 +56,14 @@ async function seed() {
 
   await prisma.user.create({
     data: {
-      email: 'uday@onebridge.com',
+      email: 'hr@onebridgeinfotech.com',
       passwordHash: adminHash,
       role: 'SUPER_ADMIN',
       employeeId: 'OBI0001',
     },
   });
 
-  // 2. Mohammed Irfan (OBI111) - SUPER_ADMIN
+  // 2. Mohammed Irfan (OBI1117) - SUPER_ADMIN
   await prisma.employee.create({
     data: {
       employeeId: 'OBI1117',

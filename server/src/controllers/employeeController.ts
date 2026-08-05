@@ -28,6 +28,7 @@ export const registerEmployee = async (req: Request, res: Response, next: NextFu
     let generatedEmployeeId = parsed.employeeId;
     if (!generatedEmployeeId) {
       const latestEmployee = await prisma.employee.findFirst({
+        where: { employeeId: { lt: 'OBI1000' } },
         orderBy: { employeeId: 'desc' },
       });
       generatedEmployeeId = 'OBI0001';
@@ -184,6 +185,11 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
     // RBAC: Employees can only edit their own profile, TLs/HRs can update others
     if (req.user?.role === 'EMPLOYEE' && req.user.employeeId !== employeeId) {
       return next(new AppError('You are not authorized to update another employee\'s profile', 403));
+    }
+
+    // Protect root super admins from being edited by others
+    if (['OBI0001', 'OBI1117'].includes(employeeId) && req.user?.employeeId !== employeeId) {
+      return next(new AppError('You are not permitted to modify root Super Admin accounts', 403));
     }
 
     const parsed = updateEmployeeSchema.parse(req.body);
@@ -389,6 +395,11 @@ export const deleteEmployee = async (req: Request, res: Response, next: NextFunc
     // RBAC: Only Super Admin or HR should be able to delete
     if (req.user?.role !== 'SUPER_ADMIN' && req.user?.role !== 'HR') {
       return next(new AppError('You are not authorized to delete an employee', 403));
+    }
+
+    // Protect root super admins from deletion
+    if (['OBI0001', 'OBI1117'].includes(employeeId)) {
+      return next(new AppError('Root Super Admin accounts cannot be deleted', 403));
     }
 
     const employee = await prisma.employee.findUnique({

@@ -96,14 +96,15 @@ export const Employees: React.FC = () => {
   };
 
   const handleOpenAddModal = () => {
-    let nextNum = 6; // Start from OBI0006
+    let nextNum = 1;
     if (employees.length > 0) {
       const maxNum = Math.max(
+        0,
         ...employees
           .map(e => parseInt(e.employeeId.replace('OBI', ''), 10))
-          .filter(n => !isNaN(n))
+          .filter(n => !isNaN(n) && n < 1000)
       );
-      if (maxNum >= 6) {
+      if (maxNum >= 1) {
         nextNum = maxNum + 1;
       }
     }
@@ -369,20 +370,24 @@ export const Employees: React.FC = () => {
                         >
                           <Eye size={14} />
                         </button>
-                        <button
-                          onClick={() => { setEditEmp(emp); setShowEditModal(true); }}
-                          className="p-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900 text-amber-600 rounded-xl transition-all"
-                          title="Edit Employee"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteEmployee(emp.employeeId)}
-                          className="p-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900 text-red-600 rounded-xl transition-all"
-                          title="Delete Employee"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        { !['OBI0001', 'OBI1117'].includes(emp.employeeId) && (
+                          <button
+                            onClick={() => { setEditEmp(emp); setShowEditModal(true); }}
+                            className="p-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900 text-amber-600 rounded-xl transition-all"
+                            title="Edit Employee"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                        )}
+                        { !['OBI0001', 'OBI1117'].includes(emp.employeeId) && (
+                          <button
+                            onClick={() => handleDeleteEmployee(emp.employeeId)}
+                            className="p-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900 text-red-600 rounded-xl transition-all"
+                            title="Delete Employee"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
