@@ -24,16 +24,26 @@ export const registerEmployee = async (req: Request, res: Response, next: NextFu
       return next(new AppError('Email address already registered', 400));
     }
 
-    // Auto-generate employeeId
-    const latestEmployee = await prisma.employee.findFirst({
-      orderBy: { employeeId: 'desc' },
-    });
-    
-    let generatedEmployeeId = 'OBI0001';
-    if (latestEmployee && latestEmployee.employeeId.startsWith('OBI')) {
-      const currentNumber = parseInt(latestEmployee.employeeId.replace('OBI', ''), 10);
-      if (!isNaN(currentNumber)) {
-        generatedEmployeeId = `OBI${String(currentNumber + 1).padStart(4, '0')}`;
+    // Auto-generate employeeId if not provided
+    let generatedEmployeeId = parsed.employeeId;
+    if (!generatedEmployeeId) {
+      const latestEmployee = await prisma.employee.findFirst({
+        orderBy: { employeeId: 'desc' },
+      });
+      generatedEmployeeId = 'OBI0001';
+      if (latestEmployee && latestEmployee.employeeId.startsWith('OBI')) {
+        const currentNumber = parseInt(latestEmployee.employeeId.replace('OBI', ''), 10);
+        if (!isNaN(currentNumber)) {
+          generatedEmployeeId = `OBI${String(currentNumber + 1).padStart(4, '0')}`;
+        }
+      }
+    } else {
+      // Check if provided ID already exists
+      const existingId = await prisma.employee.findUnique({
+        where: { employeeId: generatedEmployeeId }
+      });
+      if (existingId) {
+        return next(new AppError('Employee ID already exists', 400));
       }
     }
 
@@ -93,8 +103,8 @@ export const registerEmployee = async (req: Request, res: Response, next: NextFu
     try {
       const emailSubject = 'Welcome to OneBridge Infotech - Your HR Credentials';
       const emailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-          <h2 style="color: #4f46e5; text-align: center;">Welcome to OneBridge Infotech!</h2>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; color: #000000;">
+          <h2 style="color: #f37021; text-align: center;">Welcome to OneBridge Infotech!</h2>
           <p>Dear <strong>${parsed.firstName} ${parsed.lastName}</strong>,</p>
           <p>Your official employee profile has been created successfully in our HR Management System.</p>
           <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
@@ -102,19 +112,19 @@ export const registerEmployee = async (req: Request, res: Response, next: NextFu
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
             <tr>
               <td style="padding: 8px; font-weight: bold; width: 120px;">Portal URL:</td>
-              <td style="padding: 8px;"><a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" style="color: #4f46e5; text-decoration: none;">Click here to Login</a></td>
+              <td style="padding: 8px;"><a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" style="color: #f37021; text-decoration: none; font-weight: bold;">Click here to Login</a></td>
             </tr>
             <tr>
               <td style="padding: 8px; font-weight: bold;">Username (Email):</td>
-              <td style="padding: 8px; font-family: monospace; font-size: 14px;">${parsed.email}</td>
+              <td style="padding: 8px; font-family: monospace; font-size: 14px;"><a href="mailto:${parsed.email}" style="color: #000000; text-decoration: none;">${parsed.email}</a></td>
             </tr>
             <tr>
               <td style="padding: 8px; font-weight: bold;">Password:</td>
-              <td style="padding: 8px; font-family: monospace; font-size: 14px;">${generatedPassword}</td>
+              <td style="padding: 8px; font-family: monospace; font-size: 14px; color: #000000;">${generatedPassword}</td>
             </tr>
             <tr>
               <td style="padding: 8px; font-weight: bold;">Employee ID:</td>
-              <td style="padding: 8px; font-family: monospace; font-size: 14px;">${generatedEmployeeId}</td>
+              <td style="padding: 8px; font-family: monospace; font-size: 14px; color: #000000;">${generatedEmployeeId}</td>
             </tr>
           </table>
           <p style="color: #dc2626; font-size: 12px; font-weight: bold;">Please change your temporary password immediately upon logging in for security purposes.</p>

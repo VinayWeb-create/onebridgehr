@@ -134,6 +134,23 @@ export const updateTask = async (req: Request, res: Response, next: NextFunction
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
       data: updateData,
+      include: {
+        employee: {
+          select: {
+            firstName: true,
+            lastName: true,
+            department: true,
+            designation: true,
+          },
+        },
+        assignedBy: {
+          select: {
+            firstName: true,
+            lastName: true,
+            designation: true,
+          },
+        },
+      },
     });
 
     // Notify assignee or creator depending on who made the change
@@ -251,6 +268,63 @@ export const getAllTasks = async (req: Request, res: Response, next: NextFunctio
     res.status(200).json({
       status: 'success',
       data: tasks,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteTask = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { taskId } = req.params;
+    const employeeId = req.user?.employeeId;
+    if (!employeeId) return next(new AppError('Unauthorized', 401));
+
+    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    if (!task) return next(new AppError('Task not found', 404));
+
+    await prisma.task.delete({ where: { id: taskId } });
+
+    await logActivity(employeeId, 'TASK_DELETE', `Deleted task "${task.title}" (${taskId})`, req);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Task deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getTaskStats = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const employeeId = req.user?.employeeId;
+    const role = req.user?.role;
+    if (!employeeId) return next(new AppError('Unauthorized', 401));
+
+    const isAdmin = role === 'HR' || role === 'SUPER_ADMIN';
+    const where = isAdmin ? {} : { employeeId };
+
+    const tasks = await prisma.task.findMany({ where });
+
+    const now = new Date();
+    const stats = {
+      total: tasks.length,
+      pending: tasks.filter(t => t.status === 'PENDING').length,
+      inProgress: tasks.filter(t => t.status === 'IN_PROGRESS').length,
+      review: tasks.filter(t => t.status === 'REVIEW').length,
+      completed: tasks.filter(t => t.status === 'COMPLETED').length,
+      rejected: tasks.filter(t => t.status === 'REJECTED').length,
+      overdue: tasks.filter(t => t.dueDate < now && !['COMPLETED', 'REJECTED'].includes(t.status)).length,
+      totalTimeLogged: tasks.reduce((sum, t) => {
+        const logs = (t.timeLogs as any[]) || [];
+        return sum + logs.reduce((s: number, l: any) => s + (l.durationMinutes || 0), 0);
+      }, 0),
+    };
+
+    res.status(200).json({
+      status: 'success',
+      data: stats,
     });
   } catch (error) {
     next(error);

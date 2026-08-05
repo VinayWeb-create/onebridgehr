@@ -43,8 +43,13 @@ export const Employees: React.FC = () => {
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [createdEmp, setCreatedEmp] = useState<any>(null);
 
+  // Edit Employee State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editEmp, setEditEmp] = useState<any>(null);
+
   // New Employee Form State
   const [newEmp, setNewEmp] = useState({
+    employeeId: '',
     firstName: '',
     lastName: '',
     email: '',
@@ -90,10 +95,27 @@ export const Employees: React.FC = () => {
     fetchEmployees(searchQuery);
   };
 
+  const handleOpenAddModal = () => {
+    let nextNum = 6; // Start from OBI0006
+    if (employees.length > 0) {
+      const maxNum = Math.max(
+        ...employees
+          .map(e => parseInt(e.employeeId.replace('OBI', ''), 10))
+          .filter(n => !isNaN(n))
+      );
+      if (maxNum >= 6) {
+        nextNum = maxNum + 1;
+      }
+    }
+    setNewEmp(prev => ({ ...prev, employeeId: `OBI${String(nextNum).padStart(4, '0')}` }));
+    setShowAddModal(true);
+  };
+
   const handleCreateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const payload: any = {
+        employeeId: newEmp.employeeId,
         firstName: newEmp.firstName,
         lastName: newEmp.lastName,
         email: newEmp.email,
@@ -134,6 +156,7 @@ export const Employees: React.FC = () => {
       setShowSuccessPopup(true);
       // Reset form
       setNewEmp({
+        employeeId: '',
         firstName: '',
         lastName: '',
         email: '',
@@ -155,6 +178,25 @@ export const Employees: React.FC = () => {
       fetchEmployees();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to register employee');
+    }
+  };
+
+  const handleUpdateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.put(`/employees/${editEmp.employeeId}`, {
+        firstName: editEmp.firstName,
+        lastName: editEmp.lastName,
+        phone: editEmp.phone,
+        department: editEmp.department,
+        designation: editEmp.designation,
+        bloodGroup: editEmp.bloodGroup,
+      });
+      setShowEditModal(false);
+      setEditEmp(null);
+      fetchEmployees();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update employee');
     }
   };
 
@@ -242,7 +284,7 @@ export const Employees: React.FC = () => {
           <p className="text-xs text-brand-500 mt-1 font-semibold">Organize, onboard, and audit staff profiles</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={handleOpenAddModal}
           className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl px-5 py-3 font-bold text-xs tracking-wider uppercase transition-all flex items-center space-x-2 shadow-lg shadow-indigo-600/20"
         >
           <UserPlus size={16} />
@@ -328,6 +370,13 @@ export const Employees: React.FC = () => {
                           <Eye size={14} />
                         </button>
                         <button
+                          onClick={() => { setEditEmp(emp); setShowEditModal(true); }}
+                          className="p-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900 text-amber-600 rounded-xl transition-all"
+                          title="Edit Employee"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
                           onClick={() => handleDeleteEmployee(emp.employeeId)}
                           className="p-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900 text-red-600 rounded-xl transition-all"
                           title="Delete Employee"
@@ -360,6 +409,17 @@ export const Employees: React.FC = () => {
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider">1. Basic Info</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Employee ID</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="OBI0006"
+                      value={newEmp.employeeId}
+                      onChange={(e) => setNewEmp({ ...newEmp, employeeId: e.target.value.toUpperCase() })}
+                      className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600 font-bold text-indigo-600"
+                    />
+                  </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Email Address</label>
                     <input
@@ -663,6 +723,52 @@ export const Employees: React.FC = () => {
                 Close File
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT EMPLOYEE MODAL --- */}
+      {showEditModal && editEmp && (
+        <div className="fixed inset-0 z-50 bg-brand-950/40 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="w-full max-w-2xl glass rounded-3xl border border-brand-200 dark:border-brand-900 shadow-2xl p-6 md:p-8 max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-4 border-b border-brand-200 dark:border-brand-900">
+              <h2 className="font-extrabold text-lg">Edit Employee Profile</h2>
+              <button onClick={() => setShowEditModal(false)} className="p-1 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateEmployee} className="mt-6 space-y-6 text-left">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">First Name</label>
+                  <input type="text" required value={editEmp.firstName} onChange={e => setEditEmp({...editEmp, firstName: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Last Name</label>
+                  <input type="text" required value={editEmp.lastName} onChange={e => setEditEmp({...editEmp, lastName: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Phone Number</label>
+                  <input type="text" required value={editEmp.phone} onChange={e => setEditEmp({...editEmp, phone: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Blood Group</label>
+                  <input type="text" required value={editEmp.bloodGroup} onChange={e => setEditEmp({...editEmp, bloodGroup: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Department</label>
+                  <input type="text" required value={editEmp.department} onChange={e => setEditEmp({...editEmp, department: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Designation</label>
+                  <input type="text" required value={editEmp.designation} onChange={e => setEditEmp({...editEmp, designation: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
+                </div>
+              </div>
+              <div className="pt-4 border-t border-brand-200 dark:border-brand-900 flex justify-end space-x-3">
+                <button type="button" onClick={() => setShowEditModal(false)} className="bg-brand-200 text-brand-850 dark:bg-brand-900 dark:text-white rounded-xl px-5 py-2.5 font-bold text-xs uppercase">Cancel</button>
+                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-6 py-2.5 font-bold text-xs uppercase shadow-md shadow-indigo-600/10">Save Changes</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

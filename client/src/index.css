@@ -106,3 +106,131 @@
     width: 100%;
   }
 }
+
+/* ===== Task Module Animations ===== */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes overduePulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toastProgress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+@keyframes shimmerGlow {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes countPop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+.animate-slide-in-scale {
+  animation: slideInScale 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-overdue-pulse {
+  animation: overduePulse 2s ease-in-out infinite;
+}
+
+.animate-toast-slide-in {
+  animation: toastSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-count-pop {
+  animation: countPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Staggered card animation delays */
+.task-card-1 { animation-delay: 0.05s; }
+.task-card-2 { animation-delay: 0.1s; }
+.task-card-3 { animation-delay: 0.15s; }
+.task-card-4 { animation-delay: 0.2s; }
+.task-card-5 { animation-delay: 0.25s; }
+.task-card-6 { animation-delay: 0.3s; }
+.task-card-7 { animation-delay: 0.35s; }
+.task-card-8 { animation-delay: 0.4s; }
+
+/* Progress ring styles */
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+/* Stat card shimmer */
+.stat-shimmer {
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmerGlow 3s ease-in-out infinite;
+}
+

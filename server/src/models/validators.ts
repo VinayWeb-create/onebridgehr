@@ -52,6 +52,7 @@ export const certificateSchema = z.object({
 });
 
 export const registerEmployeeSchema = z.object({
+  employeeId: z.string().optional(),
   email: z.string().email('Invalid email address'),
   role: z.enum(['SUPER_ADMIN', 'HR', 'TEAM_LEAD', 'EMPLOYEE']),
   firstName: z.string().min(1, 'First name is required'),
