@@ -82,6 +82,22 @@ const GoogleDriveCard: React.FC = () => {
     }
   };
 
+  const handleMockConnect = async () => {
+    setBusy(true);
+    try {
+      await api.post('/drive/mock-connect');
+      setBanner({ type: 'success', message: 'Mock connection established. Using Local Storage fallback.' });
+      loadStatus();
+    } catch (err: any) {
+      setBanner({
+        type: 'error',
+        message: err.response?.data?.message || 'Failed to establish mock connection.',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleDisconnect = async () => {
     if (!window.confirm('Disconnect the company Google account from Drive uploads?')) return;
     setBusy(true);
@@ -133,9 +149,9 @@ const GoogleDriveCard: React.FC = () => {
           <Loader2 size={14} className="animate-spin text-orange-500" />
           <span>Checking connection...</span>
         </div>
-      ) : status && !status.configured ? (
-        <div className="space-y-3 text-xs text-brand-600 dark:text-brand-400">
-          <p className="flex items-start space-x-2 p-3 bg-brand-50 dark:bg-brand-900/50 rounded-xl border border-brand-100 dark:border-brand-800">
+      ) : status && !status.configured && !status.connected ? (
+        <div className="space-y-4">
+          <p className="flex items-start space-x-2 p-3 bg-brand-50 dark:bg-brand-900/50 rounded-xl border border-brand-100 dark:border-brand-800 text-xs text-brand-600 dark:text-brand-400">
             <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
             <span>
               Google OAuth is not configured. Set <code className="font-black">GOOGLE_CLIENT_ID</code>,{' '}
@@ -144,6 +160,14 @@ const GoogleDriveCard: React.FC = () => {
               server.
             </span>
           </p>
+          <button
+            onClick={handleMockConnect}
+            disabled={busy}
+            className="inline-flex items-center space-x-1.5 bg-gradient-to-br from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white rounded-xl px-4 py-2.5 font-black text-[11px] tracking-wider uppercase transition-all shadow-lg shadow-indigo-500/30 disabled:opacity-50"
+          >
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
+            <span>Direct Connect (Local Storage)</span>
+          </button>
         </div>
       ) : status?.connected ? (
         <div className="space-y-4 text-xs text-brand-600 dark:text-brand-400">

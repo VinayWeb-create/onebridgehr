@@ -99,6 +99,14 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       },
     });
 
+    // Fetch onboarding status to check if it's pending
+    const onboarding = await prisma.onboarding.findFirst({
+      where: { employeeId: user.employeeId },
+    });
+    const onboardingPending = onboarding
+      ? !['DOCUMENTS_SUBMITTED', 'HR_VERIFICATION', 'DOCUMENTS_VERIFIED', 'APPROVED', 'COMPLETED'].includes(onboarding.status)
+      : false;
+
     await logActivity(user.employeeId, 'USER_LOGIN', 'User logged in successfully', req);
 
     res.status(200).json({
@@ -116,6 +124,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
           profileImageUrl: employee?.profileImageUrl,
           department: employee?.department,
           designation: employee?.designation,
+          onboardingPending,
         },
       },
     });
@@ -193,6 +202,14 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
       where: { employeeId: req.user.employeeId },
     });
 
+    const onboarding = await prisma.onboarding.findFirst({
+      where: { employeeId: req.user.employeeId },
+    });
+
+    const onboardingPending = onboarding
+      ? !['DOCUMENTS_SUBMITTED', 'HR_VERIFICATION', 'DOCUMENTS_VERIFIED', 'APPROVED', 'COMPLETED'].includes(onboarding.status)
+      : false;
+
     res.status(200).json({
       status: 'success',
       data: {
@@ -201,6 +218,7 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
           email: req.user.email,
           role: req.user.role,
           employeeId: req.user.employeeId,
+          onboardingPending,
         },
         employee,
       },

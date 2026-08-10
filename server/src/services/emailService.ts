@@ -234,11 +234,17 @@ class EmailService {
       </div>
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
         <tr>
-          <td style="background-color:${PRIMARY_COLOR}; border-radius:8px; padding:14px 28px;">
+          <td style="background-color:#10b981; border-radius:8px; padding:14px 28px; margin-right: 12px; display: inline-block;">
+            <a href="mailto:hr@onebridgeinfotech.com?subject=Offer%20Accepted%20-%20${encodeURIComponent(candidateName)}&body=I%20accept%20this%20offer." style="color:#ffffff; font-size:14px; font-weight:600; text-decoration:none; display:inline-block;">Accept Offer</a>
+          </td>
+          <td style="background-color:${PRIMARY_COLOR}; border-radius:8px; padding:14px 28px; display: inline-block;">
             <a href="mailto:hr@onebridgeinfotech.com" style="color:#ffffff; font-size:14px; font-weight:600; text-decoration:none; display:inline-block;">Contact HR Team</a>
           </td>
         </tr>
       </table>
+      <p style="color:#4b5563; font-size:13px; line-height:1.7; margin-bottom:20px;">
+        <em>Alternatively, you can just reply to this email with <strong>"Accepted"</strong> to confirm your acceptance.</em>
+      </p>
       <p style="color:${SECONDARY_COLOR}; font-size:14px; line-height:1.7; margin:0;">Welcome aboard!</p>
 
     `;
@@ -998,16 +1004,22 @@ class EmailService {
       reportingManager: string;
       role: string;
     },
-    pdfBuffer: Buffer
+    pdfBuffer?: Buffer,
+    token?: string
   ) {
     const subject = `Joining Confirmation - OneBridge Infotech`;
+    const backendApiUrl = process.env.API_URL || 'http://localhost:5000/api';
+    const acceptUrl = `${backendApiUrl}/onboarding/portal/${token}/auto-accept`;
 
     const bodyHtml = `
       <div style="margin-bottom:24px;">
-        <h2 style="color:${SECONDARY_COLOR}; font-size:20px; font-weight:700; margin:0 0 8px 0;">🎉 You're Confirmed to Join!</h2>
+        <h2 style="color:${SECONDARY_COLOR}; font-size:20px; font-weight:700; margin:0 0 8px 0;">🎉 Congratulations! You have been selected</h2>
         <div style="height:3px; width:60px; background-color:${SUCCESS_COLOR}; border-radius:2px;"></div>
       </div>
       <p style="color:${SECONDARY_COLOR}; font-size:15px; line-height:1.7; margin:0 0 20px 0;">Dear ${candidateName},</p>
+      <p style="color:#4b5563; font-size:14px; line-height:1.7; margin:0 0 20px 0;">
+        We are thrilled to inform you that you have been selected for this position!
+      </p>
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background:linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius:12px; padding:22px; margin-bottom:24px;">
         <tr>
           <td>
@@ -1024,14 +1036,27 @@ class EmailService {
       <p style="color:#4b5563; font-size:14px; line-height:1.7; margin:0 0 20px 0;">
         Please find your one-page <strong>Joining Letter</strong> attached to this email. Kindly carry a printed copy along with your government ID and educational documents on your joining day.
       </p>
+      ${token ? `
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+        <tr>
+          <td align="center">
+            <a href="${acceptUrl}" style="background-color:#10b981; color:#ffffff; font-size:16px; font-weight:700; text-decoration:none; padding:16px 32px; border-radius:8px; display:inline-block; box-shadow:0 4px 6px -1px rgba(16, 185, 129, 0.2);">
+              ✅ Accept Offer & Confirm Joining
+            </a>
+          </td>
+        </tr>
+      </table>
+      <p style="color:#6b7280; font-size:12px; line-height:1.6; margin-bottom:20px; text-align:center;">
+        <em>Clicking the button above will automatically create your employee account and send you login credentials.</em>
+      </p>
+      ` : ''}
       <p style="color:${SECONDARY_COLOR}; font-size:14px; line-height:1.7; margin:0;">See you soon!</p>
-
     `;
 
     const html = this.renderBrandedEmail(subject, bodyHtml);
     return this.sendMail(to, subject, html, [
       {
-        filename: `Joining_Letter_${candidateName.replace(/\s+/g, '_')}.pdf`,
+        filename: `Offer_Letter_${candidateName.replace(/\s+/g, '_')}.pdf`,
         content: pdfBuffer,
       },
     ]);

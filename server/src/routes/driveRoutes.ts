@@ -107,4 +107,17 @@ router.post('/disconnect', protect, restrictTo('SUPER_ADMIN', 'HR'), async (req,
   }
 });
 
+/**
+ * POST /api/drive/mock-connect
+ * Mocks the Google Drive connection for local development.
+ */
+router.post('/mock-connect', protect, restrictTo('SUPER_ADMIN', 'HR'), async (req, res, next) => {
+  try {
+    const email = await googleOAuth.handleMockConnect();
+    res.json({ success: true, data: { email } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

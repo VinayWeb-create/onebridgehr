@@ -143,7 +143,7 @@ class PdfService {
 
       // Brand Identity Colors (Slate and Dark Indigo)
       const primaryColor = '#1e1b4b'; // deep indigo
-      const secondaryColor = '#3b82f6'; // blue-500
+      const secondaryColor = '#e75d07ff'; // blue-500
       const textColor = '#334155'; // slate-700
       const borderLight = '#e2e8f0'; // slate-200
       const tableHeaderBg = '#f8fafc'; // slate-50
@@ -253,7 +253,7 @@ class PdfService {
       doc.text(totalEarnings.toFixed(2), 190, y);
       doc.text('Total Deductions (B)', 307, y);
       doc.text(totalDeductions.toFixed(2), 437, y);
-      
+
       y += 20;
       doc.strokeColor(primaryColor).lineWidth(1.5).moveTo(50, y).lineTo(545, y).stroke();
       y += 10;
@@ -261,7 +261,7 @@ class PdfService {
       // Net Salary Box
       doc.rect(50, y, 495, 30).fill(tableHeaderBg);
       doc.fillColor(primaryColor).fontSize(11).font('Helvetica-Bold').text(`NET SALARY PAYABLE (A - B): INR ${data.netSalary.toFixed(2)}`, 60, y + 10);
-      
+
       const roundedWords = `Net Salary in Words: Indian Rupees ${this.numberToWords(Math.round(data.netSalary))} Only`;
       doc.fillColor(textColor).fontSize(8).font('Helvetica').text(roundedWords, 60, y + 45);
 
@@ -336,124 +336,177 @@ class PdfService {
 
   public generateOfferLetterPdf(data: OfferLetterPdfData): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      // Set bottom margin to 0 to prevent the footer from triggering a page break
+      const doc = new PDFDocument({ margins: { top: 50, left: 50, right: 50, bottom: 0 }, size: 'A4' });
       const chunks: Buffer[] = [];
 
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', (err) => reject(err));
 
-      const primary = '#1e1b4b';
-      const accent = '#f37021';
-      const text = '#334155';
+      const primary = '#334155'; // Dark text
+      const accent = '#ea6d2aff'; // Dark orange accent
+      const text = '#475569';
+      const border = '#cbd5e1';
 
-      this.drawBrandedHeader(doc, data.companyLogoDataUrl);
+      // --- Header (Left Logo, Right Address) ---
+      let embeddedLogo = false;
+      if (data.companyLogoDataUrl) {
+        try {
+          this.embedDataUrl(doc, data.companyLogoDataUrl, 50, 40, 80, 80);
+          embeddedLogo = true;
+        } catch (e) {
+          console.warn('Could not embed provided company logo');
+        }
+      }
 
-      doc.fillColor(primary).fontSize(16).font('Helvetica-Bold').text('INTERNSHIP / EMPLOYMENT OFFER LETTER', { align: 'center' });
+      if (!embeddedLogo) {
+        try {
+          // Attempt to load from local client public directory (3 levels up from services)
+          const localLogoPath = path.resolve(__dirname, '../../../client/public/image.png');
+          if (fs.existsSync(localLogoPath)) {
+            doc.image(localLogoPath, 50, 40, { width: 80, height: 80 });
+            embeddedLogo = true;
+          }
+        } catch (e) {
+          console.warn('Could not load local company logo', e);
+        }
+      }
+
+      if (!embeddedLogo) {
+        // Fallback logo placeholder
+        doc.fillColor(accent).font('Helvetica-Bold').fontSize(24).text('ONEBRIDGE', 50, 50);
+      }
+
+      doc.fillColor(primary).font('Helvetica-Bold').fontSize(12).text('ONEBRIDGE INFOTECH PVT. LTD.', 200, 45, { align: 'right', width: 345 });
+      doc.fillColor(text).font('Helvetica').fontSize(8).text('202, Sathyabama Complex, Bhagya Nagar Colony, KPHB, Hyderabad, Telangana 500072', 200, 60, { align: 'right', width: 345 });
+      doc.fillColor(accent).font('Helvetica-Bold').text('CIN: U85500TS2024PTC186604', 200, 75, { align: 'right', width: 345, continued: true }).fillColor(text).font('Helvetica').text(' | hr@onebridgeinfotech.com');
+      doc.fillColor(accent).font('Helvetica-Bold').text('+91 93983 55196', 200, 90, { align: 'right', width: 345, continued: true }).fillColor(text).font('Helvetica').text(' | www.onebridgeinfotech.com');
+
+      doc.moveDown(1);
+
+      // --- Title Bar ---
+      const titleY = doc.y;
+      doc.rect(50, titleY, 495, 22).fill(accent);
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(11).text('INTERNSHIP / EMPLOYMENT OFFER LETTER', 50, titleY + 6, { align: 'center', width: 495 });
+
+      // --- Info Box (Ref & Date) ---
+      let y = titleY + 30;
+      doc.rect(50, y, 250, 30).fill('#f8fafc').strokeColor(border).stroke();
+      doc.rect(300, y, 245, 30).fill('#f8fafc').strokeColor(border).stroke();
+      // Orange top border for info box
+      doc.moveTo(50, y).lineTo(545, y).lineWidth(2).strokeColor(accent).stroke();
+      doc.lineWidth(1); // reset
+
+      doc.fillColor('#94a3b8').font('Helvetica').fontSize(8).text('Reference Number', 60, y + 5);
+      doc.fillColor(primary).font('Helvetica-Bold').fontSize(9).text(`Ref No: ${data.refNo}`, 60, y + 15);
+
+      doc.fillColor('#94a3b8').font('Helvetica').fontSize(8).text('Date of Issue', 310, y + 5);
+      doc.fillColor(primary).font('Helvetica-Bold').fontSize(9).text(`Date: ${data.offerDate}`, 310, y + 15);
+
+      y += 35;
+
+      // --- To Box ---
+      doc.rect(50, y, 495, 55).fill('#f8fafc').strokeColor(border).stroke();
+      doc.fillColor(text).font('Helvetica').fontSize(9).text('To,', 60, y + 5);
+      doc.fillColor(primary).font('Helvetica-Bold').fontSize(10).text(data.candidateName, 60, y + 18);
+      doc.fillColor(accent).font('Helvetica').text(data.candidateEmail || '', 60, y + 32);
+
+      y += 65;
+
+      // --- Letter Body ---
+      doc.y = y;
+      doc.fillColor(primary).font('Helvetica-Bold').fontSize(10).text(`Dear ${data.candidateName.split(' ')[0]},`);
       doc.moveDown(0.3);
-      doc.fillColor(text).fontSize(9).font('Helvetica').text(`Ref No: ${data.refNo}`, { align: 'right' });
-      doc.text(`Date: ${data.offerDate}`, { align: 'right' });
-      doc.moveDown(1.2);
+      doc.fillColor(text).font('Helvetica').text('Following your interview with us, we are pleased to extend this offer of employment with OneBridge Infotech Pvt. Ltd. under the following terms and conditions.');
+      doc.moveDown(0.5);
 
-      doc.fontSize(10).fillColor(text);
-      doc.text('To,');
-      doc.font('Helvetica-Bold').text(data.candidateName);
-      doc.font('Helvetica').text(data.candidateAddress || '');
-      doc.font('Helvetica').text(data.candidateEmail || '');
-      if (data.candidatePhone) doc.text(data.candidatePhone);
-      doc.moveDown(0.8);
+      // --- Appointment Details Table ---
+      doc.fillColor(accent).font('Helvetica-Bold').fontSize(10).text('  APPOINTMENT DETAILS', 50, doc.y);
+      let tableY = doc.y + 4;
 
-      doc.text(`Dear ${data.candidateName.split(' ')[0]},`);
-      doc.moveDown(0.4);
-      doc.text('Following your interview with us, we are pleased to extend this offer of employment with OneBridge Infotech Pvt. Ltd. under the following terms and conditions:');
-      doc.moveDown(0.8);
+      // Table Header
+      doc.rect(50, tableY, 200, 18).fill(accent).strokeColor(border).stroke();
+      doc.rect(250, tableY, 295, 18).fill(accent).strokeColor(border).stroke();
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(9).text('Field', 60, tableY + 5);
+      doc.text('Details', 260, tableY + 5);
+      tableY += 18;
 
-      const sectionHeader = (label: string) => {
-        doc.fillColor(primary).rect(50, doc.y, 495, 22).fill(primary);
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10).text(label, 60, doc.y + 6);
-        doc.moveDown(0.7);
-        doc.fillColor(text).font('Helvetica').fontSize(10);
-      };
-
-      sectionHeader('APPOINTMENT DETAILS');
-      const details: Array<[string, string]> = [
-        ['Position / Designation:', data.role],
-        ['Department:', data.department],
-        ['Date of Joining:', data.joiningDate],
-        ['Reporting Manager:', data.reportingManager || 'HR Department'],
-        ['Work Location:', data.officeAddress || 'OneBridge Infotech, Hyderabad'],
-        ['Probation Period:', `${data.probationMonths} month(s) from date of joining`],
-        ['Notice Period:', `${data.noticePeriodDays} days`],
+      const details: Array<[string, string, boolean]> = [
+        ['Position', data.role, false],
+        ['Department', data.department, false],
+        ['Joining Date', data.joiningDate, false],
+        ['Reporting Manager', data.reportingManager || 'HR Department', false],
+        ['Work Location', data.officeAddress || 'OneBridge Infotech, Hyderabad', false],
+        ['Probation', `${data.probationMonths} Months`, false],
+        ['Notice Period', `${data.noticePeriodDays} Days`, false],
       ];
-      details.forEach(([label, val]) => {
-        doc.font('Helvetica-Bold').text(label, 60, doc.y, { continued: true });
-        doc.font('Helvetica').text(` ${val}`);
-        doc.moveDown(0.25);
+
+      details.forEach(([label, val, highlight], index) => {
+        const bg = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+        doc.rect(50, tableY, 200, 18).fill(bg).strokeColor(border).stroke();
+        doc.rect(250, tableY, 295, 18).fill(bg).strokeColor(border).stroke();
+
+        doc.fillColor(primary).font('Helvetica-Bold').fontSize(9).text(label, 60, tableY + 5);
+        if (highlight) {
+          doc.fillColor(accent).font('Helvetica-Bold').text(val, 260, tableY + 5);
+        } else {
+          doc.fillColor(text).font('Helvetica').text(val, 260, tableY + 5);
+        }
+        tableY += 18;
       });
-      doc.moveDown(0.4);
 
-      sectionHeader('COMPENSATION & BENEFITS');
-      doc.font('Helvetica-Bold').text('Compensation: ', { continued: true });
-      doc.font('Helvetica').text(`INR ${data.salary.toLocaleString('en-IN')}`);
-      doc.moveDown(0.4);
-      if (data.benefits && data.benefits.length > 0) {
-        doc.font('Helvetica-Bold').text('Additional Benefits:');
-        data.benefits.forEach((b, i) => {
-          doc.font('Helvetica').text(`  ${i + 1}. ${b}`);
-          doc.moveDown(0.2);
-        });
-      }
-      doc.moveDown(0.6);
+      doc.y = tableY + 10;
 
-      sectionHeader('TERMS & CONDITIONS');
+      // --- Terms & Conditions ---
+      doc.fillColor(accent).font('Helvetica-Bold').fontSize(10).text('  TERMS & CONDITIONS', 50, doc.y);
+      let termsY = doc.y + 4;
+
       const clauses = [
-        'This offer is subject to successful completion of background verification and submission of all required documents.',
-        'During the probation period, either party may terminate the employment by providing notice as stated above or salary in lieu thereof.',
-        'Your employment will be governed by the policies, rules and regulations of the company as amended from time to time.',
-        'You shall maintain confidentiality of all proprietary information of the company during and post employment.',
-        'This offer letter supersedes all prior discussions, understandings or agreements, whether oral or written, relating to your employment with us.',
+        'Subject to successful background verification and submission of required documents.',
+        'During probation, either party may terminate employment by providing the required notice or salary in lieu.',
+        'Employment is governed by company policies and regulations as amended from time to time.',
+        'Maintain confidentiality of all proprietary company information during and after employment.',
+        'This offer supersedes all prior discussions or agreements relating to employment.',
       ];
-      clauses.forEach((c, i) => {
-        doc.text(`${i + 1}. ${c}`);
-        doc.moveDown(0.25);
+
+      clauses.forEach((c) => {
+        doc.rect(50, termsY, 495, 16).fill('#f8fafc').strokeColor(border).stroke();
+        doc.fillColor(accent).font('Helvetica').fontSize(9).text('✓', 60, termsY + 4);
+        doc.fillColor(text).font('Helvetica').fontSize(8).text(c, 75, termsY + 4);
+        termsY += 16;
       });
-      doc.moveDown(0.6);
 
-      doc.text('We look forward to having you as part of the OneBridge Infotech team. Please sign and return a copy of this letter as a token of acceptance of the offer.');
-      doc.moveDown(1.4);
-
-      // --- Signature Section ---
-      doc.fontSize(9);
+      // --- Signature Block ---
+      doc.y = termsY + 15;
       const signY = doc.y;
-      const candidateTop = doc.y + 14;
 
-      // Candidate signature
-      if (data.signed) {
-        this.embedDataUrl(doc, data.signatureDataUrl, 60, candidateTop, 120, 45);
-        doc.strokeColor(text).lineWidth(0.5).moveTo(60, candidateTop + 55).lineTo(240, candidateTop + 55).stroke();
-        doc.font('Helvetica-Bold').fillColor(primary).text(data.candidateName, 60, candidateTop + 58);
-        doc.font('Helvetica').fillColor(text).fontSize(8).text('Accepted by (Candidate)', 60, candidateTop + 70);
-        doc.text(`Date: ${data.offerDate}`, 60, candidateTop + 80);
+      // Left Side: Candidate
+      doc.fillColor(primary).font('Helvetica-Bold').fontSize(9).text('Accepted by Candidate:', 50, signY);
+
+      if (data.signed && data.signatureDataUrl) {
+        this.embedDataUrl(doc, data.signatureDataUrl, 50, signY + 10, 100, 30);
+        doc.fillColor(text).font('Helvetica').fontSize(8).text('Accepted by Candidate: ______________________', 50, signY + 45);
+        doc.text(`Date: ${data.offerDate}`, 50, signY + 55);
       } else {
-        doc.moveDown(1.2);
-        doc.strokeColor(text).lineWidth(0.5).moveTo(60, doc.y).lineTo(240, doc.y).stroke();
-        doc.moveDown(0.3);
-        doc.font('Helvetica-Bold').fillColor(primary).text(data.candidateName, 60, doc.y);
-        doc.font('Helvetica').fillColor(text).fontSize(8).text('Accepted by (Candidate)', 60, doc.y + 10);
-        doc.text('Date: _______________', 60, doc.y + 20);
+        doc.fillColor(text).font('Helvetica').fontSize(8).text('Accepted by Candidate: ______________________', 50, signY + 30);
+        doc.text('Date: ____________', 50, signY + 45);
       }
 
-      // Company signature + seal
-      const companyTop = signY + 14;
-      this.embedDataUrl(doc, data.companySignatureDataUrl, 340, companyTop, 120, 45);
-      doc.strokeColor(text).lineWidth(0.5).moveTo(340, companyTop + 55).lineTo(500, companyTop + 55).stroke();
-      doc.font('Helvetica-Bold').fillColor(primary).text(data.signatoryName, 340, companyTop + 58);
-      doc.font('Helvetica').fillColor(text).fontSize(8).text(data.signatoryDesignation, 340, companyTop + 68);
-      doc.text('For OneBridge Infotech Pvt. Ltd.', 340, companyTop + 80);
-      this.embedDataUrl(doc, data.companySealDataUrl, 470, companyTop + 10, 60, 60);
+      // Right Side: Company
+      doc.fillColor(primary).font('Helvetica-Bold').fontSize(9).text('For ONEBRIDGE INFOTECH PVT. LTD.', 340, signY);
 
-      doc.moveDown(5);
-      doc.fontSize(7).fillColor(text).text('This is a system-generated document and does not require a physical signature.', 50, 745, { align: 'center', width: 495 });
+      this.embedDataUrl(doc, data.companySignatureDataUrl, 380, signY + 10, 100, 30);
+
+      doc.fillColor(primary).font('Helvetica-Bold').fontSize(9).text(data.signatoryName || 'Mr. Uday Kumar CH', 340, signY + 42, { align: 'right', width: 205 });
+      doc.fillColor(text).font('Helvetica').fontSize(8).text(data.signatoryDesignation || 'Managing Director', 340, signY + 52, { align: 'right', width: 205 });
+      doc.fillColor(accent).font('Helvetica-Oblique').text('Authorized Signatory', 340, signY + 62, { align: 'right', width: 205 });
+
+      // --- Footer ---
+      doc.fillColor('#94a3b8').font('Helvetica-Oblique').fontSize(7).text('This is a system-generated document and does not require a physical signature.', 50, 785, { align: 'center', width: 495 });
+
+      doc.rect(0, 800, 600, 42).fill(accent);
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(8).text('ONEBRIDGE INFOTECH PVT. LTD.   •   www.onebridgeinfotech.com   •   hr@onebridgeinfotech.com', 0, 815, { align: 'center', width: 595 });
 
       doc.end();
     });

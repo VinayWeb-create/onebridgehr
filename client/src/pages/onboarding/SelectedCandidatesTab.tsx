@@ -38,7 +38,7 @@ export const SelectedCandidatesTab: React.FC = () => {
   };
 
   const handleSendAcceptanceEmail = async (offerLetterId: string) => {
-    if (!window.confirm('Generate 11-page Internship Offer Letter and send Acceptance Email via secure portal link?')) return;
+    if (!window.confirm('Generate 1-page Offer Letter and send Welcome Email with acceptance instructions?')) return;
     
     try {
       setSending(offerLetterId);
@@ -147,7 +147,7 @@ export const SelectedCandidatesTab: React.FC = () => {
                           className="px-3 py-1.5 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 text-[10px] font-bold uppercase flex items-center gap-2"
                         >
                           <Mail size={14} />
-                          {sending === candidate.id ? 'Sending...' : 'Send Acceptance Email'}
+                          {sending === candidate.id ? 'Sending...' : 'Send Offer Letter'}
                         </button>
                       </div>
                     </td>

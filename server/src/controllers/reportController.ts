@@ -298,28 +298,29 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
     const remainingTasksToday = Math.max(0, totalTasksAssignedToday - totalTasksCompletedToday);
 
     // --- Daily Progress Trends (last 7 days) ---
-    const last7Days = [];
-    for (let i = 6; i >= 0; i--) {
-      const day = new Date(today);
-      day.setDate(day.getDate() - i);
-      const dayStart = new Date(day);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(day);
-      dayEnd.setHours(23, 59, 59, 999);
+    const last7Days = await Promise.all(
+      Array.from({ length: 7 }).map(async (_, i) => {
+        const day = new Date(today);
+        day.setDate(day.getDate() - (6 - i));
+        const dayStart = new Date(day);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(day);
+        dayEnd.setHours(23, 59, 59, 999);
 
-      const dayTasks = await prisma.task.findMany({
-        where: { createdAt: { gte: dayStart, lte: dayEnd } },
-      });
-      const dayCompleted = dayTasks.filter((t) => t.status === 'COMPLETED').length;
-      const completionPct = dayTasks.length > 0 ? Math.round((dayCompleted / dayTasks.length) * 100) : 0;
+        const dayTasks = await prisma.task.findMany({
+          where: { createdAt: { gte: dayStart, lte: dayEnd } },
+        });
+        const dayCompleted = dayTasks.filter((t) => t.status === 'COMPLETED').length;
+        const completionPct = dayTasks.length > 0 ? Math.round((dayCompleted / dayTasks.length) * 100) : 0;
 
-      last7Days.push({
-        day: day.toLocaleDateString('en-US', { weekday: 'short' }),
-        assigned: dayTasks.length,
-        completed: dayCompleted,
-        completionPct,
-      });
-    }
+        return {
+          day: day.toLocaleDateString('en-US', { weekday: 'short' }),
+          assigned: dayTasks.length,
+          completed: dayCompleted,
+          completionPct,
+        };
+      })
+    );
 
     // Weekly trend comparison
     const thisWeekStart = new Date(today);
@@ -341,19 +342,20 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
     const weeklyTrend = thisWeekCompletion - lastWeekCompletion;
 
     // Monthly trend (last 6 months)
-    const monthlyTrend = [];
-    for (let i = 5; i >= 0; i--) {
-      const mDate = new Date(currentYear, currentMonth - 1 - i, 1);
-      const mStart = new Date(mDate);
-      const mEnd = new Date(currentYear, currentMonth - i, 0, 23, 59, 59, 999);
-      const mTasks = await prisma.task.findMany({ where: { createdAt: { gte: mStart, lte: mEnd } } });
-      const mCompleted = mTasks.filter((t) => t.status === 'COMPLETED').length;
-      monthlyTrend.push({
-        month: mDate.toLocaleDateString('en-US', { month: 'short' }),
-        completionPct: mTasks.length > 0 ? Math.round((mCompleted / mTasks.length) * 100) : 0,
-        total: mTasks.length,
-      });
-    }
+    const monthlyTrend = await Promise.all(
+      Array.from({ length: 6 }).map(async (_, i) => {
+        const mDate = new Date(currentYear, currentMonth - 1 - (5 - i), 1);
+        const mStart = new Date(mDate);
+        const mEnd = new Date(currentYear, currentMonth - (5 - i), 0, 23, 59, 59, 999);
+        const mTasks = await prisma.task.findMany({ where: { createdAt: { gte: mStart, lte: mEnd } } });
+        const mCompleted = mTasks.filter((t) => t.status === 'COMPLETED').length;
+        return {
+          month: mDate.toLocaleDateString('en-US', { month: 'short' }),
+          completionPct: mTasks.length > 0 ? Math.round((mCompleted / mTasks.length) * 100) : 0,
+          total: mTasks.length,
+        };
+      })
+    );
 
     // --- Employee Productivity Stats ---
     let topPerformerToday = null;
@@ -412,44 +414,46 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
     }
 
     // --- Attendance Trend (Last 30 days) ---
-    const attendanceTrend = [];
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dStart = new Date(d);
-      dStart.setHours(0, 0, 0, 0);
-      const dayAttendance = await prisma.attendance.findMany({
-        where: { date: dStart },
-        select: { status: true },
-      });
-      attendanceTrend.push({
-        date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        present: dayAttendance.filter((a) => a.status === 'PRESENT').length,
-        late: dayAttendance.filter((a) => a.status === 'LATE').length,
-        wfh: dayAttendance.filter((a) => a.status === 'WORK_FROM_HOME' || a.status === 'REMOTE').length,
-        absent: dayAttendance.filter((a) => a.status === 'ABSENT').length,
-        onLeave: dayAttendance.filter((a) => a.status === 'ON_LEAVE' || a.status === 'HOLIDAY').length,
-      });
-    }
+    const attendanceTrend = await Promise.all(
+      Array.from({ length: 30 }).map(async (_, i) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - (29 - i));
+        const dStart = new Date(d);
+        dStart.setHours(0, 0, 0, 0);
+        const dayAttendance = await prisma.attendance.findMany({
+          where: { date: dStart },
+          select: { status: true },
+        });
+        return {
+          date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          present: dayAttendance.filter((a) => a.status === 'PRESENT').length,
+          late: dayAttendance.filter((a) => a.status === 'LATE').length,
+          wfh: dayAttendance.filter((a) => a.status === 'WORK_FROM_HOME' || a.status === 'REMOTE').length,
+          absent: dayAttendance.filter((a) => a.status === 'ABSENT').length,
+          onLeave: dayAttendance.filter((a) => a.status === 'ON_LEAVE' || a.status === 'HOLIDAY').length,
+        };
+      })
+    );
 
     // --- Task Completion Trend (Last 12 weeks) ---
-    const taskTrend = [];
-    for (let i = 11; i >= 0; i--) {
-      const wStart = new Date(today);
-      wStart.setDate(wStart.getDate() - (i * 7 + 6));
-      const wEnd = new Date(wStart);
-      wEnd.setDate(wEnd.getDate() + 6);
-      const wTasks = await prisma.task.findMany({
-        where: { createdAt: { gte: wStart, lte: wEnd } },
-        select: { status: true },
-      });
-      taskTrend.push({
-        week: `W${12 - i}`,
-        assigned: wTasks.length,
-        completed: wTasks.filter((t) => t.status === 'COMPLETED').length,
-        inProgress: wTasks.filter((t) => t.status === 'IN_PROGRESS').length,
-      });
-    }
+    const taskTrend = await Promise.all(
+      Array.from({ length: 12 }).map(async (_, i) => {
+        const wStart = new Date(today);
+        wStart.setDate(wStart.getDate() - ((11 - i) * 7 + 6));
+        const wEnd = new Date(wStart);
+        wEnd.setDate(wEnd.getDate() + 6);
+        const wTasks = await prisma.task.findMany({
+          where: { createdAt: { gte: wStart, lte: wEnd } },
+          select: { status: true },
+        });
+        return {
+          week: `W${12 - (11 - i)}`,
+          assigned: wTasks.length,
+          completed: wTasks.filter((t) => t.status === 'COMPLETED').length,
+          inProgress: wTasks.filter((t) => t.status === 'IN_PROGRESS').length,
+        };
+      })
+    );
 
     // --- Department Performance ---
     const departmentPerformance = await Promise.all(
@@ -485,16 +489,17 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
     })();
 
     // --- Monthly Hiring (Last 12 months) ---
-    const monthlyHiring = [];
-    for (let i = 11; i >= 0; i--) {
-      const mStart = new Date(currentYear, currentMonth - 1 - i, 1);
-      const mEnd = new Date(currentYear, currentMonth - i, 0, 23, 59, 59, 999);
-      const count = await prisma.employee.count({ where: { createdAt: { gte: mStart, lte: mEnd } } });
-      monthlyHiring.push({
-        month: mStart.toLocaleDateString('en-US', { month: 'short' }),
-        hires: count,
-      });
-    }
+    const monthlyHiring = await Promise.all(
+      Array.from({ length: 12 }).map(async (_, i) => {
+        const mStart = new Date(currentYear, currentMonth - 1 - (11 - i), 1);
+        const mEnd = new Date(currentYear, currentMonth - (11 - i), 0, 23, 59, 59, 999);
+        const count = await prisma.employee.count({ where: { createdAt: { gte: mStart, lte: mEnd } } });
+        return {
+          month: mStart.toLocaleDateString('en-US', { month: 'short' }),
+          hires: count,
+        };
+      })
+    );
 
     // --- Employee Growth (Cumulative) ---
     const employeeGrowth: { month: string; total: number }[] = [];
@@ -506,22 +511,23 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
     }
 
     // --- Payroll Summary (Last 6 months) ---
-    const payrollSummary: { month: string; salary: number; bonus: number; deductions: number; net: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const mDate = new Date(currentYear, currentMonth - 1 - i, 1);
-      const m = mDate.getMonth() + 1;
-      const yr = mDate.getFullYear();
-      const mPayrolls = await prisma.payroll.findMany({ where: { month: m, financialYear: yr.toString() } });
-      const sum = (arr: Float32Array | any, field: string) =>
-        arr.reduce((s: number, p: any) => s + (p[field] || 0), 0);
-      payrollSummary.push({
-        month: mDate.toLocaleDateString('en-US', { month: 'short' }),
-        salary: Math.round(sum(mPayrolls, 'basic') + sum(mPayrolls, 'hra') + sum(mPayrolls, 'da') + sum(mPayrolls, 'allowance')),
-        bonus: Math.round(sum(mPayrolls, 'bonus')),
-        deductions: Math.round(sum(mPayrolls, 'pf') + sum(mPayrolls, 'esi') + sum(mPayrolls, 'professionalTax') + sum(mPayrolls, 'incomeTax')),
-        net: Math.round(sum(mPayrolls, 'netSalary')),
-      });
-    }
+    const payrollSummary = await Promise.all(
+      Array.from({ length: 6 }).map(async (_, i) => {
+        const mDate = new Date(currentYear, currentMonth - 1 - (5 - i), 1);
+        const m = mDate.getMonth() + 1;
+        const yr = mDate.getFullYear();
+        const mPayrolls = await prisma.payroll.findMany({ where: { month: m, financialYear: yr.toString() } });
+        const sum = (arr: Float32Array | any, field: string) =>
+          arr.reduce((s: number, p: any) => s + (p[field] || 0), 0);
+        return {
+          month: mDate.toLocaleDateString('en-US', { month: 'short' }),
+          salary: Math.round(sum(mPayrolls, 'basic') + sum(mPayrolls, 'hra') + sum(mPayrolls, 'da') + sum(mPayrolls, 'allowance')),
+          bonus: Math.round(sum(mPayrolls, 'bonus')),
+          deductions: Math.round(sum(mPayrolls, 'pf') + sum(mPayrolls, 'esi') + sum(mPayrolls, 'professionalTax') + sum(mPayrolls, 'incomeTax')),
+          net: Math.round(sum(mPayrolls, 'netSalary')),
+        };
+      })
+    );
 
     // --- Finance Overview ---
     const monthPayroll = payrollSummary[payrollSummary.length - 1]?.net || 0;
@@ -767,35 +773,46 @@ export const getEmployeeDashboardStats = async (req: Request, res: Response, nex
     }
 
     // Daily progress (last 7 days)
-    const last7Days = [];
-    for (let i = 6; i >= 0; i--) {
-      const day = new Date(today);
-      day.setDate(day.getDate() - i);
-      const dayStart = new Date(day);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(day);
-      dayEnd.setHours(23, 59, 59, 999);
-      const dayAtt = await prisma.attendance.findFirst({
-        where: { employeeId, date: dayStart },
-        select: { status: true, lateMinutes: true, overtimeMinutes: true },
-      });
-      const dayCreated = employeeTasks.filter((t) => {
-        const c = new Date(t.createdAt);
-        return c >= dayStart && c <= dayEnd;
-      }).length;
-      const dayCompleted = employeeTasks.filter((t) => {
-        if (!t.updatedAt) return false;
-        const u = new Date(t.updatedAt);
-        return t.status === 'COMPLETED' && u >= dayStart && u <= dayEnd;
-      }).length;
-      last7Days.push({
-        day: day.toLocaleDateString('en-US', { weekday: 'short' }),
-        attendance: dayAtt?.status || 'ABSENT',
-        assigned: dayCreated,
-        completed: dayCompleted,
-        lateMinutes: dayAtt?.lateMinutes || 0,
-        overtimeMinutes: dayAtt?.overtimeMinutes || 0,
-      });
+    const last7Days = await Promise.all(
+      Array.from({ length: 7 }).map(async (_, i) => {
+        const day = new Date(today);
+        day.setDate(day.getDate() - (6 - i));
+        const dayStart = new Date(day);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(day);
+        dayEnd.setHours(23, 59, 59, 999);
+        const dayAtt = await prisma.attendance.findFirst({
+          where: { employeeId, date: dayStart },
+          select: { status: true, lateMinutes: true, overtimeMinutes: true },
+        });
+        const dayCreated = employeeTasks.filter((t) => {
+          const c = new Date(t.createdAt);
+          return c >= dayStart && c <= dayEnd;
+        }).length;
+        const dayCompleted = employeeTasks.filter((t) => {
+          if (!t.updatedAt) return false;
+          const u = new Date(t.updatedAt);
+          return t.status === 'COMPLETED' && u >= dayStart && u <= dayEnd;
+        }).length;
+        return {
+          day: day.toLocaleDateString('en-US', { weekday: 'short' }),
+          attendance: dayAtt?.status || 'ABSENT',
+          assigned: dayCreated,
+          completed: dayCompleted,
+          lateMinutes: dayAtt?.lateMinutes || 0,
+          overtimeMinutes: dayAtt?.overtimeMinutes || 0,
+        };
+      })
+    );
+
+    // --- Onboarding Status ---
+    const onboarding = await prisma.onboarding.findFirst({
+      where: { employeeId },
+      include: { documents: true },
+    });
+    let needsOnboardingDocs = false;
+    if (onboarding && ['JOINED', 'EMPLOYEE_CREATED', 'ACTIVE'].includes(onboarding.status)) {
+      needsOnboardingDocs = onboarding.documents.length < 3;
     }
 
     res.status(200).json({
@@ -820,6 +837,7 @@ export const getEmployeeDashboardStats = async (req: Request, res: Response, nex
         notifications,
         rating,
         timelineEvents,
+        needsOnboardingDocs,
         charts: {
           taskTrend,
           last7Days,

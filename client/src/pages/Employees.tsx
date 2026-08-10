@@ -8,7 +8,6 @@ export const Employees: React.FC = () => {
 
   const tabs = [
     { id: 'selected_candidates', label: 'Selected Candidates' },
-    { id: 'acceptance', label: 'Acceptance' },
     { id: 'joining_onboarding', label: 'Joining & Onboarding' },
     { id: 'employees', label: 'Employees' },
   ];
@@ -43,11 +42,9 @@ export const Employees: React.FC = () => {
       {/* Content */}
       <div className="pt-2">
         {activeTab === 'selected_candidates' && <SelectedCandidatesTab />}
-        {activeTab === 'acceptance' && (
-          <JoiningLettersTab statusFilter={['OFFER_SENT', 'ACCEPTED', 'CHANGES_REQUESTED']} />
-        )}
         {activeTab === 'joining_onboarding' && (
           <JoiningLettersTab statusFilter={[
+            'OFFER_SENT', 'ACCEPTED', 'CHANGES_REQUESTED',
             'DOCUMENTS_PENDING', 'DOCUMENTS_SUBMITTED', 'HR_VERIFICATION', 'DOCUMENTS_VERIFIED',
             'APPROVED', 'JOINING_LETTER_SENT', 'READY_TO_JOIN', 'JOINED',
             'EMPLOYEE_CREATED', 'CREDENTIALS_SENT', 'ACTIVE', 'COMPLETED', 'REJECTED', 'EXPIRED',

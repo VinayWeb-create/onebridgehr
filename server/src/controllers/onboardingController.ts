@@ -76,7 +76,17 @@ const generateEmployeeId = async (): Promise<string> => {
     const n = parseInt(latest.employeeId.replace('OBI', ''), 10);
     if (!isNaN(n)) num = n + 1;
   }
-  return `OBI${String(num).padStart(4, '0')}`;
+  
+  // Loop to guarantee the ID is unused in both Employee and User tables
+  while (true) {
+    const id = `OBI${String(num).padStart(4, '0')}`;
+    const empExists = await prisma.employee.findUnique({ where: { employeeId: id } });
+    const userExists = await prisma.user.findFirst({ where: { employeeId: id } });
+    if (!empExists && !userExists) {
+      return id;
+    }
+    num++;
+  }
 };
 
 const generateRefNo = async (): Promise<string> => {
@@ -343,7 +353,7 @@ const logOnboardingAudit = async (
   action: string,
   details: string,
   actorId?: string | null,
-  actorType: 'HR' | 'CANDIDATE' | 'SYSTEM' = 'SYSTEM'
+  actorType: 'HR' | 'CANDIDATE' | 'SYSTEM' | 'EMPLOYEE' = 'SYSTEM'
 ) => {
   try {
     await prisma.onboardingAuditLog.create({
@@ -555,7 +565,7 @@ export const saveChanges = async (req: Request, res: Response, next: NextFunctio
       return next(new AppError('This onboarding link has expired. Please contact the HR team.', 400));
     }
 
-    if (!['OFFER_SENT', 'ACCEPTED', 'CHANGES_REQUESTED'].includes(onboarding.status)) {
+    if (!['OFFER_SENT', 'ACCEPTED', 'CHANGES_REQUESTED', 'JOINED', 'EMPLOYEE_CREATED', 'CREDENTIALS_SENT', 'ACTIVE'].includes(onboarding.status)) {
       return next(new AppError(`Changes can only be saved from an active portal link. Current status: ${onboarding.status}`, 400));
     }
 
@@ -685,8 +695,8 @@ export const submitDocuments = async (req: Request, res: Response, next: NextFun
       return next(new AppError('This onboarding link has expired. Please contact the HR team.', 400));
     }
 
-    if (!['OFFER_SENT', 'ACCEPTED', 'CHANGES_REQUESTED'].includes(onboarding.status)) {
-      return next(new AppError(`Documents can only be submitted from an active portal link. Current status: ${onboarding.status}`, 400));
+    if (!['OFFER_SENT', 'ACCEPTED', 'CHANGES_REQUESTED', 'JOINED', 'EMPLOYEE_CREATED', 'CREDENTIALS_SENT', 'ACTIVE'].includes(onboarding.status)) {
+      return next(new AppError(`Documents can only be submitted after accepting the offer. Current status: ${onboarding.status}`, 400));
     }
 
     let candidateData: any = {};
@@ -799,7 +809,7 @@ export const submitDocuments = async (req: Request, res: Response, next: NextFun
     driveMeta.push({ type: 'OFFER_LETTER', mimeType: 'application/pdf' });
 
     // Upload everything to Google Drive (or local fallback).
-    const folder = candidateFolderName(onboarding.candidateId || `EMP-${Date.now()}`, candidateData.fullName);
+    const folder = onboarding.employeeId || candidateFolderName(onboarding.candidateId || `EMP-${Date.now()}`, candidateData.fullName);
     const driveResult = await driveService.uploadAcceptanceDocuments({
       candidateFolder: folder,
       files: driveInput,
@@ -913,6 +923,136 @@ export const submitDocuments = async (req: Request, res: Response, next: NextFun
         docxUrl: signedOfferDocx?.driveUrl || signedOfferDocx?.localUrl || null,
         pdfUrl: signedOfferDoc?.driveUrl || signedOfferDoc?.localUrl || null,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const acceptOffer = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { token } = req.params;
+    const onboarding = await prisma.onboarding.findUnique({
+      where: { token },
+      include: { offerLetter: true },
+    });
+
+    if (!onboarding) {
+      return next(new AppError('Onboarding link is invalid.', 404));
+    }
+
+    const portal = assertPortalAccess(onboarding);
+    if (portal.expired) {
+      await prisma.onboarding.update({ where: { id: onboarding.id }, data: { status: 'EXPIRED' } });
+      return next(new AppError('This onboarding link has expired. Please contact the HR team.', 400));
+    }
+
+    if (onboarding.status !== 'OFFER_SENT') {
+      return next(new AppError(`Offer has already been accepted or is in a different state. Current status: ${onboarding.status}`, 400));
+    }
+
+    // Generate Employee and Credentials instantly
+    const { employee, tempPassword, employeeId, firstName, lastName } = await createEmployeeFromOnboarding(onboarding, 'SYSTEM');
+
+    const offer = onboarding.offerLetter;
+    const candidateName = offer.candidateName;
+    const reportingTime = '9:30 AM';
+    const officeAddress = offer.officeAddress || 'OneBridge Infotech Pvt. Ltd., 202, Sathyabama Complex, Bhagya Nagar Colony, KPHB, Hyderabad, Telangana 500072, India';
+    const joiningDate = formatDate(new Date(offer.joiningDate));
+
+    const joiningPdf = await pdfService.generateJoiningLetterPdf({
+      refNo: `OBI/HR/JL/${new Date().getFullYear()}/${onboarding.id.slice(-6).toUpperCase()}`,
+      date: formatDate(new Date()),
+      employeeName: candidateName,
+      role: offer.role,
+      department: offer.department,
+      joiningDate,
+      reportingTime,
+      officeAddress,
+      reportingManager: offer.reportingManager || 'HR Department',
+      signatoryName: DEFAULT_SIGNATORY_NAME,
+      signatoryDesignation: DEFAULT_SIGNATORY_DESIGNATION,
+      companySignatureDataUrl: (onboarding.companyAssets as any)?.authorizedSignatureDataUrl,
+      companySealDataUrl: (onboarding.companyAssets as any)?.companySealDataUrl,
+      companyLogoDataUrl: (onboarding.companyAssets as any)?.companyLogoDataUrl,
+    });
+
+    const folder = employeeId;
+    const driveResult = await driveService.uploadAcceptanceDocuments({
+      candidateFolder: folder,
+      files: [{ filename: 'Joining Letter.pdf', buffer: joiningPdf, mimeType: 'application/pdf' }],
+    });
+
+    const joiningDoc = driveResult.files[0];
+    const doc = await prisma.onboardingDocument.create({
+      data: {
+        onboardingId: onboarding.id,
+        type: 'JOINING_LETTER',
+        fileName: 'Joining Letter.pdf',
+        mimeType: 'application/pdf',
+        size: joiningPdf.length,
+        driveFileId: joiningDoc?.driveFileId || null,
+        driveUrl: joiningDoc?.driveUrl || null,
+        localUrl: joiningDoc?.localUrl || null,
+      },
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const candidateEmail = employee.email || offer.candidateEmail;
+
+    // Send emails
+    await emailService.sendJoiningLetterEmail(
+      candidateEmail,
+      candidateName,
+      {
+        joiningDate,
+        reportingTime,
+        officeAddress,
+        reportingManager: offer.reportingManager || 'HR Department',
+        role: offer.role,
+      },
+      joiningPdf
+    );
+
+    try {
+      await emailService.sendWelcomeCredentialsEmail(
+        candidateEmail,
+        `${firstName} ${lastName}`,
+        frontendUrl,
+        candidateEmail,
+        tempPassword,
+        employeeId
+      );
+    } catch (error) {
+      console.error('Welcome credentials email failed:', error);
+    }
+
+    const updated = await prisma.onboarding.update({
+      where: { id: onboarding.id },
+      data: {
+        status: 'ACCEPTED',
+        acceptedAt: new Date(),
+        employeeId,
+        joiningLetterFileId: doc.driveFileId || null,
+        joiningLetterUrl: doc.driveUrl || doc.localUrl || null,
+        credentialsSentAt: new Date(),
+        driveFolderPath: driveResult.folderPath || onboarding.driveFolderPath,
+      },
+    });
+
+    await logOnboardingAudit(
+      onboarding.id,
+      'ACCEPTED',
+      `${candidateName} accepted the offer. Employee ${employeeId} created. Joining letter and credentials sent.`,
+      undefined,
+      'CANDIDATE'
+    );
+    await notifyHR('Offer Accepted', `${candidateName} has accepted the internship offer. Employee ${employeeId} created automatically.`);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Offer accepted successfully. Joining letter and credentials sent.',
+      data: { onboarding: updated, employee },
     });
   } catch (error) {
     next(error);
@@ -1121,32 +1261,31 @@ export const sendOfferLetter = async (req: Request, res: Response, next: NextFun
       refNo,
       offerDate: formatDate(new Date()),
       candidateName: offerLetter.candidateName,
+      candidateAddress: '', // Will be updated when candidate submits docs
       candidateEmail: offerLetter.candidateEmail,
+      candidatePhone: '', // Will be updated when candidate submits docs
       role: offerLetter.role,
       department: offerLetter.department,
       salary: offerLetter.salary,
       joiningDate: formatDate(new Date(offerLetter.joiningDate)),
       reportingManager: offerLetter.reportingManager || 'HR Department',
       officeAddress: offerLetter.officeAddress || 'OneBridge Infotech, Hyderabad',
-      probationMonths: offerLetter.probationMonths,
-      noticePeriodDays: offerLetter.noticePeriodDays,
+      probationMonths: offerLetter.probationMonths || 6,
+      noticePeriodDays: offerLetter.noticePeriodDays || 90,
       benefits: offerLetter.benefits || [],
       signatoryName: DEFAULT_SIGNATORY_NAME,
       signatoryDesignation: DEFAULT_SIGNATORY_DESIGNATION,
+      signed: false, // Candidate hasn't signed it yet
       companySignatureDataUrl: companyAssets?.authorizedSignatureDataUrl,
       companySealDataUrl: companyAssets?.companySealDataUrl,
       companyLogoDataUrl: companyAssets?.companyLogoDataUrl,
     });
 
-    // Generate the candidate's reference folder (EMP-XXXX - Candidate Name) once at offer time
     const candidateId = await generateCandidateId();
     const folder = candidateFolderName(candidateId, offerLetter.candidateName);
     const driveResult = await driveService.uploadAcceptanceDocuments({
       candidateFolder: folder,
-      files: [{ filename: 'Offer Letter (Unsigned).pdf', buffer: offerPdf, mimeType: 'application/pdf', subFolder: 'Acceptance' }],
-      // The unsigned PDF is a convenience artifact — a Drive quota/permission
-      // error must never block HR from sending the offer. It falls back to
-      // local storage in that case (the Drive folder is still created).
+      files: [{ filename: 'Offer Letter.pdf', buffer: offerPdf, mimeType: 'application/pdf', subFolder: 'Acceptance' }],
       allowLocalFallback: true,
     });
 
@@ -1171,7 +1310,7 @@ export const sendOfferLetter = async (req: Request, res: Response, next: NextFun
       data: {
         onboardingId: onboarding.id,
         type: 'OFFER_LETTER',
-        fileName: 'Offer Letter (Unsigned).pdf',
+        fileName: 'Offer Letter.pdf',
         mimeType: 'application/pdf',
         size: offerPdf.length,
         driveFileId: driveResult.files[0]?.driveFileId || null,
@@ -1180,18 +1319,18 @@ export const sendOfferLetter = async (req: Request, res: Response, next: NextFun
       },
     });
 
-    const portalUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/onboarding/accept/${token}`;
-
-    await emailService.sendOnboardingOfferEmail(
+    await emailService.sendJoiningLetterEmail(
       offerLetter.candidateEmail,
       offerLetter.candidateName,
-      portalUrl,
       {
-        role: offerLetter.role,
-        department: offerLetter.department,
         joiningDate: formatDate(new Date(offerLetter.joiningDate)),
-        expiresOn: formatDate(tokenExpiresAt),
-      }
+        reportingTime: '9:30 AM',
+        officeAddress: offerLetter.officeAddress || 'OneBridge Infotech, Hyderabad',
+        reportingManager: offerLetter.reportingManager || 'HR Department',
+        role: offerLetter.role,
+      },
+      offerPdf,
+      onboarding.token
     );
 
     await logOnboardingAudit(
@@ -1208,7 +1347,6 @@ export const sendOfferLetter = async (req: Request, res: Response, next: NextFun
       data: {
         onboarding,
         offerLetter,
-        portalUrl,
         folderUrl: driveResult.folderUrl,
       },
     });
@@ -1590,14 +1728,14 @@ const finalizeJoined = async (onboarding: any, actorId?: string) => {
     data: { status: 'ACTIVE', joinedAt: new Date(), credentialsSentAt: new Date(), employeeId },
   });
 
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
   const candidateEmail = employee.email || offer.candidateEmail;
 
   try {
     await emailService.sendWelcomeCredentialsEmail(
       candidateEmail,
       `${firstName} ${lastName}`,
-      frontendUrl,
+      loginUrl,
       candidateEmail,
       tempPassword,
       employeeId
@@ -1772,12 +1910,12 @@ const runSendCredentials = async (onboardingId: string, actorId?: string) => {
   });
 
   const employee = onboarding.employee;
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
 
   await emailService.sendWelcomeCredentialsEmail(
     onboarding.employee.email,
     `${employee.firstName} ${employee.lastName}`,
-    frontendUrl,
+    loginUrl,
     onboarding.employee.email,
     tempPassword,
     onboarding.employee.employeeId
@@ -1892,3 +2030,438 @@ export const bulkAction = async (req: Request, res: Response, next: NextFunction
     next(error);
   }
 };
+
+// =====================================================================
+// Employee Self-Service Onboarding (authenticated via login credentials)
+// =====================================================================
+
+/**
+ * Find the onboarding record linked to the currently logged-in employee.
+ * Searches by employeeId on the onboarding record or by matching the
+ * offer letter's candidate email to the employee's email.
+ */
+const findMyOnboarding = async (employeeId: string) => {
+  // First try: onboarding directly linked via employeeId
+  let onboarding = await prisma.onboarding.findFirst({
+    where: { employeeId },
+    include: { offerLetter: true, employee: true, documents: { orderBy: { uploadedAt: 'asc' } } },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (!onboarding) {
+    // Fallback: find by the employee's email matching the offer letter candidate email
+    const employee = await prisma.employee.findUnique({ where: { employeeId } });
+    if (employee?.email) {
+      onboarding = await prisma.onboarding.findFirst({
+        where: { offerLetter: { candidateEmail: { equals: employee.email, mode: 'insensitive' } } },
+        include: { offerLetter: true, employee: true, documents: { orderBy: { uploadedAt: 'asc' } } },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+  }
+
+  return onboarding;
+};
+
+export const getMyOnboarding = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const employeeId = req.user?.employeeId;
+    if (!employeeId) return next(new AppError('Not authenticated', 401));
+
+    const onboarding = await findMyOnboarding(employeeId);
+    if (!onboarding) {
+      return res.status(200).json({ status: 'success', data: { onboarding: null, message: 'No onboarding record found.' } });
+    }
+
+    const prefill = await resolveCandidatePrefill(onboarding);
+    res.status(200).json({ status: 'success', data: { onboarding, prefill } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getMyOnboardingTemplate = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const employeeId = req.user?.employeeId;
+    if (!employeeId) return next(new AppError('Not authenticated', 401));
+
+    const onboarding = await findMyOnboarding(employeeId);
+    if (!onboarding) return next(new AppError('No onboarding record found.', 404));
+
+    const templatePath = getDocxTemplatePath();
+    if (!fs.existsSync(templatePath)) {
+      return next(new AppError('Offer letter template not found. Please contact the HR team.', 500));
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `inline; filename="Offer Letter Template.docx"`);
+    res.setHeader('Cache-Control', 'no-store');
+    fs.createReadStream(templatePath).pipe(res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const saveMyOnboarding = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const employeeId = req.user?.employeeId;
+    if (!employeeId) return next(new AppError('Not authenticated', 401));
+
+    const onboarding = await findMyOnboarding(employeeId);
+    if (!onboarding) return next(new AppError('No onboarding record found.', 404));
+
+    // Reuse the same logic as the portal saveChanges
+    if (!['OFFER_SENT', 'ACCEPTED', 'CHANGES_REQUESTED', 'JOINED', 'EMPLOYEE_CREATED', 'CREDENTIALS_SENT', 'ACTIVE'].includes(onboarding.status)) {
+      return next(new AppError(`Cannot save changes when status is ${onboarding.status}`, 400));
+    }
+
+    let candidateData: any = {};
+    try {
+      candidateData = typeof req.body.candidateData === 'string' ? JSON.parse(req.body.candidateData) : req.body.candidateData;
+    } catch {
+      return next(new AppError('Invalid candidate data payload.', 400));
+    }
+
+    candidateData = buildCandidatePayload(candidateData, onboarding.offerLetter);
+
+    if (req.body.autoSave) {
+      await prisma.onboarding.update({
+        where: { id: onboarding.id },
+        data: { candidateData },
+      });
+      return res.status(200).json({
+        status: 'success',
+        data: { lastSavedAt: new Date().toISOString(), message: 'Auto-saved successfully' },
+      });
+    }
+
+    // Render the edited values into the DOCX template + generate PDF.
+    const { docxBuffer, pdfBuffer, refNo } = await renderAcceptanceDocuments({ onboarding, candidateData });
+
+    if (!docxBuffer || docxBuffer.length === 0) return next(new AppError('DOCX generation failed.', 500));
+    if (!pdfBuffer || pdfBuffer.length === 0) return next(new AppError('PDF generation failed.', 500));
+    const signatureBuffer = toBase64Buffer(candidateData.signatureData);
+    if (!signatureBuffer) return next(new AppError('Signature image is missing.', 400));
+
+    const folder = candidateFolderName(onboarding.employeeId || onboarding.candidateId || `EMP-${Date.now()}`, candidateData.fullName);
+    const driveResult = await driveService.uploadAcceptanceDocuments({
+      candidateFolder: folder,
+      files: [
+        { filename: 'Internship Offer Letter.docx', buffer: docxBuffer, mimeType: DOCX_MIME, subFolder: 'Acceptance' },
+        { filename: 'Internship Offer Letter.pdf', buffer: pdfBuffer, mimeType: 'application/pdf', subFolder: 'Acceptance' },
+        { filename: 'Candidate Signature.png', buffer: signatureBuffer, mimeType: 'image/png', subFolder: 'Acceptance' },
+      ],
+    });
+
+    const upsertDoc = async (type: string, fileName: string, mimeType: string, size: number, uploaded: any) => {
+      const existing = await prisma.onboardingDocument.findFirst({ where: { onboardingId: onboarding.id, type } });
+      const data = {
+        fileName, mimeType, size,
+        driveFileId: uploaded?.driveFileId || null,
+        driveUrl: uploaded?.driveUrl || null,
+        localUrl: uploaded?.localUrl || null,
+      };
+      if (existing) return prisma.onboardingDocument.update({ where: { id: existing.id }, data });
+      return prisma.onboardingDocument.create({ data: { onboardingId: onboarding.id, type, ...data } });
+    };
+
+    const [docxDoc, pdfDoc, signatureDoc] = await Promise.all([
+      upsertDoc('OFFER_LETTER_DOCX', 'Internship Offer Letter.docx', DOCX_MIME, docxBuffer.length, driveResult.files[0]),
+      upsertDoc('OFFER_LETTER', 'Internship Offer Letter.pdf', 'application/pdf', pdfBuffer.length, driveResult.files[1]),
+      upsertDoc('SIGNATURE', 'Candidate Signature.png', 'image/png', signatureBuffer.length, driveResult.files[2]),
+    ]);
+
+    const updated = await prisma.onboarding.update({
+      where: { id: onboarding.id },
+      data: {
+        candidateData: { ...candidateData, referenceNumber: refNo, folderUrl: driveResult.folderUrl, driveFolderPath: driveResult.folderPath },
+        driveFolderId: driveResult.folderId || null,
+        driveFolderPath: driveResult.folderPath || null,
+        signatureType: candidateData.signatureType,
+        signatureData: candidateData.signatureData,
+        signatureText: candidateData.signatureText || null,
+        signedOfferFileId: pdfDoc.driveFileId || null,
+        signedOfferUrl: pdfDoc.driveUrl || pdfDoc.localUrl || null,
+      },
+    });
+
+    await logOnboardingAudit(onboarding.id, 'CHANGES_SAVED', `Employee ${employeeId} saved acceptance documents from dashboard`, employeeId, 'EMPLOYEE');
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Acceptance documents saved successfully.',
+      data: {
+        onboarding: updated,
+        folderUrl: driveResult.folderUrl,
+        docx: { url: docxDoc.driveUrl || docxDoc.localUrl, driveFileId: docxDoc.driveFileId },
+        pdf: { url: pdfDoc.driveUrl || pdfDoc.localUrl, driveFileId: pdfDoc.driveFileId },
+        signature: { url: signatureDoc.driveUrl || signatureDoc.localUrl, driveFileId: signatureDoc.driveFileId },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const submitMyDocuments = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const employeeId = req.user?.employeeId;
+    if (!employeeId) return next(new AppError('Not authenticated', 401));
+
+    const onboarding = await findMyOnboarding(employeeId);
+    if (!onboarding) return next(new AppError('No onboarding record found.', 404));
+
+    if (!['OFFER_SENT', 'ACCEPTED', 'CHANGES_REQUESTED', 'JOINED', 'EMPLOYEE_CREATED', 'CREDENTIALS_SENT', 'ACTIVE'].includes(onboarding.status)) {
+      return next(new AppError(`Documents cannot be submitted when status is ${onboarding.status}`, 400));
+    }
+
+    let candidateData: any = {};
+    try {
+      candidateData = typeof req.body.candidateData === 'string' ? JSON.parse(req.body.candidateData) : req.body.candidateData;
+    } catch {
+      return next(new AppError('Invalid candidate data payload.', 400));
+    }
+
+    const requiredFields = ['fullName', 'dateOfBirth', 'gender', 'phone', 'email', 'permanentAddress', 'currentAddress', 'aadhaar', 'pan'];
+    const missing = requiredFields.filter((f) => !candidateData[f]);
+    if (!candidateData.emergencyContact || !candidateData.emergencyContact.name || !candidateData.emergencyContact.phone || !candidateData.emergencyContact.relationship) {
+      missing.push('emergencyContact (name, phone, relationship)');
+    }
+    if (!candidateData.signatureType || !candidateData.signatureData) {
+      missing.push('signature');
+    }
+    if (missing.length > 0) {
+      return next(new AppError(`Missing required fields: ${missing.join(', ')}`, 400));
+    }
+
+    candidateData = buildCandidatePayload(candidateData, onboarding.offerLetter);
+
+    // Collect uploaded files
+    const files = (req.files as { [fieldname: string]: Express.Multer.File[] }) || {};
+    const requiredFiles = ['aadhaar', 'pan', 'resume', 'passportPhoto'];
+    const missingFiles = requiredFiles.filter((f) => !files[f] || files[f].length === 0);
+    if (missingFiles.length > 0) {
+      return next(new AppError(`Missing required document uploads: ${missingFiles.join(', ')}`, 400));
+    }
+    validateUploadedFiles(files);
+
+    const driveInput: { filename: string; buffer: Buffer; mimeType: string; subFolder?: string }[] = [];
+    const driveMeta: { type: string; mimeType: string }[] = [];
+
+    const docTypeToName: Record<string, string> = {
+      aadhaar: 'Aadhaar', pan: 'PAN', resume: 'Resume', passportPhoto: 'Passport Photo',
+      bankPassbook: 'Bank Passbook', experienceLetter: 'Experience Letter',
+      relievingLetter: 'Relieving Letter', offerLetterPrevious: 'Previous Offer Letter',
+      passport: 'Passport', drivingLicense: 'Driving License', nda: 'NDA',
+    };
+    for (const field of ['aadhaar', 'pan', 'resume', 'passportPhoto', 'bankPassbook', 'experienceLetter', 'relievingLetter', 'offerLetterPrevious', 'passport', 'drivingLicense', 'nda']) {
+      const file = files[field]?.[0];
+      if (!file) continue;
+      if (!file.buffer || file.buffer.length === 0) throw new AppError(`Uploaded "${field}" file is empty.`, 400);
+      const ext = path.extname(file.originalname).toLowerCase() || (file.mimetype === 'application/pdf' ? '.pdf' : '.jpg');
+      const filename = `${docTypeToName[field]}${['passportPhoto', 'nda'].includes(field) ? ext : '.pdf'}`;
+      driveInput.push({ filename, buffer: file.buffer, mimeType: file.mimetype, subFolder: 'Personal Documents' });
+      driveMeta.push({ type: field.toUpperCase(), mimeType: file.mimetype });
+    }
+
+    for (const file of files['otherDocuments'] || []) {
+      if (!file.buffer || file.buffer.length === 0) continue;
+      driveInput.push({ filename: file.originalname, buffer: file.buffer, mimeType: file.mimetype, subFolder: 'Other Documents' });
+      driveMeta.push({ type: 'OTHER', mimeType: file.mimetype });
+    }
+
+    // Render acceptance documents
+    const { docxBuffer, pdfBuffer, refNo } = await renderAcceptanceDocuments({ onboarding, candidateData });
+    if (!docxBuffer || docxBuffer.length === 0) return next(new AppError('DOCX generation failed.', 500));
+    if (!pdfBuffer || pdfBuffer.length === 0) return next(new AppError('PDF generation failed.', 500));
+    const signatureBuffer = toBase64Buffer(candidateData.signatureData);
+    if (!signatureBuffer) return next(new AppError('Signature image is missing.', 400));
+
+    driveInput.unshift(
+      { filename: 'Internship Offer Letter.docx', buffer: docxBuffer, mimeType: DOCX_MIME, subFolder: 'Acceptance' },
+      { filename: 'Internship Offer Letter.pdf', buffer: pdfBuffer, mimeType: 'application/pdf', subFolder: 'Acceptance' },
+      { filename: 'Candidate Signature.png', buffer: signatureBuffer, mimeType: 'image/png', subFolder: 'Acceptance' }
+    );
+    driveMeta.unshift(
+      { type: 'OFFER_LETTER_DOCX', mimeType: DOCX_MIME },
+      { type: 'OFFER_LETTER', mimeType: 'application/pdf' },
+      { type: 'SIGNATURE', mimeType: 'image/png' }
+    );
+
+    const folder = onboarding.employeeId || candidateFolderName(onboarding.candidateId || `EMP-${Date.now()}`, candidateData.fullName);
+    const driveResult = await driveService.uploadAcceptanceDocuments({ candidateFolder: folder, files: driveInput });
+
+    // Upsert document records
+    for (let i = 0; i < driveResult.files.length; i++) {
+      const uploaded = driveResult.files[i];
+      const meta = driveMeta[i];
+      const existing = await prisma.onboardingDocument.findFirst({ where: { onboardingId: onboarding.id, type: meta.type } });
+      const data = {
+        fileName: driveInput[i].filename,
+        mimeType: meta.mimeType,
+        size: driveInput[i].buffer.length,
+        driveFileId: uploaded?.driveFileId || null,
+        driveUrl: uploaded?.driveUrl || null,
+        localUrl: uploaded?.localUrl || null,
+      };
+      if (existing) {
+        await prisma.onboardingDocument.update({ where: { id: existing.id }, data });
+      } else {
+        await prisma.onboardingDocument.create({ data: { onboardingId: onboarding.id, type: meta.type, ...data } });
+      }
+    }
+
+    const signatureHash = crypto.createHash('sha256').update(candidateData.signatureData).digest('hex').slice(0, 16);
+    const submittedAt = new Date();
+
+    const updated = await prisma.onboarding.update({
+      where: { id: onboarding.id },
+      data: {
+        status: 'DOCUMENTS_SUBMITTED',
+        candidateData: {
+          ...candidateData,
+          referenceNumber: refNo,
+          signatureHash,
+          submittedAt: submittedAt.toISOString(),
+          submittedVia: 'EMPLOYEE_DASHBOARD',
+          folderUrl: driveResult.folderUrl,
+          driveFolderPath: driveResult.folderPath,
+        },
+        driveFolderId: driveResult.folderId || null,
+        driveFolderPath: driveResult.folderPath || null,
+        signatureType: candidateData.signatureType,
+        signatureData: candidateData.signatureData,
+        signatureText: candidateData.signatureText || null,
+        signedOfferFileId: driveResult.files[1]?.driveFileId || null,
+        signedOfferUrl: driveResult.files[1]?.driveUrl || driveResult.files[1]?.localUrl || null,
+        acceptedAt: submittedAt,
+      },
+    });
+
+    await logOnboardingAudit(
+      onboarding.id,
+      'DOCUMENTS_SUBMITTED',
+      `Employee ${employeeId} submitted ${driveInput.length} documents from their dashboard`,
+      employeeId,
+      'EMPLOYEE'
+    );
+
+    // Notify HR
+    try {
+      const candidateName = candidateData.fullName || onboarding.offerLetter?.candidateName || '';
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      await emailService.sendDocumentSubmittedNotification(
+        process.env.HR_EMAIL || 'hr@onebridgeinfotech.com',
+        candidateName,
+        {
+          documentCount: driveInput.length,
+          folderUrl: driveResult.folderUrl,
+          portalUrl: `${frontendUrl}/employees`,
+        }
+      );
+    } catch (err) {
+      console.error('HR notification email failed:', err);
+    }
+
+    // Confirmation email to employee
+    try {
+      const candidateName = candidateData.fullName || onboarding.offerLetter?.candidateName || '';
+      const candidateEmail = candidateData.email || onboarding.offerLetter?.candidateEmail || '';
+      if (candidateEmail) {
+        await emailService.sendDocumentSubmittedConfirmation(candidateEmail, candidateName, {
+          documentCount: driveInput.length,
+          referenceNumber: refNo,
+          folderUrl: driveResult.folderUrl,
+          signatureHash,
+          submittedAt,
+        });
+      }
+    } catch (err) {
+      console.error('Confirmation email failed:', err);
+    }
+
+    await notifyHR('Onboarding Documents Submitted', `${candidateData.fullName || 'Employee'} (${employeeId}) submitted ${driveInput.length} onboarding documents via their employee dashboard.`);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Documents submitted successfully! HR has been notified.',
+      data: {
+        onboarding: updated,
+        folderUrl: driveResult.folderUrl,
+        documentCount: driveInput.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const autoAccept = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { token } = req.params;
+    const onboarding = await prisma.onboarding.findUnique({
+      where: { token },
+      include: { offerLetter: true },
+    });
+
+    if (!onboarding) {
+      return res.status(404).send('Invalid or expired onboarding link.');
+    }
+
+    if (onboarding.status === 'JOINED' || onboarding.status === 'ACTIVE' || onboarding.status === 'EMPLOYEE_CREATED') {
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/offer-accepted?status=already_joined`);
+    }
+
+    if (onboarding.status === 'ACCEPTED') {
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/offer-accepted?status=already_accepted`);
+    }
+
+    // Create Employee and Credentials instantly
+    const { employee, tempPassword, employeeId, firstName, lastName } = await createEmployeeFromOnboarding(onboarding, 'SYSTEM');
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const candidateEmail = employee.email || onboarding.offerLetter?.candidateEmail || '';
+
+    try {
+      await emailService.sendWelcomeCredentialsEmail(
+        candidateEmail,
+        `${firstName} ${lastName}`,
+        frontendUrl,
+        candidateEmail,
+        tempPassword,
+        employeeId
+      );
+    } catch (error) {
+      console.error('Welcome credentials email failed:', error);
+    }
+
+    // Accept the offer and link the employee ID
+    const updatedOnboarding = await prisma.onboarding.update({
+      where: { id: onboarding.id },
+      data: { 
+        status: 'ACTIVE',
+        acceptedAt: new Date(),
+        joinedAt: new Date(),
+        employeeId,
+        credentialsSentAt: new Date()
+      },
+      include: { offerLetter: true },
+    });
+
+    await logOnboardingAudit(onboarding.id, 'ACCEPTED', 'Candidate automatically accepted offer via email link. Employee created and credentials sent.', null, 'CANDIDATE');
+
+    // Broadcast real-time update to HR dashboard
+    socketService.broadcast('onboarding_status_update', {
+      id: updatedOnboarding.id,
+      status: 'ACTIVE',
+      candidateName: updatedOnboarding.offerLetter?.candidateName || '',
+      employeeId,
+    });
+
+    res.redirect(`${frontendUrl}/offer-accepted?name=${encodeURIComponent(firstName)}&email=${encodeURIComponent(candidateEmail)}`);
+  } catch (error) {
+    console.error('Error in autoAccept:', error);
+    res.status(500).send('An error occurred during automatic acceptance.');
+  }
+};
+

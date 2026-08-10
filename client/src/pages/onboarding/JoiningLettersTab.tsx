@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../services/api';
+import { io } from 'socket.io-client';
+import api, { SOCKET_URL } from '../../services/api';
 import {
   Eye,
   FileCheck,
@@ -88,6 +89,19 @@ export const JoiningLettersTab: React.FC<JoiningLettersTabProps> = ({ statusFilt
 
   useEffect(() => {
     fetchOnboardings();
+  }, []);
+
+  // Real-time socket listener: update status when candidate accepts
+  useEffect(() => {
+    const socket = io(SOCKET_URL);
+    socket.on('onboarding_status_update', (data: { id: string; status: string }) => {
+      setOnboardings((prev: any[]) =>
+        prev.map((ob: any) =>
+          ob.id === data.id ? { ...ob, status: data.status } : ob
+        )
+      );
+    });
+    return () => { socket.disconnect(); };
   }, []);
 
   const fetchOnboardings = async () => {
@@ -225,6 +239,11 @@ export const JoiningLettersTab: React.FC<JoiningLettersTabProps> = ({ statusFilt
   };
 
   const filtered = onboardings.filter((ob) => {
+    // Filter out candidates who are already onboarded as employees
+    if (ob.employeeId || ['ACTIVE', 'EMPLOYEE_CREATED', 'CREDENTIALS_SENT', 'JOINED'].includes(ob.status)) {
+      return false;
+    }
+
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
@@ -265,21 +284,21 @@ export const JoiningLettersTab: React.FC<JoiningLettersTabProps> = ({ statusFilt
                 <th className="px-6 py-4">Position</th>
                 <th className="px-6 py-4">Joining Date</th>
                 <th className="px-6 py-4">Current Status</th>
-                <th className="px-6 py-4">Documents</th>
-                <th className="px-6 py-4">Joining Letter</th>
+                
+                
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-100 dark:divide-brand-900 text-xs font-semibold">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-10">
+                  <td colSpan={5} className="text-center py-10">
                     <span className="w-6 h-6 rounded-full border-2 border-indigo-600/30 border-t-indigo-600 animate-spin inline-block" />
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-10 text-brand-500">No active joining workflows found.</td>
+                  <td colSpan={5} className="text-center py-10 text-brand-500">No active joining workflows found.</td>
                 </tr>
               ) : (
                 filtered.map((ob) => {
@@ -307,38 +326,11 @@ export const JoiningLettersTab: React.FC<JoiningLettersTabProps> = ({ statusFilt
                           <span>{meta.label}</span>
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-brand-700 dark:text-brand-300 font-bold">{docs.length} submitted</div>
-                        <button
-                          onClick={() => handleTrack(ob)}
-                          className="text-[10px] text-indigo-600 font-bold uppercase hover:underline flex items-center gap-1 mt-0.5"
-                        >
-                          <Eye size={11} /> View
-                        </button>
-                      </td>
-                      <td className="px-6 py-4">
-                        {joiningLetterSent(ob) ? (
-                          <div className="flex items-center gap-2">
-                            <span className="px-2 py-1 rounded-md text-[10px] font-bold uppercase bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300 flex items-center gap-1">
-                              <Send size={10} /> Sent
-                            </span>
-                            {joiningDocUrl && (
-                              <button
-                                onClick={() => window.open(joiningDocUrl, '_blank')}
-                                className="p-1.5 bg-brand-50 dark:bg-brand-900 text-brand-600 rounded-lg hover:bg-brand-100"
-                                title="Preview / Download PDF"
-                              >
-                                <Download size={12} />
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-brand-400 uppercase font-bold">Not Generated</span>
-                        )}
-                      </td>
+                      
+                      
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                          {['DOCUMENTS_PENDING', 'DOCUMENTS_SUBMITTED', 'ACCEPTED', 'HR_VERIFICATION'].includes(ob.status) && (
+                          {['DOCUMENTS_PENDING', 'DOCUMENTS_SUBMITTED', 'HR_VERIFICATION'].includes(ob.status) && (
                             <button
                               onClick={() => handleStartVerification(ob)}
                               className="px-3 py-1.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 rounded-lg hover:bg-yellow-200 text-[10px] font-bold uppercase flex items-center gap-2"
@@ -346,43 +338,15 @@ export const JoiningLettersTab: React.FC<JoiningLettersTabProps> = ({ statusFilt
                               <FileCheck size={14} /> Verify Docs
                             </button>
                           )}
-                          {['APPROVED', 'DOCUMENTS_VERIFIED'].includes(ob.status) && (
-                            <button
-                              onClick={() => handleGenerateJoiningLetter(ob.id)}
-                              disabled={actionId === ob.id}
-                              className="px-3 py-1.5 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 rounded-lg hover:bg-violet-200 text-[10px] font-bold uppercase flex items-center gap-2 disabled:opacity-50"
-                            >
-                              <FileSignature size={14} /> Generate Joining Letter
-                            </button>
-                          )}
-                          {['JOINING_LETTER_SENT', 'READY_TO_JOIN'].includes(ob.status) && (
-                            <>
-                              <button
-                                onClick={() => handleEmailJoiningLetter(ob.id)}
-                                disabled={actionId === ob.id}
-                                className="px-3 py-1.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 text-[10px] font-bold uppercase flex items-center gap-2 disabled:opacity-50"
-                                title="Email / Resend joining letter"
-                              >
-                                <Mail size={14} /> Email / Resend
-                              </button>
-                              {joiningDocUrl && (
-                                <button
-                                  onClick={() => window.open(joiningDocUrl, '_blank')}
-                                  className="p-2 bg-brand-50 dark:bg-brand-900 text-brand-600 rounded-lg hover:bg-brand-100"
-                                  title="Preview / Download PDF"
-                                >
-                                  <Download size={14} />
-                                </button>
-                              )}
-                            </>
-                          )}
-                          {['JOINING_LETTER_SENT', 'READY_TO_JOIN', 'APPROVED', 'DOCUMENTS_VERIFIED'].includes(ob.status) && (
+                          
+                          
+                          {['ACCEPTED', 'JOINING_LETTER_SENT', 'READY_TO_JOIN', 'APPROVED', 'DOCUMENTS_VERIFIED'].includes(ob.status) && (
                             <button
                               onClick={() => handleMarkJoined(ob)}
                               disabled={actionId === ob.id}
-                              className="px-3 py-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 rounded-lg hover:bg-emerald-200 text-[10px] font-bold uppercase flex items-center gap-2 disabled:opacity-50"
-                            >
-                              <UserCheck size={14} /> Mark Joined
+                              className="px-5 py-2.5 bg-[#ea6d2a] text-white rounded-full hover:bg-[#ea6d2a]/90 text-[11px] font-bold uppercase tracking-wide flex items-center gap-2 disabled:opacity-50 shadow-md shadow-[#ea6d2a]/30 transition-all"
+                              >
+                                <UserPlus size={15} /> ONBOARD EMPLOYEE
                             </button>
                           )}
                           {ob.status === 'JOINED' && (

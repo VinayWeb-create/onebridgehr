@@ -50,7 +50,6 @@ const API_BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api`
   : 'http://localhost:5000/api';
 
-// HR-provided fields the candidate is allowed to edit in the document.
 const EDITABLE_TOKENS = [
   'date',
   'dateOfBirth',
@@ -62,11 +61,6 @@ const EDITABLE_TOKENS = [
   'emergencyPhone',
   'bankAccountNumber',
   'ifscCode',
-  'candidateName',
-  'email',
-  'department',
-  'position',
-  'joiningDate',
 ];
 
 // Candidate-owned fields that become read-only once a value exists (pre-filled
@@ -420,6 +414,12 @@ export const CandidatePortal: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (['ACCEPTED', 'CHANGES_REQUESTED', 'JOINED', 'EMPLOYEE_CREATED', 'CREDENTIALS_SENT', 'ACTIVE'].includes(onboarding?.status)) {
+      setStep(2);
+    }
+  }, [onboarding?.status]);
+
   const loadDocument = useCallback(async () => {
     if (!token || !docContainer.current) return;
     setDocLoading(true);
@@ -446,8 +446,7 @@ export const CandidatePortal: React.FC = () => {
     } finally {
       setDocLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, onboarding]);
 
   const applyPlaceholders = useCallback(() => {
     const container = docContainer.current;
@@ -891,6 +890,29 @@ export const CandidatePortal: React.FC = () => {
     } finally {
       window.clearTimeout(phaseTimer);
       setSaving(false);
+    }
+  };
+
+  const handleAcceptOffer = async () => {
+    if (!hasSignature && formData.signatureType !== 'TYPE') {
+      return alert('Please provide your digital signature before accepting.');
+    }
+    setSubmitting(true);
+    try {
+      // 1. Save changes (this embeds the signature and creates the signed PDF)
+      await axios.post(`${API_BASE}/onboarding/portal/${token}/save`, {
+        candidateData: buildCandidateData(),
+      });
+      // 2. Accept offer (this creates the employee and sends credentials)
+      const res = await axios.post(`${API_BASE}/onboarding/portal/${token}/accept`);
+      setOnboarding(res.data.data.onboarding);
+      setStep(2);
+      alert('Offer accepted successfully! Your credentials have been emailed to you. Please proceed to upload your documents.');
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Failed to accept offer');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1674,14 +1696,25 @@ export const CandidatePortal: React.FC = () => {
                 </section>
 
                 <div className="flex justify-center gap-4">
-                  <button
-                    type="button"
-                    onClick={goNext}
-                    disabled={!hasSignature}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-full font-bold shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-center gap-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Continue to Documents <ChevronRight size={20} />
-                  </button>
+                  {onboarding?.status === 'OFFER_SENT' ? (
+                    <button
+                      type="button"
+                      onClick={handleAcceptOffer}
+                      disabled={!hasSignature || submitting}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-full font-bold shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-center gap-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {submitting ? 'Accepting...' : 'Accept Offer'} <CheckCircle size={20} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={goNext}
+                      disabled={!hasSignature}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-full font-bold shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-center gap-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Continue to Documents <ChevronRight size={20} />
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -2007,7 +2040,7 @@ export const CandidatePortal: React.FC = () => {
 };
 
 const showWorkspaceFor = (status: string) =>
-  ['OFFER_SENT', 'ACCEPTED', 'CHANGES_REQUESTED'].includes(status);
+  ['OFFER_SENT', 'ACCEPTED', 'CHANGES_REQUESTED', 'JOINED', 'EMPLOYEE_CREATED', 'CREDENTIALS_SENT', 'ACTIVE'].includes(status);
 
 const StatusView: React.FC<{
   status: string;

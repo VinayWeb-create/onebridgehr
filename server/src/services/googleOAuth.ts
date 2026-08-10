@@ -164,6 +164,24 @@ class GoogleOAuthService {
     return oauth;
   }
 
+  /** Mocks a successful connection for local development. */
+  public async handleMockConnect(): Promise<string> {
+    await prisma.googleDriveConnection.deleteMany({});
+    await prisma.googleDriveConnection.create({
+      data: {
+        accessToken: encrypt('mock_access_token'),
+        refreshToken: encrypt('mock_refresh_token'),
+        tokenType: 'Bearer',
+        scope: DRIVE_SCOPES.join(' '),
+        expiresAt: new Date(Date.now() + 3600 * 1000),
+        driveEmail: 'mock@example.com',
+      },
+    });
+
+    this.connected = true;
+    return 'mock@example.com';
+  }
+
   /** Removes the stored connection so Drive uploads stop using this account. */
   public async disconnect(): Promise<void> {
     await prisma.googleDriveConnection.deleteMany({});

@@ -14,7 +14,7 @@ import {
   TrendingUp, TrendingDown, Award, Zap, Target, Crown, Medal, Trophy, Star,
   BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon, DollarSign,
   ShoppingBag, Wallet, PiggyBank, Briefcase, CalendarCheck, UserMinus, UserPlus,
-  Activity, PieChart as PieIcon, Gauge, Rocket, Flame, CheckSquare, Bell
+  Activity, PieChart as PieIcon, Gauge, Rocket, Flame, CheckSquare, Bell, Loader2
 } from 'lucide-react';
 import GoogleDriveCard from '../components/GoogleDriveCard';
 
@@ -116,6 +116,7 @@ interface EmployeeStats {
     last7Days: Array<{ day: string; attendance: string; assigned: number; completed: number; lateMinutes: number; overtimeMinutes: number }>;
   };
   period: string;
+  needsOnboardingDocs?: boolean;
 }
 
 const formatCurrency = (val: number) =>
@@ -221,10 +222,11 @@ export const Dashboard: React.FC = () => {
   const [hrData, setHrData] = useState<HRStats | null>(null);
   const [empData, setEmpData] = useState<EmployeeStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [breakTimer, setBreakTimer] = useState<string>('00:00');
 
   useEffect(() => {
-    fetchStats();
+    fetchStats(true);
   }, [user]);
 
   useEffect(() => {
@@ -244,8 +246,8 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, [empData]);
 
-  const fetchStats = async () => {
-    setLoading(true);
+  const fetchStats = async (showSkeleton = true) => {
+    if (showSkeleton) setLoading(true);
     try {
       if (user?.role === 'SUPER_ADMIN' || user?.role === 'HR' || user?.role === 'TEAM_LEAD') {
         const res = await api.get('/reports/hr');
@@ -257,45 +259,57 @@ export const Dashboard: React.FC = () => {
     } catch (err) {
       console.error('Failed to load dashboard metrics:', err);
     } finally {
-      setLoading(false);
+      if (showSkeleton) setLoading(false);
     }
   };
 
   const handleCheckIn = async (wfh = false) => {
+    setActionLoading(wfh ? 'wfh-check-in' : 'office-check-in');
     try {
       const latitude = 12.9716;
       const longitude = 77.5946;
       await api.post('/attendance/check-in', { latitude, longitude, workFromHome: wfh });
-      fetchStats();
+      await fetchStats(false);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Check-in failed');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleCheckOut = async () => {
+    setActionLoading('check-out');
     try {
       await api.post('/attendance/check-out');
-      fetchStats();
+      await fetchStats(false);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Check-out failed');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleStartBreak = async () => {
+    setActionLoading('break');
     try {
       await api.post('/attendance/break/start');
-      fetchStats();
+      await fetchStats(false);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Start break failed');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleEndBreak = async () => {
+    setActionLoading('break');
     try {
       await api.post('/attendance/break/end');
-      fetchStats();
+      await fetchStats(false);
     } catch (err: any) {
       alert(err.response?.data?.message || 'End break failed');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -1258,6 +1272,26 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-8 pb-8">
+      {empData.needsOnboardingDocs && (
+        <div className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-3xl p-6 text-white shadow-xl shadow-orange-500/20 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/20 rounded-2xl">
+              <AlertCircle size={24} className="text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black tracking-tight">Complete Your Onboarding</h3>
+              <p className="text-sm text-orange-100 font-medium">Please submit your 11-page acceptance document and required files.</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => navigate('/onboarding/my-documents')}
+            className="bg-white text-orange-600 px-6 py-3 rounded-xl font-black shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 whitespace-nowrap"
+          >
+            Start Onboarding
+          </button>
+        </div>
+      )}
+
       {/* Attendance Console + Tasks Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Attendance Console */}
@@ -1304,30 +1338,40 @@ export const Dashboard: React.FC = () => {
           <div className="mt-auto grid grid-cols-2 gap-3">
             {!att ? (
               <>
-                <button onClick={() => handleCheckIn(false)} className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all shadow-lg shadow-orange-500/30">
-                  Office Check In
+                <button disabled={actionLoading !== null} onClick={() => handleCheckIn(false)} className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all shadow-lg shadow-orange-500/30 flex items-center justify-center space-x-1.5 disabled:opacity-50">
+                  {actionLoading === 'office-check-in' && <Loader2 size={14} className="animate-spin" />}
+                  <span>Office Check In</span>
                 </button>
-                <button onClick={() => handleCheckIn(true)} className="bg-brand-200 hover:bg-brand-300 dark:bg-brand-800 dark:hover:bg-brand-700 text-brand-900 dark:text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all border border-brand-300 dark:border-brand-700">
-                  WFH Check In
+                <button disabled={actionLoading !== null} onClick={() => handleCheckIn(true)} className="bg-brand-200 hover:bg-brand-300 dark:bg-brand-800 dark:hover:bg-brand-700 text-brand-900 dark:text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all border border-brand-300 dark:border-brand-700 flex items-center justify-center space-x-1.5 disabled:opacity-50">
+                  {actionLoading === 'wfh-check-in' && <Loader2 size={14} className="animate-spin" />}
+                  <span>WFH Check In</span>
                 </button>
               </>
             ) : (
               <>
                 {!att.checkOut && (
-                  <button onClick={handleCheckOut} className="col-span-2 bg-gradient-to-br from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all shadow-lg shadow-rose-500/30">
-                    Check Out
+                  <button disabled={actionLoading !== null} onClick={handleCheckOut} className="col-span-2 bg-gradient-to-br from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all shadow-lg shadow-rose-500/30 flex items-center justify-center space-x-1.5 disabled:opacity-50">
+                    {actionLoading === 'check-out' && <Loader2 size={14} className="animate-spin" />}
+                    <span>Check Out</span>
                   </button>
                 )}
                 {att.checkIn && !att.checkOut && (
                   <button
+                    disabled={actionLoading !== null}
                     onClick={isBreakActive ? handleEndBreak : handleStartBreak}
-                    className={`col-span-2 rounded-2xl py-3 font-black text-[11px] tracking-wider uppercase transition-all flex items-center justify-center space-x-2 shadow-md ${
+                    className={`col-span-2 rounded-2xl py-3 font-black text-[11px] tracking-wider uppercase transition-all flex items-center justify-center space-x-2 shadow-md disabled:opacity-50 ${
                       isBreakActive
                         ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white'
                         : 'bg-gradient-to-br from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white'
                     }`}
                   >
-                    {isBreakActive ? <Play size={14} /> : <Pause size={14} />}
+                    {actionLoading === 'break' ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : isBreakActive ? (
+                      <Play size={14} />
+                    ) : (
+                      <Pause size={14} />
+                    )}
                     <span>{isBreakActive ? 'End Break (Resume)' : 'Take Break'}</span>
                   </button>
                 )}

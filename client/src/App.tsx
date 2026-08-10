@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -17,6 +17,8 @@ import IdCard from './pages/IdCard';
 import Profile from './pages/Profile';
 import Signature from './pages/Signature';
 import CandidatePortal from './pages/onboarding/CandidatePortal';
+import OnboardingSection from './pages/onboarding/OnboardingSection';
+import OfferAccepted from './pages/OfferAccepted';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +37,7 @@ const RedirectToNewPortal = () => {
 // Guard Component to block unauthenticated sessions
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -45,7 +48,12 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  // Force onboarding if pending
+  if (user.role === 'EMPLOYEE' && (user as any).onboardingPending && location.pathname !== '/onboarding/my-documents') {
+    return <Navigate to="/onboarding/my-documents" replace />;
   }
 
   return <DashboardLayout>{children}</DashboardLayout>;
@@ -62,6 +70,7 @@ export const App: React.FC = () => {
               <Route path="/login" element={<Login />} />
               <Route path="/onboarding/accept/:token" element={<CandidatePortal />} />
               <Route path="/accept-offer/:token" element={<RedirectToNewPortal />} />
+              <Route path="/offer-accepted" element={<OfferAccepted />} />
 
               {/* Protected Workspace Nodes */}
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -70,6 +79,7 @@ export const App: React.FC = () => {
               <Route path="/leaves" element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
               <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
               <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
+              <Route path="/onboarding/my-documents" element={<ProtectedRoute><OnboardingSection /></ProtectedRoute>} />
               <Route path="/onboarding/*" element={<Navigate to="/employees" replace />} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
 
@@ -84,3 +94,4 @@ export const App: React.FC = () => {
 };
 
 export default App;
+
