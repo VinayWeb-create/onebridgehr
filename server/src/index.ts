@@ -30,6 +30,7 @@ import driveRoutes from './routes/driveRoutes';
 import { googleOAuth } from './services/googleOAuth';
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 const PORT = parseInt(process.env.PORT || '5000');

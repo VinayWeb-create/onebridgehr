@@ -1224,6 +1224,9 @@ export const startVerification = async (req: Request, res: Response, next: NextF
     if (!onboarding) {
       return next(new AppError('Onboarding record not found', 404));
     }
+    if (onboarding.status === 'HR_VERIFICATION') {
+      return res.status(200).json({ status: 'success', data: onboarding });
+    }
     if (!['DOCUMENTS_PENDING', 'DOCUMENTS_SUBMITTED', 'ACCEPTED'].includes(onboarding.status)) {
       return next(new AppError(`Cannot start verification when status is ${onboarding.status}`, 400));
     }
