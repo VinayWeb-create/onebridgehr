@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { io, Socket } from 'socket.io-client';
+import { SOCKET_URL } from '../services/api';
 import {
   LayoutDashboard,
   Users,
@@ -42,7 +43,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     if (!user) return;
     
-    const socket: Socket = io('http://localhost:5000');
+    const socket: Socket = io(SOCKET_URL);
     
     socket.on('connect', () => {
       socket.emit('register', user.employeeId);
