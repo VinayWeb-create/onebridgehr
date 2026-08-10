@@ -1242,6 +1242,9 @@ export const Dashboard: React.FC = () => {
             ))}
           </div>
         </div>
+
+        {/* Google Drive Storage */}
+        <GoogleDriveCard />
       </div>
     );
   }
@@ -1421,9 +1424,6 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Google Drive Storage (admin only) */}
-      {['SUPER_ADMIN', 'HR'].includes(user?.role || '') && <GoogleDriveCard />}
 
       {/* Rating Card + Weekly Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
