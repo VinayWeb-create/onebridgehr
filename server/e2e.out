@@ -1,0 +1,46 @@
+Connecting to database...
+Database connected successfully.
+Server running in development mode on port 5000
+Socket connected: 08aNDUm6YQcjyuioAAAB
+Employee registered: OBI0001 on socket 08aNDUm6YQcjyuioAAAB
+Socket disconnected: 08aNDUm6YQcjyuioAAAB
+Removed socket 08aNDUm6YQcjyuioAAAB for employee OBI0001
+Socket connected: 6GYxRdE59zYqwr7aAAAE
+Employee registered: OBI0001 on socket 6GYxRdE59zYqwr7aAAAE
+Socket disconnected: 6GYxRdE59zYqwr7aAAAE
+Removed socket 6GYxRdE59zYqwr7aAAAE for employee OBI0001
+Socket connected: 246EYddbu7D7eFIzAAAG
+Employee registered: OBI0001 on socket 246EYddbu7D7eFIzAAAG
+Socket connected: Yl_hVZX0AfsIInwnAAAJ
+Employee registered: OBI0001 on socket Yl_hVZX0AfsIInwnAAAJ
+Socket disconnected: Yl_hVZX0AfsIInwnAAAJ
+Removed socket Yl_hVZX0AfsIInwnAAAJ for employee OBI0001
+Socket connected: vIpfKpqJSnEm0hieAAAL
+Employee registered: OBI0001 on socket vIpfKpqJSnEm0hieAAAL
+Socket connected: BPaWH_G8l2wAPuZGAAAO
+Employee registered: OBI0001 on socket BPaWH_G8l2wAPuZGAAAO
+Socket disconnected: BPaWH_G8l2wAPuZGAAAO
+Removed socket BPaWH_G8l2wAPuZGAAAO for employee OBI0001
+Socket connected: sYB3hukU-eXjw6aTAAAQ
+Employee registered: OBI0001 on socket sYB3hukU-eXjw6aTAAAQ
+Socket connected: JO3ooaOl0D4otjZhAAAT
+Employee registered: OBI0001 on socket JO3ooaOl0D4otjZhAAAT
+Socket disconnected: JO3ooaOl0D4otjZhAAAT
+Removed socket JO3ooaOl0D4otjZhAAAT for employee OBI0001
+Socket connected: -bjXgyACjCMAOaIKAAAV
+Employee registered: OBI0001 on socket -bjXgyACjCMAOaIKAAAV
+Socket disconnected: 246EYddbu7D7eFIzAAAG
+Removed socket 246EYddbu7D7eFIzAAAG for employee OBI0001
+Socket disconnected: vIpfKpqJSnEm0hieAAAL
+Removed socket vIpfKpqJSnEm0hieAAAL for employee OBI0001
+Socket disconnected: sYB3hukU-eXjw6aTAAAQ
+Removed socket sYB3hukU-eXjw6aTAAAQ for employee OBI0001
+Socket connected: raRisluEDPqVQ3F7AAAY
+Employee registered: OBI0001 on socket raRisluEDPqVQ3F7AAAY
+Socket connected: 2FzFdSQzr5i5JKbpAAAb
+Employee registered: OBI0001 on socket 2FzFdSQzr5i5JKbpAAAb
+Socket disconnected: 2FzFdSQzr5i5JKbpAAAb
+Removed socket 2FzFdSQzr5i5JKbpAAAb for employee OBI0001
+Socket connected: 7kDL0unz7BAStmSLAAAd
+Employee registered: OBI0001 on socket 7kDL0unz7BAStmSLAAAd
+[AUDIT LOG] Action: EMPLOYEE_DELETE | Employee: OBI0001 | Deleted employee OBI1118

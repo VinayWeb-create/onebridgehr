@@ -2,7 +2,7 @@ import { Server as SocketServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
 
 class SocketService {
-  private io: SocketServer | null = null;
+  public io: SocketServer | null = null;
   private userSockets: Map<string, string[]> = new Map(); // employeeId -> socketIds[]
 
   public init(server: HttpServer, frontendUrl: string) {

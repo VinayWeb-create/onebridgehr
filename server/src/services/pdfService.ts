@@ -1,5 +1,20 @@
 import PDFDocument from 'pdfkit';
 import { Buffer } from 'buffer';
+import { execFile } from 'child_process';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+
+const runCommand = (cmd: string, args: string[]): Promise<string> =>
+  new Promise((resolve, reject) => {
+    execFile(cmd, args, { timeout: 60000 }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(stderr || error.message));
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
 
 interface PayslipData {
   payslipNumber: string;
@@ -26,7 +41,97 @@ interface PayslipData {
   signatureBase64?: string; // Optional digital signature PNG base64
 }
 
+export interface OfferLetterPdfData {
+  refNo: string;
+  offerDate: string;
+  candidateName: string;
+  candidateAddress?: string;
+  candidateEmail?: string;
+  candidatePhone?: string;
+  role: string;
+  department: string;
+  salary: number;
+  joiningDate: string;
+  reportingManager: string;
+  officeAddress: string;
+  probationMonths: number;
+  noticePeriodDays: number;
+  benefits: string[];
+  signatureDataUrl?: string;
+  signatureText?: string;
+  signatoryName: string;
+  signatoryDesignation: string;
+  companySignatureDataUrl?: string;
+  companySealDataUrl?: string;
+  companyLogoDataUrl?: string;
+  signed?: boolean;
+}
+
+export interface JoiningLetterPdfData {
+  refNo: string;
+  date: string;
+  employeeName: string;
+  employeeId?: string;
+  role: string;
+  department: string;
+  joiningDate: string;
+  reportingTime: string;
+  officeAddress: string;
+  reportingManager: string;
+  signatoryName: string;
+  signatoryDesignation: string;
+  companySignatureDataUrl?: string;
+  companySealDataUrl?: string;
+  companyLogoDataUrl?: string;
+}
+
 class PdfService {
+  /**
+   * Converts a DOCX buffer to a PDF using Microsoft Word (COM automation).
+   * Falls back to a faithful LibreOffice conversion when available.
+   * Throws when no converter is available on the host.
+   */
+  public async docxToPdf(docxBuffer: Buffer): Promise<Buffer> {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onebridge-docx-'));
+    const docxPath = path.join(tmpDir, 'document.docx');
+    const pdfPath = path.join(tmpDir, 'document.pdf');
+    try {
+      fs.writeFileSync(docxPath, docxBuffer);
+
+      // 1) Try Microsoft Word (Windows hosts)
+      const escapePs = (value: string) => value.replace(/'/g, "''");
+      const psScript =
+        `$ErrorActionPreference = 'Stop'; ` +
+        `$w = New-Object -ComObject Word.Application; ` +
+        `try { $w.Visible = $false; $w.DisplayAlerts = 0; ` +
+        `$d = $w.Documents.Open('${escapePs(docxPath)}'); ` +
+        `$d.SaveAs2('${escapePs(pdfPath)}', 17); ` +
+        `$d.Close(0); } finally { $w.Quit(); }`;
+      try {
+        await runCommand('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript]);
+        if (fs.existsSync(pdfPath)) return fs.readFileSync(pdfPath);
+      } catch (err: any) {
+        console.warn('Word DOCX->PDF conversion unavailable, trying LibreOffice:', err.message);
+      }
+
+      // 2) Try LibreOffice headless
+      try {
+        await runCommand('soffice', ['--headless', '--convert-to', 'pdf', '--outdir', tmpDir, docxPath]);
+        if (fs.existsSync(pdfPath)) return fs.readFileSync(pdfPath);
+      } catch (err: any) {
+        console.warn('LibreOffice DOCX->PDF conversion unavailable:', err.message);
+      }
+
+      throw new Error('No DOCX to PDF converter available on this host (Word or LibreOffice required).');
+    } finally {
+      try {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        /* ignore cleanup errors */
+      }
+    }
+  }
+
   public async generatePayslipPdf(data: PayslipData): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4' });
@@ -191,6 +296,249 @@ class PdfService {
 
       // Note footer
       doc.fontSize(7).fillColor(textColor).text('Note: This is a system-generated secure payslip. No physical signature is required unless requested otherwise.', 50, 750, { align: 'center', width: 495 } as any);
+
+      doc.end();
+    });
+  }
+
+  private drawBrandedHeader(doc: PDFKit.PDFDocument, logoDataUrl?: string): void {
+    const primary = '#1e1b4b';
+    const accent = '#f37021';
+
+    try {
+      if (logoDataUrl) {
+        const buffer = Buffer.from(logoDataUrl.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+        doc.image(buffer, 50, 45, { width: 48, height: 48 });
+      }
+    } catch (err) {
+      console.error('Failed to embed company logo in PDF:', err);
+    }
+
+    doc.fillColor(primary).fontSize(20).font('Helvetica-Bold').text('ONEBRIDGE INFOTECH', { align: 'center' });
+    doc.fillColor(accent).fontSize(10).font('Helvetica-Bold').text('PVT. LTD.', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fillColor('#334155').fontSize(8).font('Helvetica').text('202, Sathyabama Complex, Bhagya Nagar Colony, KPHB, Hyderabad, Telangana 500072, India', { align: 'center' });
+    doc.text('CIN: U85500TS2024PTC186604 | hr@onebridgeinfotech.com | +91 93983 55196 | www.onebridgeinfotech.com', { align: 'center' });
+    doc.moveDown(0.8);
+    doc.strokeColor(accent).lineWidth(2).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+    doc.moveDown(1);
+  }
+
+  private embedDataUrl(doc: PDFKit.PDFDocument, dataUrl: string | undefined, x: number, y: number, width: number, height: number): void {
+    if (!dataUrl) return;
+    try {
+      const buffer = Buffer.from(dataUrl.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+      doc.image(buffer, x, y, { width, height });
+    } catch (err) {
+      console.error('Failed to embed image in PDF:', err);
+    }
+  }
+
+  public generateOfferLetterPdf(data: OfferLetterPdfData): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const chunks: Buffer[] = [];
+
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (err) => reject(err));
+
+      const primary = '#1e1b4b';
+      const accent = '#f37021';
+      const text = '#334155';
+
+      this.drawBrandedHeader(doc, data.companyLogoDataUrl);
+
+      doc.fillColor(primary).fontSize(16).font('Helvetica-Bold').text('INTERNSHIP / EMPLOYMENT OFFER LETTER', { align: 'center' });
+      doc.moveDown(0.3);
+      doc.fillColor(text).fontSize(9).font('Helvetica').text(`Ref No: ${data.refNo}`, { align: 'right' });
+      doc.text(`Date: ${data.offerDate}`, { align: 'right' });
+      doc.moveDown(1.2);
+
+      doc.fontSize(10).fillColor(text);
+      doc.text('To,');
+      doc.font('Helvetica-Bold').text(data.candidateName);
+      doc.font('Helvetica').text(data.candidateAddress || '');
+      doc.font('Helvetica').text(data.candidateEmail || '');
+      if (data.candidatePhone) doc.text(data.candidatePhone);
+      doc.moveDown(0.8);
+
+      doc.text(`Dear ${data.candidateName.split(' ')[0]},`);
+      doc.moveDown(0.4);
+      doc.text('Following your interview with us, we are pleased to extend this offer of employment with OneBridge Infotech Pvt. Ltd. under the following terms and conditions:');
+      doc.moveDown(0.8);
+
+      const sectionHeader = (label: string) => {
+        doc.fillColor(primary).rect(50, doc.y, 495, 22).fill(primary);
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10).text(label, 60, doc.y + 6);
+        doc.moveDown(0.7);
+        doc.fillColor(text).font('Helvetica').fontSize(10);
+      };
+
+      sectionHeader('APPOINTMENT DETAILS');
+      const details: Array<[string, string]> = [
+        ['Position / Designation:', data.role],
+        ['Department:', data.department],
+        ['Date of Joining:', data.joiningDate],
+        ['Reporting Manager:', data.reportingManager || 'HR Department'],
+        ['Work Location:', data.officeAddress || 'OneBridge Infotech, Hyderabad'],
+        ['Probation Period:', `${data.probationMonths} month(s) from date of joining`],
+        ['Notice Period:', `${data.noticePeriodDays} days`],
+      ];
+      details.forEach(([label, val]) => {
+        doc.font('Helvetica-Bold').text(label, 60, doc.y, { continued: true });
+        doc.font('Helvetica').text(` ${val}`);
+        doc.moveDown(0.25);
+      });
+      doc.moveDown(0.4);
+
+      sectionHeader('COMPENSATION & BENEFITS');
+      doc.font('Helvetica-Bold').text('Compensation: ', { continued: true });
+      doc.font('Helvetica').text(`INR ${data.salary.toLocaleString('en-IN')}`);
+      doc.moveDown(0.4);
+      if (data.benefits && data.benefits.length > 0) {
+        doc.font('Helvetica-Bold').text('Additional Benefits:');
+        data.benefits.forEach((b, i) => {
+          doc.font('Helvetica').text(`  ${i + 1}. ${b}`);
+          doc.moveDown(0.2);
+        });
+      }
+      doc.moveDown(0.6);
+
+      sectionHeader('TERMS & CONDITIONS');
+      const clauses = [
+        'This offer is subject to successful completion of background verification and submission of all required documents.',
+        'During the probation period, either party may terminate the employment by providing notice as stated above or salary in lieu thereof.',
+        'Your employment will be governed by the policies, rules and regulations of the company as amended from time to time.',
+        'You shall maintain confidentiality of all proprietary information of the company during and post employment.',
+        'This offer letter supersedes all prior discussions, understandings or agreements, whether oral or written, relating to your employment with us.',
+      ];
+      clauses.forEach((c, i) => {
+        doc.text(`${i + 1}. ${c}`);
+        doc.moveDown(0.25);
+      });
+      doc.moveDown(0.6);
+
+      doc.text('We look forward to having you as part of the OneBridge Infotech team. Please sign and return a copy of this letter as a token of acceptance of the offer.');
+      doc.moveDown(1.4);
+
+      // --- Signature Section ---
+      doc.fontSize(9);
+      const signY = doc.y;
+      const candidateTop = doc.y + 14;
+
+      // Candidate signature
+      if (data.signed) {
+        this.embedDataUrl(doc, data.signatureDataUrl, 60, candidateTop, 120, 45);
+        doc.strokeColor(text).lineWidth(0.5).moveTo(60, candidateTop + 55).lineTo(240, candidateTop + 55).stroke();
+        doc.font('Helvetica-Bold').fillColor(primary).text(data.candidateName, 60, candidateTop + 58);
+        doc.font('Helvetica').fillColor(text).fontSize(8).text('Accepted by (Candidate)', 60, candidateTop + 70);
+        doc.text(`Date: ${data.offerDate}`, 60, candidateTop + 80);
+      } else {
+        doc.moveDown(1.2);
+        doc.strokeColor(text).lineWidth(0.5).moveTo(60, doc.y).lineTo(240, doc.y).stroke();
+        doc.moveDown(0.3);
+        doc.font('Helvetica-Bold').fillColor(primary).text(data.candidateName, 60, doc.y);
+        doc.font('Helvetica').fillColor(text).fontSize(8).text('Accepted by (Candidate)', 60, doc.y + 10);
+        doc.text('Date: _______________', 60, doc.y + 20);
+      }
+
+      // Company signature + seal
+      const companyTop = signY + 14;
+      this.embedDataUrl(doc, data.companySignatureDataUrl, 340, companyTop, 120, 45);
+      doc.strokeColor(text).lineWidth(0.5).moveTo(340, companyTop + 55).lineTo(500, companyTop + 55).stroke();
+      doc.font('Helvetica-Bold').fillColor(primary).text(data.signatoryName, 340, companyTop + 58);
+      doc.font('Helvetica').fillColor(text).fontSize(8).text(data.signatoryDesignation, 340, companyTop + 68);
+      doc.text('For OneBridge Infotech Pvt. Ltd.', 340, companyTop + 80);
+      this.embedDataUrl(doc, data.companySealDataUrl, 470, companyTop + 10, 60, 60);
+
+      doc.moveDown(5);
+      doc.fontSize(7).fillColor(text).text('This is a system-generated document and does not require a physical signature.', 50, 745, { align: 'center', width: 495 });
+
+      doc.end();
+    });
+  }
+
+  public generateJoiningLetterPdf(data: JoiningLetterPdfData): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const chunks: Buffer[] = [];
+
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (err) => reject(err));
+
+      const primary = '#1e1b4b';
+      const accent = '#f37021';
+      const text = '#334155';
+
+      this.drawBrandedHeader(doc, data.companyLogoDataUrl);
+
+      doc.fillColor(primary).fontSize(16).font('Helvetica-Bold').text('JOINING CONFIRMATION LETTER', { align: 'center' });
+      doc.moveDown(0.3);
+      doc.fillColor(text).fontSize(9).font('Helvetica').text(`Ref No: ${data.refNo}`, { align: 'right' });
+      doc.text(`Date: ${data.date}`, { align: 'right' });
+      doc.moveDown(1.2);
+
+      doc.fontSize(10).fillColor(text);
+      doc.text('To,');
+      doc.font('Helvetica-Bold').text(data.employeeName);
+      doc.moveDown(0.8);
+
+      doc.text(`Dear ${data.employeeName.split(' ')[0]},`);
+      doc.moveDown(0.4);
+      doc.text('Congratulations! We are pleased to confirm your joining with OneBridge Infotech Pvt. Ltd. Below are the details for your first day of work:');
+      doc.moveDown(0.8);
+
+      const sectionHeader = (label: string) => {
+        doc.fillColor(primary).rect(50, doc.y, 495, 22).fill(primary);
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10).text(label, 60, doc.y + 6);
+        doc.moveDown(0.7);
+        doc.fillColor(text).font('Helvetica').fontSize(10);
+      };
+
+      sectionHeader('JOINING DETAILS');
+      const details: Array<[string, string]> = [
+        ['Employee Name:', data.employeeName],
+        ['Employee ID:', data.employeeId || 'Will be assigned on joining'],
+        ['Position / Designation:', data.role],
+        ['Department:', data.department],
+        ['Joining Date:', data.joiningDate],
+        ['Reporting Time:', data.reportingTime],
+        ['Reporting Manager:', data.reportingManager || 'HR Department'],
+        ['Office Address:', data.officeAddress || 'OneBridge Infotech, Hyderabad'],
+      ];
+      details.forEach(([label, val]) => {
+        doc.font('Helvetica-Bold').text(label, 60, doc.y, { continued: true });
+        doc.font('Helvetica').text(` ${val}`);
+        doc.moveDown(0.35);
+      });
+      doc.moveDown(0.6);
+
+      sectionHeader('ON YOUR FIRST DAY');
+      const firstDay = [
+        'Report to the front desk at the office address above and mention your name and position.',
+        'Carry a valid government photo ID and copies of your educational certificates.',
+        'Complete the joining formalities and execute the Employment Agreement.',
+        'Collect your company ID card, laptop, and access credentials from HR.',
+        'Meet your Reporting Manager for your onboarding orientation.',
+      ];
+      firstDay.forEach((c, i) => {
+        doc.text(`${i + 1}. ${c}`);
+        doc.moveDown(0.25);
+      });
+      doc.moveDown(0.8);
+
+      doc.text('We are excited to have you join the OneBridge family and look forward to your contributions.');
+      doc.moveDown(1.6);
+
+      const companyTop = doc.y + 10;
+      this.embedDataUrl(doc, data.companySignatureDataUrl, 340, companyTop, 120, 45);
+      doc.strokeColor(text).lineWidth(0.5).moveTo(340, companyTop + 55).lineTo(500, companyTop + 55).stroke();
+      doc.font('Helvetica-Bold').fillColor(primary).text(data.signatoryName, 340, companyTop + 58);
+      doc.font('Helvetica').fillColor(text).fontSize(8).text(data.signatoryDesignation, 340, companyTop + 68);
+      doc.text('For OneBridge Infotech Pvt. Ltd.', 340, companyTop + 80);
+      this.embedDataUrl(doc, data.companySealDataUrl, 470, companyTop + 10, 60, 60);
 
       doc.end();
     });

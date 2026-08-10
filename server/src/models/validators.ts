@@ -62,6 +62,8 @@ export const registerEmployeeSchema = z.object({
   designation: z.string().min(1, 'Designation is required'),
   bloodGroup: z.string().min(1, 'Blood group is required'),
   validity: z.string().or(z.date()).transform((val) => new Date(val)),
+  currentAddress: z.string().optional(),
+  permanentAddress: z.string().optional(),
   
   personalInfo: personalInfoSchema,
   professionalInfo: professionalInfoSchema.optional(),
@@ -80,6 +82,8 @@ export const updateEmployeeSchema = z.object({
   designation: z.string().optional(),
   bloodGroup: z.string().optional(),
   validity: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  currentAddress: z.string().optional(),
+  permanentAddress: z.string().optional(),
   
   personalInfo: personalInfoSchema.optional(),
   professionalInfo: professionalInfoSchema.optional(),
@@ -147,4 +151,106 @@ export const payrollSchema = z.object({
   esi: z.number().min(0),
   professionalTax: z.number().min(0),
   incomeTax: z.number().min(0),
+});
+
+export const attendanceCodeSchema = z.object({
+  code: z.string().length(6, 'Attendance code must be 6 characters'),
+});
+
+export const qrCheckInSchema = z.object({
+  token: z.string().min(1, 'QR token is required'),
+});
+
+export const gpsCheckInSchema = z.object({
+  latitude: z.number().min(-90).max(90, 'Latitude must be between -90 and 90'),
+  longitude: z.number().min(-180).max(180, 'Longitude must be between -180 and 180'),
+});
+
+export const attendanceReportSchema = z.object({
+  period: z.enum(['daily', 'weekly', 'monthly', 'yearly']).optional(),
+  startDate: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  endDate: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  department: z.string().optional(),
+  employeeId: z.string().optional(),
+  status: z.enum(['PRESENT', 'ABSENT', 'LATE', 'HALF_DAY', 'HOLIDAY', 'WORK_FROM_HOME', 'REMOTE', 'ON_LEAVE']).optional(),
+  isLate: z.boolean().optional(),
+});
+
+export const holidaySchema = z.object({
+  name: z.string().min(1, 'Holiday name is required'),
+  date: z.string().or(z.date()).transform((val) => new Date(val)),
+  type: z.enum(['PUBLIC', 'RESTRICTED', 'COMPANY_SPECIFIC']).default('PUBLIC'),
+  description: z.string().optional(),
+});
+
+export const holidayCalendarSchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+});
+
+export const enhancedLeaveSchema = z.object({
+  leaveType: z.enum(['CASUAL', 'SICK', 'EARNED', 'MATERNITY', 'PATERNITY', 'LOSS_OF_PAY', 'EMERGENCY', 'HALF_DAY', 'COMP_OFF', 'MEDICAL']),
+  startDate: z.string().or(z.date()).transform((val) => new Date(val)),
+  endDate: z.string().or(z.date()).transform((val) => new Date(val)),
+  isHalfDay: z.boolean().default(false),
+  halfDayPeriod: z.enum(['MORNING', 'AFTERNOON']).optional(),
+  isEmergency: z.boolean().default(false),
+  reason: z.string().min(5, 'Reason must be at least 5 characters long'),
+  attachments: z.array(z.string()).optional(),
+});
+
+export const managerLeaveApprovalSchema = z.object({
+  managerComment: z.string().min(1, 'Manager comment is required for approval'),
+});
+
+export const hrLeaveApprovalSchema = z.object({
+  hrComment: z.string().min(1, 'HR comment is required for approval').optional(),
+});
+
+export const rejectLeaveSchema = z.object({
+  comment: z.string().min(1, 'Rejection reason is required'),
+});
+
+export const leaveAnalyticsSchema = z.object({
+  startDate: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  endDate: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  department: z.string().optional(),
+});
+
+const VALID_TRANSACTION_TYPES = ['REVENUE', 'EXPENSE'] as const;
+const VALID_CATEGORIES = [
+  'SALARY', 'OFFICE_EXPENSE', 'SOFTWARE', 'MARKETING', 'TRAINING',
+  'RECRUITMENT', 'VENDOR', 'TAX', 'OTHER', 'CONSULTING', 'CLIENT_PAYMENT',
+  'INVOICE', 'SUBSCRIPTION', 'BONUS', 'COMMISSION', 'TRAVEL', 'UTILITIES',
+  'RENT', 'EQUIPMENT', 'LEGAL', 'INSURANCE'
+] as const;
+const VALID_STATUSES = ['PENDING', 'COMPLETED', 'OVERDUE'] as const;
+
+export const financeTransactionSchema = z.object({
+  type: z.enum(VALID_TRANSACTION_TYPES, {
+    required_error: 'Transaction type is required (REVENUE or EXPENSE)',
+  }),
+  category: z.enum(VALID_CATEGORIES, {
+    required_error: 'Category is required (e.g. SALARY, OFFICE_EXPENSE, SOFTWARE)',
+  }),
+  amount: z.number().min(0.01, 'Amount must be greater than 0'),
+  description: z.string().min(3, 'Description must be at least 3 characters'),
+  date: z.string().or(z.date()).transform((val) => new Date(val)),
+  reference: z.string().optional(),
+  paidBy: z.string().optional(),
+  status: z.enum(VALID_STATUSES).optional().default('COMPLETED'),
+  department: z.string().optional(),
+  employeeId: z.string().optional(),
+});
+
+export const financeTransactionUpdateSchema = z.object({
+  type: z.enum(VALID_TRANSACTION_TYPES).optional(),
+  category: z.enum(VALID_CATEGORIES).optional(),
+  amount: z.number().min(0.01).optional(),
+  description: z.string().min(3).optional(),
+  date: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  reference: z.string().optional(),
+  paidBy: z.string().optional(),
+  status: z.enum(VALID_STATUSES).optional(),
+  department: z.string().optional(),
+  employeeId: z.string().optional(),
 });

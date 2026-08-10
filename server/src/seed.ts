@@ -40,6 +40,8 @@ async function seed() {
       designation: 'Founder & Managing Director',
       bloodGroup: 'O+',
       validity: validityDate,
+      currentAddress: 'Sathyabama Complex, Bhagya Nagar Colony, KPHB, Hyderabad, Telangana 500072',
+      permanentAddress: 'Sathyabama Complex, Bhagya Nagar Colony, KPHB, Hyderabad, Telangana 500072',
       qrCodeUrl: qrOBI0001,
       signatureUrl: MOCK_SIGNATURE_BASE64,
       personalInfo: {
@@ -75,6 +77,8 @@ async function seed() {
       designation: 'Associate Director',
       bloodGroup: 'A+',
       validity: validityDate,
+      currentAddress: 'GoLive Plaza, Hitech City, Hyderabad, Telangana 500081',
+      permanentAddress: 'GoLive Plaza, Hitech City, Hyderabad, Telangana 500081',
       qrCodeUrl: qrOBI111,
       signatureUrl: MOCK_SIGNATURE_BASE64,
       personalInfo: {

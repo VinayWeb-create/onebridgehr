@@ -13,6 +13,7 @@ dotenv.config();
 import { prisma } from './config/db';
 import { errorHandler } from './middleware/errorHandler';
 import { socketService } from './services/socketService';
+import { startOnboardingScheduler } from './services/onboardingScheduler';
 
 // Routes
 import authRoutes from './routes/authRoutes';
@@ -22,6 +23,11 @@ import leaveRoutes from './routes/leaveRoutes';
 import taskRoutes from './routes/taskRoutes';
 import payrollRoutes from './routes/payrollRoutes';
 import reportRoutes from './routes/reportRoutes';
+import hrDocumentRoutes from './routes/hrDocumentRoutes';
+import financeRoutes from './routes/financeRoutes';
+import onboardingRoutes from './routes/onboardingRoutes';
+import driveRoutes from './routes/driveRoutes';
+import { googleOAuth } from './services/googleOAuth';
 
 const app = express();
 const server = http.createServer(app);
@@ -92,6 +98,10 @@ app.use('/api/leaves', leaveRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/reports', reportRoutes);
+  app.use('/api/hr-docs', hrDocumentRoutes);
+  app.use('/api/finance', financeRoutes);
+  app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/drive', driveRoutes);
 
 // Fallback Route
 app.use('*', (req, res) => {
@@ -113,9 +123,17 @@ const startServer = async () => {
     await prisma.user.findFirst();
     console.log('Database connected successfully.');
 
+    await googleOAuth.init();
+    console.log(
+      googleOAuth.isConnectedFlag
+        ? 'Google Drive connected (OAuth).'
+        : 'Google Drive not connected. Use the Dashboard to connect a company Google account.'
+    );
+
     server.listen(PORT, () => {
       console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
     });
+    startOnboardingScheduler();
   } catch (error) {
     console.error('Database connection failed. Server not started.', error);
     // Exit server if database fails

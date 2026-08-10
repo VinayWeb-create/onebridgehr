@@ -109,18 +109,6 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       roles: ['SUPER_ADMIN', 'HR', 'EMPLOYEE'],
     },
     {
-      name: 'ID Card Generator',
-      path: '/id-card',
-      icon: CreditCard,
-      roles: ['SUPER_ADMIN', 'HR', 'EMPLOYEE'],
-    },
-    {
-      name: 'Email Signature',
-      path: '/signature',
-      icon: FileCheck,
-      roles: ['SUPER_ADMIN', 'HR', 'EMPLOYEE'],
-    },
-    {
       name: 'Profile',
       path: '/profile',
       icon: UserCircle,

@@ -23,10 +23,48 @@ export const Attendance: React.FC = () => {
   const [history, setHistory] = useState<AttendanceLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [todayLog, setTodayLog] = useState<AttendanceLog | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locError, setLocError] = useState('');
 
   useEffect(() => {
     fetchAttendance();
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => setLocError(err.message)
+      );
+    } else {
+      setLocError('Geolocation not supported');
+    }
   }, []);
+
+  const handleCheckIn = async () => {
+    if (!location) {
+      alert('Location not available. Please allow location access.');
+      return;
+    }
+    try {
+      await api.post('/attendance/check-in/gps', {
+        latitude: location.lat,
+        longitude: location.lng,
+        workFromHome: false
+      });
+      alert('Checked in successfully!');
+      fetchAttendance();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to check in');
+    }
+  };
+
+  const handleCheckOut = async () => {
+    try {
+      await api.post('/attendance/check-out');
+      alert('Checked out successfully!');
+      fetchAttendance();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to check out');
+    }
+  };
 
   const fetchAttendance = async () => {
     setLoading(true);
@@ -81,20 +119,53 @@ export const Attendance: React.FC = () => {
             <div className="p-4 bg-brand-100/50 dark:bg-brand-900/50 rounded-2xl border border-brand-200 dark:border-brand-800 space-y-3">
               <p className="text-[10px] font-bold text-brand-500 uppercase pl-1">Device Coordinates</p>
               <div className="text-xs font-semibold space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-brand-400">Mock Latitude</span>
-                  <span className="text-brand-950 dark:text-white">12.9716° N</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-brand-400">Mock Longitude</span>
-                  <span className="text-brand-950 dark:text-white">77.5946° E</span>
-                </div>
+                {locError ? (
+                  <div className="text-red-500">{locError}</div>
+                ) : location ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-brand-400">Latitude</span>
+                      <span className="text-brand-950 dark:text-white">{location.lat.toFixed(4)}°</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-brand-400">Longitude</span>
+                      <span className="text-brand-950 dark:text-white">{location.lng.toFixed(4)}°</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-brand-500">Fetching location...</div>
+                )}
               </div>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={handleCheckIn}
+                disabled={!!todayLog?.checkIn}
+                className={`flex-1 py-3 rounded-xl font-bold uppercase tracking-wider text-xs transition-all shadow-md ${
+                  todayLog?.checkIn 
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400' 
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                }`}
+              >
+                Clock In
+              </button>
+              <button
+                onClick={handleCheckOut}
+                disabled={!todayLog?.checkIn || !!todayLog?.checkOut}
+                className={`flex-1 py-3 rounded-xl font-bold uppercase tracking-wider text-xs transition-all shadow-md ${
+                  !todayLog?.checkIn || todayLog?.checkOut
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400'
+                    : 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20'
+                }`}
+              >
+                Clock Out
+              </button>
             </div>
 
             <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-2xl space-y-2 flex items-start space-x-2 text-[10px] text-indigo-600 font-semibold leading-normal">
               <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              <p>Checked-in sessions log coordinates dynamically to verify presence. Standard office start window is 9:00 AM - 9:30 AM.</p>
+              <p>Checked-in sessions log coordinates dynamically to verify presence. Standard office start window is 9:30 AM - 10:00 AM.</p>
             </div>
           </div>
         </div>

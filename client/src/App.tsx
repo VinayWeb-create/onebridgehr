@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -16,6 +16,7 @@ import Payroll from './pages/Payroll';
 import IdCard from './pages/IdCard';
 import Profile from './pages/Profile';
 import Signature from './pages/Signature';
+import CandidatePortal from './pages/onboarding/CandidatePortal';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +26,11 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const RedirectToNewPortal = () => {
+  const { token } = useParams();
+  return <Navigate to={`/onboarding/accept/${token}`} replace />;
+};
 
 // Guard Component to block unauthenticated sessions
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -52,8 +58,10 @@ export const App: React.FC = () => {
         <AuthProvider>
           <BrowserRouter>
             <Routes>
-              {/* Auth Route */}
+              {/* Auth & Public Routes */}
               <Route path="/login" element={<Login />} />
+              <Route path="/onboarding/accept/:token" element={<CandidatePortal />} />
+              <Route path="/accept-offer/:token" element={<RedirectToNewPortal />} />
 
               {/* Protected Workspace Nodes */}
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -62,8 +70,7 @@ export const App: React.FC = () => {
               <Route path="/leaves" element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
               <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
               <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
-              <Route path="/id-card" element={<ProtectedRoute><IdCard /></ProtectedRoute>} />
-              <Route path="/signature" element={<ProtectedRoute><Signature /></ProtectedRoute>} />
+              <Route path="/onboarding/*" element={<Navigate to="/employees" replace />} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
 
               {/* Redirect Node */}

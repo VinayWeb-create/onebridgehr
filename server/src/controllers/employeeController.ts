@@ -5,7 +5,7 @@ import { AppError } from '../middleware/errorHandler';
 import { registerEmployeeSchema, updateEmployeeSchema } from '../models/validators';
 import { qrService } from '../services/qrService';
 import { logActivity } from '../middleware/auditLogger';
-import { calculateEmployeeRating } from './reportController';
+import { calculateEmployeeRatingWeighted as calculateEmployeeRating } from './reportController';
 import { emailService } from '../services/emailService';
 import fs from 'fs';
 import path from 'path';
@@ -27,11 +27,12 @@ export const registerEmployee = async (req: Request, res: Response, next: NextFu
     // Auto-generate employeeId if not provided
     let generatedEmployeeId = parsed.employeeId;
     if (!generatedEmployeeId) {
+      // OBI0001-OBI0005 are reserved for super admins; employees start from OBI0006.
       const latestEmployee = await prisma.employee.findFirst({
-        where: { employeeId: { lt: 'OBI1000' } },
+        where: { employeeId: { gte: 'OBI0006', lt: 'OBI1000' } },
         orderBy: { employeeId: 'desc' },
       });
-      generatedEmployeeId = 'OBI0001';
+      generatedEmployeeId = 'OBI0006';
       if (latestEmployee && latestEmployee.employeeId.startsWith('OBI')) {
         const currentNumber = parseInt(latestEmployee.employeeId.replace('OBI', ''), 10);
         if (!isNaN(currentNumber)) {
@@ -75,6 +76,8 @@ export const registerEmployee = async (req: Request, res: Response, next: NextFu
           designation: parsed.designation,
           bloodGroup: parsed.bloodGroup,
           validity: parsed.validity,
+          currentAddress: parsed.currentAddress || null,
+          permanentAddress: parsed.permanentAddress || null,
           qrCodeUrl,
           personalInfo: parsed.personalInfo,
           professionalInfo: parsed.professionalInfo,
@@ -212,6 +215,8 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
         designation: parsed.designation !== undefined ? parsed.designation : undefined,
         bloodGroup: parsed.bloodGroup !== undefined ? parsed.bloodGroup : undefined,
         validity: parsed.validity !== undefined ? parsed.validity : undefined,
+        currentAddress: parsed.currentAddress !== undefined ? parsed.currentAddress : undefined,
+        permanentAddress: parsed.permanentAddress !== undefined ? parsed.permanentAddress : undefined,
         personalInfo: parsed.personalInfo !== undefined ? { ...employee.personalInfo, ...parsed.personalInfo } as any : undefined,
         professionalInfo: parsed.professionalInfo !== undefined ? { ...employee.professionalInfo, ...parsed.professionalInfo } as any : undefined,
         emergencyContact: parsed.emergencyContact !== undefined ? parsed.emergencyContact : undefined,

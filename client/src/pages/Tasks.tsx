@@ -5,7 +5,7 @@ import {
   Plus, CheckSquare, Clock, MessageSquare, AlertCircle, Calendar, Send,
   X, Check, Eye, Trash2, Search, Filter, ListChecks, Timer,
   Zap, Target, TrendingUp, AlertTriangle, User, ChevronDown, ArrowUpDown,
-  ArrowUp, ArrowDown, LayoutList
+  ArrowUp, ArrowDown, LayoutList, Paperclip
 } from 'lucide-react';
 
 // ═══════════════════════════════════════
@@ -21,7 +21,7 @@ interface Task {
   progress: number;
   employeeId: string;
   assignedById: string;
-  comments: Array<{ authorName: string; content: string; timestamp: string }>;
+  comments: Array<{ authorName: string; content: string; timestamp: string; attachments?: string[] }>;
   subtasks: Array<{ title: string; isCompleted: boolean }>;
   timeLogs: Array<{ durationMinutes: number; loggedAt: string }>;
   employee?: { firstName: string; lastName: string; department?: string; designation?: string };
@@ -144,8 +144,9 @@ export const Tasks: React.FC = () => {
   });
 
   // Task Update states
-  const [logTimeMinutes, setLogTimeMinutes] = useState<number>(0);
+  const [logTimeMinutes, setLogTimeMinutes] = useState(0);
   const [commentText, setCommentText] = useState('');
+  const [commentAttachments, setCommentAttachments] = useState<string[]>([]);
   const [updatingTaskState, setUpdatingTaskState] = useState(false);
   const [employees, setEmployees] = useState<any[]>([]);
 
@@ -234,9 +235,12 @@ export const Tasks: React.FC = () => {
     if (!selectedTask) return;
     setUpdatingTaskState(true);
     try {
-      const payload: any = { subtasks: selectedTask.subtasks };
-      if (commentText.trim()) payload.comment = commentText;
-      if (logTimeMinutes > 0) payload.timeLogMinutes = logTimeMinutes;
+      const payload: any = { 
+        subtasks: selectedTask.subtasks,
+        comment: commentText,
+        attachments: commentAttachments,
+        timeLogMinutes: logTimeMinutes
+      };
       const completedSubtasks = selectedTask.subtasks.filter(s => s.isCompleted).length;
       payload.progress = selectedTask.subtasks.length > 0
         ? Math.round((completedSubtasks / selectedTask.subtasks.length) * 100)
@@ -674,7 +678,17 @@ export const Tasks: React.FC = () => {
                                 <p className="font-extrabold text-[10px] text-indigo-600">{c.authorName}</p>
                                 <p className="text-[8px] text-brand-400 shrink-0">{new Date(c.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
                               </div>
-                              <p className="text-[11px] text-brand-700 dark:text-brand-300 mt-0.5 leading-relaxed">{c.content}</p>
+                              <p className="text-[11px] text-brand-700 dark:text-brand-300 mt-0.5 leading-relaxed whitespace-pre-wrap">{c.content}</p>
+                              {c.attachments && c.attachments.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {c.attachments.map((att: string, idx: number) => (
+                                    <a key={idx} href={att} target="_blank" rel="noopener noreferrer"
+                                       className="inline-flex items-center gap-1 bg-white dark:bg-brand-950 border border-brand-200 dark:border-brand-800 rounded px-2 py-1 text-[9px] font-bold text-indigo-600 hover:underline">
+                                      <Paperclip size={10} /> Attachment {idx + 1}
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))
@@ -711,6 +725,26 @@ export const Tasks: React.FC = () => {
                       <label className="text-[10px] font-bold text-brand-400 uppercase flex items-center gap-1"><MessageSquare size={10} /> Add comment</label>
                       <textarea rows={2} placeholder="Write a comment..." value={commentText} onChange={e => setCommentText(e.target.value)}
                         className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-indigo-500 text-brand-950 dark:text-white resize-none transition-all" />
+                      
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 rounded-lg cursor-pointer text-[9px] font-bold uppercase hover:bg-brand-200 dark:hover:bg-brand-800 transition-colors w-fit">
+                        <Paperclip size={10} /> Attach File
+                        <input type="file" multiple className="hidden" onChange={(e) => {
+                          if (e.target.files) {
+                            const files = Array.from(e.target.files);
+                            const promises = files.map(file => {
+                              return new Promise<string>((resolve) => {
+                                const reader = new FileReader();
+                                reader.onload = () => resolve(reader.result as string);
+                                reader.readAsDataURL(file);
+                              });
+                            });
+                            Promise.all(promises).then(urls => setCommentAttachments(prev => [...prev, ...urls]));
+                          }
+                        }} />
+                      </label>
+                      {commentAttachments.length > 0 && (
+                        <p className="text-[9px] text-indigo-600 font-bold">{commentAttachments.length} file(s) attached</p>
+                      )}
                     </div>
                     <button type="submit" disabled={updatingTaskState}
                       className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl py-2.5 font-bold text-[10px] uppercase tracking-wider shadow-md flex items-center justify-center gap-1.5 transition-all disabled:opacity-50">

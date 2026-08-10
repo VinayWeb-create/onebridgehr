@@ -72,6 +72,9 @@ EMAIL_PORT=587
 EMAIL_USER=dummy
 EMAIL_PASS=dummy
 FRONTEND_URL=http://localhost:5173
+# Joining & Onboarding: 0 = create employee account + credentials immediately on "Mark Joined".
+# Set to hours (e.g. 24) to auto-create the account the day after joining (one-day delay automation).
+ONBOARDING_CREDENTIAL_DELAY_HOURS=0
 ```
 *(A clone of this `.env` is automatically mapped into `/server` for script compatibility)*
 

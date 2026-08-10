@@ -5,6 +5,7 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../server/node_modules/.prisma/client"
 }
 
 enum Role {
@@ -37,6 +38,8 @@ enum AttendanceStatus {
   HALF_DAY
   HOLIDAY
   WORK_FROM_HOME
+  REMOTE
+  ON_LEAVE
 }
 
 enum LeaveType {
@@ -46,6 +49,10 @@ enum LeaveType {
   MATERNITY
   PATERNITY
   LOSS_OF_PAY
+  EMERGENCY
+  HALF_DAY
+  COMP_OFF
+  MEDICAL
 }
 
 enum LeaveStatus {
@@ -53,6 +60,40 @@ enum LeaveStatus {
   MANAGER_APPROVED
   HR_APPROVED
   REJECTED
+}
+
+enum RatingTier {
+  GOLD
+  SILVER
+  BRONZE
+  NEEDS_IMPROVEMENT
+}
+
+enum TimelineEventType {
+  JOINED
+  PROMOTION
+  SALARY_UPDATE
+  LEAVE
+  WARNING
+  PERFORMANCE_REVIEW
+  DOCUMENT
+  AWARD
+  TRAINING_COMPLETED
+}
+
+enum DocumentType {
+  OFFER_LETTER
+  ID_CARD
+  EMAIL_SIGNATURE
+  EXPERIENCE_LETTER
+  APPOINTMENT_LETTER
+  RELIEVING_LETTER
+  PROMOTION_LETTER
+  SALARY_REVISION_LETTER
+  WARNING_LETTER
+  INTERNSHIP_CERTIFICATE
+  COMPLETION_CERTIFICATE
+  BONAFIDE_LETTER
 }
 
 model User {
@@ -66,6 +107,21 @@ model User {
   refreshToken        String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+}
+
+/// Stores the encrypted OAuth 2.0 tokens for the company Google account that
+/// is connected to OneBridge for Google Drive uploads. Tokens are encrypted
+/// at rest (AES-256-GCM) with DRIVE_TOKEN_ENCRYPTION_KEY and auto-refreshed.
+model GoogleDriveConnection {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  accessToken  String   // encrypted
+  refreshToken String   // encrypted
+  tokenType    String   @default("Bearer")
+  scope        String?
+  expiresAt    DateTime
+  driveEmail   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Employee {
@@ -82,6 +138,8 @@ model Employee {
   qrCodeUrl       String?
   profileImageUrl String?
   signatureUrl    String?          // Transparent PNG URL (max 2MB)
+  currentAddress  String?
+  permanentAddress String?
   personalInfo    PersonalInfo?
   professionalInfo ProfessionalInfo?
   emergencyContact EmergencyContact?
@@ -100,6 +158,13 @@ model Employee {
   documents       Document[]
   activityLogs    AuditLog[]
   notifications   Notification[]
+  ratings         EmployeeRating[]
+  timelineEvents  EmployeeTimeline[]
+  offerLetters    OfferLetter[]
+  onboardings     Onboarding[]
+  hrDocuments     HRDocument[]
+  sessionLogs     SessionLog[]
+  performanceReviews PerformanceReview[]
 }
 
 type PersonalInfo {
@@ -176,7 +241,11 @@ model Leave {
   leaveType         LeaveType
   startDate         DateTime
   endDate           DateTime
+  isHalfDay         Boolean     @default(false)
+  halfDayPeriod     String?     // MORNING, AFTERNOON
+  isEmergency       Boolean     @default(false)
   reason            String
+  attachments       String[]
   status            LeaveStatus @default(PENDING)
   managerApprovalId String?
   hrApprovalId      String?
@@ -189,10 +258,14 @@ model Task {
   id             String       @id @default(auto()) @map("_id") @db.ObjectId
   title          String
   description    String
+  projectName    String?
   priority       TaskPriority @default(MEDIUM)
   status         TaskStatus   @default(PENDING)
+  startDate      DateTime?
   dueDate        DateTime
+  expectedHours  Float?
   progress       Int          @default(0)
+  riskLevel      String?      // LOW, MEDIUM, HIGH
   attachments    String[]
   employeeId     String
   employee       Employee     @relation("EmployeeTasks", fields: [employeeId], references: [employeeId], onDelete: Cascade)
@@ -204,6 +277,7 @@ model Task {
   dependencies   String[]
   isRecurring    Boolean      @default(false)
   recurrenceCron String?
+  emailSent      Boolean      @default(false)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 }
@@ -212,6 +286,7 @@ type Comment {
   authorId   String
   authorName String
   content    String
+  attachments String[]
   timestamp  DateTime @default(now())
 }
 
@@ -277,4 +352,264 @@ model Notification {
   message    String
   isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
+}
+
+model AttendanceCode {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  code      String   @unique
+  date      DateTime
+  createdBy String
+  isActive  Boolean  @default(true)
+  usedBy    String[]
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([date, isActive])
+}
+
+model EmployeeRating {
+  id               String      @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId       String
+  employee         Employee    @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  period           String      // "2026-08" for monthly, "2026-Q3" for quarterly, "2026" for yearly
+  periodType       String      // MONTHLY, QUARTERLY, YEARLY
+  attendanceScore  Float       @default(0)  // 35 pts max
+  taskScore        Float       @default(0)  // 40 pts max
+  deadlineAccuracy Float       @default(0)  // 10 pts max
+  leaveBalanceScore Float      @default(0)  // 10 pts max
+  behaviorBonus    Float       @default(0)  // 5 pts max
+  overallScore     Float       @default(0)  // 100 pts max
+  tier             RatingTier  @default(NEEDS_IMPROVEMENT)
+  rank             Int?
+  achievements     String[]
+  managerFeedback  Float?      // 0-10
+  peerFeedback     Float?      // 0-10
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@unique([employeeId, period, periodType])
+  @@index([period, periodType, overallScore])
+}
+
+model EmployeeTimeline {
+  id          String            @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId  String
+  employee    Employee          @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  eventType   TimelineEventType
+  title       String
+  description String?
+  date        DateTime
+  metadata    Json?
+  createdBy   String?
+  createdAt   DateTime          @default(now())
+
+  @@index([employeeId, date])
+}
+
+model OfferLetter {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId      String?
+  candidateName   String
+  candidateEmail  String
+  role            String
+  department      String
+  salary          Float
+  joiningDate     DateTime
+  reportingManager String?
+  officeAddress   String?
+  probationMonths Int      @default(6)
+  noticePeriodDays Int     @default(90)
+  benefits        String[]
+  htmlContent     String?
+  status          String   @default("DRAFT") // DRAFT, REVIEW, APPROVED, SENT, ACCEPTED, REJECTED
+  version         Int      @default(1)
+  docxFileUrl     String?
+  pdfFileUrl      String?
+  approvedBy      String?
+  approvedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  employee        Employee? @relation(fields: [employeeId], references: [employeeId], onDelete: SetNull)
+  onboarding      Onboarding?
+  @@index([candidateEmail, status])
+}
+
+enum OnboardingStatus {
+  OFFER_SENT
+  ACCEPTED
+  DOCUMENTS_PENDING
+  DOCUMENTS_SUBMITTED
+  HR_VERIFICATION
+  DOCUMENTS_VERIFIED
+  APPROVED
+  JOINING_LETTER_SENT
+  READY_TO_JOIN
+  JOINED
+  EMPLOYEE_CREATED
+  CREDENTIALS_SENT
+  ACTIVE
+  COMPLETED
+  REJECTED
+  CHANGES_REQUESTED
+  EXPIRED
+}
+
+model Onboarding {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  offerLetterId   String    @unique @db.ObjectId
+  offerLetter     OfferLetter @relation(fields: [offerLetterId], references: [id], onDelete: Cascade)
+  employeeId      String?
+  employee        Employee? @relation(fields: [employeeId], references: [employeeId], onDelete: SetNull)
+
+  token           String    @unique
+  tokenExpiresAt  DateTime
+
+  candidateId     String?   // EMP-XXXX reference id assigned at offer time
+  driveFolderId   String?   // Google Drive folder id for the candidate
+  driveFolderPath String?   // Google Drive folder path
+
+  status          OnboardingStatus @default(OFFER_SENT)
+
+  candidateData   Json?    // personal info, addresses, gov ids, emergency, education, bank details
+  companyAssets   Json?    // companyLogoDataUrl, authorizedSignatureDataUrl, companySealDataUrl
+  signatureType   String?  // DRAW | UPLOAD | TYPE
+  signatureData   String?  // base64 PNG data url (draw/upload) or rendered typed signature
+  signatureText   String?  // typed signature text
+
+  signedOfferFileId String?
+  signedOfferUrl    String?
+  joiningLetterFileId String?
+  joiningLetterUrl   String?
+
+  acceptedAt        DateTime?
+  joinedAt          DateTime?
+  credentialsSentAt DateTime?
+  completedAt       DateTime?
+  verificationBy    String?
+  verificationAt    DateTime?
+  verificationNote  String?
+  reviewReason      String? // reason for rejection / change request
+
+  documents         OnboardingDocument[]
+  auditTrail        OnboardingAuditLog[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status])
+}
+
+model OnboardingDocument {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  onboardingId String     @db.ObjectId
+  onboarding   Onboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  type         String     // OFFER_LETTER, AADHAAR, PAN, RESUME, CERTIFICATES, PASSPORT_PHOTO, SIGNATURE, JOINING_LETTER
+  fileName     String
+  mimeType     String
+  size         Int
+  driveFileId  String?
+  driveUrl     String?
+  localUrl     String?
+  uploadedAt   DateTime   @default(now())
+
+  @@index([onboardingId, type])
+}
+
+model OnboardingAuditLog {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  onboardingId String     @db.ObjectId
+  onboarding   Onboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  action       String
+  details      String
+  actorId      String?
+  actorType    String     @default("SYSTEM") // HR | CANDIDATE | SYSTEM
+  timestamp    DateTime   @default(now())
+
+  @@index([onboardingId, timestamp])
+}
+
+model Holiday {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  date        DateTime
+  type        String   @default("PUBLIC") // PUBLIC, RESTRICTED, COMPANY_SPECIFIC
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@unique([date])
+}
+
+model FinanceTransaction {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  type        String   // REVENUE, EXPENSE
+  category    String   // SALARY, OFFICE_EXPENSE, SOFTWARE, MARKETING, TRAINING, RECRUITMENT, VENDOR, TAX, OTHER
+  amount      Float
+  description String
+  date        DateTime
+  reference   String?
+  paidBy      String?
+  status      String   @default("COMPLETED") // PENDING, COMPLETED, OVERDUE
+  department  String?
+  employeeId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([type, date, category])
+}
+
+model HRDocument {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId      String?
+  documentType    DocumentType
+  title           String
+  fileUrl         String?
+  content         Json?
+  version         Int          @default(1)
+  status          String       @default("DRAFT")
+  generatedBy     String?
+  issuedDate      DateTime?
+  validUntil      DateTime?
+  qrCodeUrl       String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  employee        Employee?    @relation(fields: [employeeId], references: [employeeId], onDelete: SetNull)
+  @@index([documentType, employeeId])
+}
+
+model SessionLog {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  loginTime    DateTime
+  logoutTime   DateTime?
+  ipAddress    String?
+  userAgent    String?
+  device       String?
+  browser      String?
+  sessionToken String?
+  createdAt    DateTime @default(now())
+
+  @@index([employeeId, loginTime])
+}
+
+model PerformanceReview {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId     String
+  employee       Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  reviewerId     String?
+  reviewPeriod   String
+  rating         Float
+  strengths      String[]
+  improvements   String[]
+  goals          String[]
+  managerComment String?
+  employeeComment String?
+  status         String   @default("DRAFT")
+  reviewedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([employeeId, reviewPeriod])
 }
