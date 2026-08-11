@@ -8,7 +8,7 @@ class SocketService {
   public init(server: HttpServer, frontendUrl: string) {
     this.io = new SocketServer(server, {
       cors: {
-        origin: [frontendUrl, 'http://localhost:5173', 'https://onebridgehr.vercel.app'],
+        origin: [frontendUrl, 'http://localhost:5173', 'https://onebridgehr.vercel.app', 'https://hrms.onebridgeinfotech.com'],
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
         credentials: true,
       },
