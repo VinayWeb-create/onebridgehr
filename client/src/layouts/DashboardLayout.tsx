@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { io, Socket } from 'socket.io-client';
 import { SOCKET_URL } from '../services/api';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Users,
@@ -125,8 +126,12 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row overflow-hidden bg-brand-50 dark:bg-brand-950">
+    <div className="min-h-screen flex flex-col md:flex-row overflow-hidden bg-brand-50 dark:bg-brand-950 relative">
       
+      {/* Visual layout background decorations */}
+      <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-indigo-500/5 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 rounded-full bg-orange-500/5 blur-3xl pointer-events-none" />
+
       {/* --- Sidebar (Mobile Drawer & Desktop Fixed) --- */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 glass flex flex-col transition-transform duration-300 md:relative md:translate-x-0 ${
@@ -136,9 +141,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
         {/* Header Branding */}
         <div className="p-6 flex items-center justify-between border-b border-brand-200 dark:border-brand-900">
           <Link to="/dashboard" className="flex items-center space-x-3">
-            <img src="/image.png" className="w-9 h-9 object-contain" alt="OneBridge Logo" />
+            <img src="/image.png" className="w-9 h-9 object-contain animate-pulse" alt="OneBridge Logo" />
             <div>
-              <h1 className="font-extrabold text-sm tracking-tight text-brand-900 dark:text-white leading-none">ONEBRIDGE</h1>
+              <h1 className="font-extrabold text-sm tracking-tight text-brand-950 dark:text-white leading-none">ONEBRIDGE</h1>
               <p className="text-[9px] text-brand-500 font-bold tracking-wider uppercase mt-1">HR PORTAL</p>
             </div>
           </Link>
@@ -157,14 +162,21 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                 key={link.path}
                 to={link.path}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                className={`relative flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
                   isActive
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                    : 'text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900'
+                    ? 'text-white'
+                    : 'text-brand-600 dark:text-brand-400 hover:text-indigo-600 dark:hover:text-orange-400'
                 }`}
               >
-                <Icon size={18} />
-                <span>{link.name}</span>
+                {isActive && (
+                  <motion.div
+                    layoutId="activeSidebarLink"
+                    className="absolute inset-0 bg-gradient-to-r from-orange-500 to-indigo-600 rounded-xl -z-10 shadow-lg shadow-indigo-600/20"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <Icon size={18} className="relative z-10" />
+                <span className="relative z-10">{link.name}</span>
               </Link>
             );
           })}
@@ -172,13 +184,15 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
 
         {/* Log Out */}
         <div className="p-4 border-t border-brand-200 dark:border-brand-900">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={handleLogout}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all"
+            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all cursor-pointer"
           >
             <LogOut size={18} />
             <span>Sign Out</span>
-          </button>
+          </motion.button>
         </div>
       </aside>
 
@@ -194,57 +208,69 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             >
               <Menu size={20} />
             </button>
-            <h2 className="hidden md:block font-bold text-lg text-brand-950 dark:text-white capitalize">
-              Welcome, {user.firstName}
+            <h2 className="hidden md:block font-extrabold text-xl bg-clip-text text-transparent bg-gradient-to-r from-orange-500 via-indigo-600 to-rose-500 dark:from-orange-400 dark:via-indigo-400 dark:to-rose-400 capitalize">
+              Welcome, {user.firstName} 👋
             </h2>
           </div>
 
           <div className="flex items-center space-x-4">
             {/* Theme Toggle */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={toggleTheme}
-              className="p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900 hover:bg-brand-200 dark:hover:bg-brand-800 transition-all text-brand-600 dark:text-brand-400"
+              className="p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900 hover:bg-brand-200 dark:hover:bg-brand-800 transition-all text-brand-600 dark:text-brand-400 cursor-pointer"
             >
               {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-            </button>
+            </motion.button>
 
             {/* Notification Bell */}
             <div className="relative">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setShowNotificationPanel(!showNotificationPanel)}
-                className="p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900 hover:bg-brand-200 dark:hover:bg-brand-800 transition-all text-brand-600 dark:text-brand-400"
+                className="p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900 hover:bg-brand-200 dark:hover:bg-brand-800 transition-all text-brand-600 dark:text-brand-400 cursor-pointer"
               >
                 <Bell size={18} />
                 {notifications.length > 0 && (
                   <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
                 )}
-              </button>
+              </motion.button>
 
               {/* In-app Notification Dropdown */}
-              {showNotificationPanel && (
-                <div className="absolute right-0 mt-3 w-80 glass rounded-2xl shadow-xl border border-brand-200 dark:border-brand-900 py-3 z-50">
-                  <div className="px-4 pb-2 border-b border-brand-200 dark:border-brand-900 flex justify-between items-center">
-                    <h3 className="font-bold text-sm">Notifications</h3>
-                    {notifications.length > 0 && (
-                      <button onClick={() => setNotifications([])} className="text-[10px] text-indigo-600 font-bold hover:underline">
-                        Clear all
-                      </button>
-                    )}
-                  </div>
-                  <div className="max-h-60 overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <p className="text-center py-6 text-xs text-brand-500">No new alerts</p>
-                    ) : (
-                      notifications.map((n) => (
-                        <div key={n.id} className="p-3.5 border-b last:border-b-0 border-brand-100 dark:border-brand-900 hover:bg-brand-100 dark:hover:bg-brand-900 transition-all">
-                          <p className="font-bold text-xs">{n.title}</p>
-                          <p className="text-[11px] text-brand-600 dark:text-brand-400 mt-0.5">{n.message}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
+              <AnimatePresence>
+                {showNotificationPanel && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 15, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 15, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="absolute right-0 mt-3 w-80 glass rounded-2xl shadow-xl border border-brand-200 dark:border-brand-900 py-3 z-50"
+                  >
+                    <div className="px-4 pb-2 border-b border-brand-200 dark:border-brand-900 flex justify-between items-center">
+                      <h3 className="font-bold text-sm">Notifications</h3>
+                      {notifications.length > 0 && (
+                        <button onClick={() => setNotifications([])} className="text-[10px] text-indigo-600 font-bold hover:underline">
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-60 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <p className="text-center py-6 text-xs text-brand-500">No new alerts</p>
+                      ) : (
+                        notifications.map((n) => (
+                          <div key={n.id} className="p-3.5 border-b last:border-b-0 border-brand-100 dark:border-brand-900 hover:bg-brand-100 dark:hover:bg-brand-900 transition-all">
+                            <p className="font-bold text-xs">{n.title}</p>
+                            <p className="text-[11px] text-brand-600 dark:text-brand-400 mt-0.5">{n.message}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Profile Brief */}
@@ -269,27 +295,43 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
         </header>
 
         {/* Content Body */}
-        <main className="flex-1 p-4 md:p-8">
-          {children}
+        <main className="flex-1 p-4 md:p-8 relative">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 
       {/* --- Floating Realtime Toast Drawer (Bottom Right) --- */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col space-y-3 pointer-events-none">
-        {notifications.slice(0, 3).map((n) => (
-          <div
-            key={n.id}
-            className="w-80 bg-brand-900/95 text-white dark:bg-white dark:text-brand-950 pointer-events-auto rounded-2xl p-4 shadow-2xl flex items-start space-x-3 transition-transform duration-300 animate-slide-in border border-indigo-600"
-          >
-            <Activity className="text-indigo-500 shrink-0 mt-0.5" size={18} />
-            <div className="flex-1 min-w-0">
-              <h4 className="font-bold text-xs tracking-tight">{n.title}</h4>
-              <p className="text-[11px] text-brand-300 dark:text-brand-600 mt-1 leading-relaxed">
-                {n.message}
-              </p>
-            </div>
-          </div>
-        ))}
+        <AnimatePresence>
+          {notifications.slice(0, 3).map((n) => (
+            <motion.div
+              key={n.id}
+              initial={{ opacity: 0, x: 50, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 50, scale: 0.9 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="w-80 bg-brand-900/95 text-white dark:bg-white dark:text-brand-950 pointer-events-auto rounded-2xl p-4 shadow-2xl flex items-start space-x-3 border border-indigo-600"
+            >
+              <Activity className="text-indigo-500 shrink-0 mt-0.5 animate-pulse" size={18} />
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-xs tracking-tight">{n.title}</h4>
+                <p className="text-[11px] text-brand-300 dark:text-brand-600 mt-1 leading-relaxed">
+                  {n.message}
+                </p>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );

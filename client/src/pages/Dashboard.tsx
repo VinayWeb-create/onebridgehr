@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { motion } from 'framer-motion';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, ComposedChart,
@@ -187,7 +188,11 @@ const StatCard: React.FC<{
   badge?: { text: string; className: string };
   children?: React.ReactNode;
 }> = ({ title, value, subtitle, icon, iconBg, iconColor, trend, badge, children }) => (
-  <div className="glass rounded-3xl p-6 border border-brand-200 dark:border-brand-900 shadow-md hover:shadow-lg transition-all duration-300">
+  <motion.div 
+    whileHover={{ y: -5, scale: 1.01 }}
+    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+    className="glass rounded-3xl p-6 border border-brand-200 dark:border-brand-900 shadow-md hover:shadow-lg transition-all duration-300"
+  >
     <div className="flex items-start justify-between mb-4">
       <div>
         <span className="text-[11px] font-bold text-brand-500 uppercase tracking-wider">{title}</span>
@@ -212,7 +217,7 @@ const StatCard: React.FC<{
       )}
     </div>
     {children}
-  </div>
+  </motion.div>
 );
 
 export const Dashboard: React.FC = () => {

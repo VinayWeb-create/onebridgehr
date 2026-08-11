@@ -42,13 +42,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Verify against backend health
           const res = await api.get('/auth/me');
           if (res.data.status === 'success') {
+            const savedUserParsed = JSON.parse(savedUser);
             const freshUser = {
-              ...JSON.parse(savedUser),
-              firstName: res.data.data.employee.firstName,
-              lastName: res.data.data.employee.lastName,
-              profileImageUrl: res.data.data.employee.profileImageUrl,
-              department: res.data.data.employee.department,
-              designation: res.data.data.employee.designation,
+              ...savedUserParsed,
+              firstName: res.data.data.employee?.firstName || savedUserParsed.firstName || 'User',
+              lastName: res.data.data.employee?.lastName || savedUserParsed.lastName || '',
+              profileImageUrl: res.data.data.employee?.profileImageUrl || savedUserParsed.profileImageUrl,
+              department: res.data.data.employee?.department || savedUserParsed.department,
+              designation: res.data.data.employee?.designation || savedUserParsed.designation,
             };
             setUser(freshUser);
             localStorage.setItem('user', JSON.stringify(freshUser));

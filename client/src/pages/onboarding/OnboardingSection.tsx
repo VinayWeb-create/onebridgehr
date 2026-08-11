@@ -345,7 +345,7 @@ export const OnboardingSection: React.FC = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setSubmitted(true);
-      updateUserCache({ onboardingPending: false });
+      updateUserCache({ onboardingPending: false } as any);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Submission failed. Please try again.');
     } finally {

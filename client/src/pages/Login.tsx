@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { KeyRound, Mail, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const Login: React.FC = () => {
   const { login } = useAuth();
@@ -42,30 +43,102 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-brand-50 dark:bg-brand-950">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-brand-50 dark:bg-brand-950 relative overflow-hidden">
       
-      {/* Visual background decorations */}
-      <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
-      <div className="absolute bottom-20 right-20 w-72 h-72 rounded-full bg-amber-500/10 blur-3xl" />
+      {/* Animated fluid gradient backdrop */}
+      <div className="absolute inset-0 z-0">
+        <motion.div 
+          animate={{
+            scale: [1, 1.2, 1],
+            x: [0, 40, 0],
+            y: [0, -30, 0]
+          }}
+          transition={{
+            duration: 15,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-gradient-to-tr from-orange-400 to-amber-500 opacity-20 blur-3xl" 
+        />
+        <motion.div 
+          animate={{
+            scale: [1.2, 1, 1.1],
+            x: [0, -50, 0],
+            y: [0, 40, 0]
+          }}
+          transition={{
+            duration: 18,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-gradient-to-tr from-indigo-500 to-rose-400 opacity-20 blur-3xl" 
+        />
+        <motion.div 
+          animate={{
+            scale: [0.8, 1.1, 0.8],
+            x: [0, 30, 0],
+            y: [0, 50, 0]
+          }}
+          transition={{
+            duration: 12,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute top-1/2 left-1/3 w-80 h-80 rounded-full bg-gradient-to-br from-purple-400 to-indigo-600 opacity-15 blur-3xl" 
+        />
+      </div>
 
-      <div className="w-full max-w-md glass rounded-3xl p-8 md:p-10 shadow-2xl relative z-10 border border-brand-200 dark:border-brand-900 transition-all">
+      <motion.div 
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-md glass rounded-3xl p-8 md:p-10 shadow-2xl relative z-10 border border-brand-200 dark:border-brand-900 transition-all backdrop-blur-xl"
+      >
         {/* Branding header */}
         <div className="text-center mb-8">
-          <img src="/image.png" className="h-16 object-contain mx-auto" alt="OneBridge Logo" />
-          <h2 className="font-black text-2xl tracking-tight text-brand-950 dark:text-white mt-4">OneBridge Infotech</h2>
-          <p className="text-xs text-brand-500 dark:text-brand-400 mt-1.5 font-medium">Enterprise HR Management System</p>
+          <motion.img 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
+            src="/image.png" 
+            className="h-16 object-contain mx-auto" 
+            alt="OneBridge Logo" 
+          />
+          <motion.h2 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="font-black text-2xl tracking-tight text-brand-950 dark:text-white mt-4 bg-clip-text text-transparent bg-gradient-to-r from-brand-950 via-indigo-600 to-brand-950 dark:from-white dark:via-orange-400 dark:to-white"
+          >
+            OneBridge Infotech
+          </motion.h2>
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="text-xs text-brand-500 dark:text-brand-400 mt-1.5 font-semibold tracking-wider uppercase"
+          >
+            Enterprise HR Management System
+          </motion.p>
         </div>
 
         {/* Warning notification banner */}
-        {error && (
-          <div className="mb-6 p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 flex items-start space-x-3 text-rose-600 dark:text-rose-400 text-xs">
-            <AlertTriangle className="shrink-0 mt-0.5" size={16} />
-            <div>
-              <p className="font-bold">Access Denied</p>
-              <p className="mt-0.5 leading-relaxed">{error}</p>
-            </div>
-          </div>
-        )}
+        <AnimatePresence mode="wait">
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0, y: -10 }}
+              animate={{ opacity: 1, height: "auto", y: 0 }}
+              exit={{ opacity: 0, height: 0, y: -10 }}
+              className="mb-6 p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 flex items-start space-x-3 text-rose-600 dark:text-rose-400 text-xs overflow-hidden"
+            >
+              <AlertTriangle className="shrink-0 mt-0.5" size={16} />
+              <div>
+                <p className="font-bold">Access Denied</p>
+                <p className="mt-0.5 leading-relaxed">{error}</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Form elements */}
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -95,7 +168,7 @@ export const Login: React.FC = () => {
               <label className="text-xs font-bold text-brand-600 dark:text-brand-400 tracking-wide uppercase">
                 Password
               </label>
-              <span className="text-[11px] text-indigo-600 hover:underline cursor-pointer font-bold">
+              <span className="text-[11px] text-indigo-600 hover:underline cursor-pointer font-bold transition-colors">
                 Forgot password?
               </span>
             </div>
@@ -128,10 +201,12 @@ export const Login: React.FC = () => {
           </div>
 
           {/* Action button */}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
             type="submit"
             disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl py-3.5 font-bold text-sm tracking-wide shadow-lg shadow-indigo-600/25 flex items-center justify-center space-x-2 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:pointer-events-none"
+            className="w-full bg-gradient-to-r from-orange-500 to-indigo-600 hover:from-orange-600 hover:to-indigo-700 text-white rounded-2xl py-3.5 font-bold text-sm tracking-wide shadow-lg shadow-indigo-600/25 flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:pointer-events-none"
           >
             {loading ? (
               <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
@@ -141,33 +216,37 @@ export const Login: React.FC = () => {
                 <span>Verify & Continue</span>
               </>
             )}
-          </button>
+          </motion.button>
         </form>
         
         {/* Quick Demo Login Credentials */}
         <div className="mt-6 pt-5 border-t border-brand-200 dark:border-brand-900 text-center">
           <p className="text-[10px] text-brand-500 font-bold uppercase tracking-wider mb-2.5">Quick Demo Logins</p>
           <div className="flex justify-center space-x-2">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.98 }}
               type="button"
               onClick={() => {
                 setEmail('superadmin@onebridge.com');
                 setPassword('admin123');
               }}
-              className="bg-brand-100/50 hover:bg-brand-200/50 dark:bg-brand-900/50 dark:hover:bg-brand-800/50 text-[10px] text-brand-900 dark:text-white rounded-xl px-3 py-2 font-bold transition-all border border-brand-200/40 dark:border-brand-800/40"
+              className="bg-brand-100/50 hover:bg-brand-200/50 dark:bg-brand-900/50 dark:hover:bg-brand-800/50 text-[10px] text-brand-900 dark:text-white rounded-xl px-3 py-2 font-bold transition-all border border-brand-200/40 dark:border-brand-800/40 cursor-pointer"
             >
               👑 Super Admin
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.98 }}
               type="button"
               onClick={() => {
                 setEmail('hr@onebridge.com');
                 setPassword('hr12345');
               }}
-              className="bg-brand-100/50 hover:bg-brand-200/50 dark:bg-brand-900/50 dark:hover:bg-brand-800/50 text-[10px] text-brand-900 dark:text-white rounded-xl px-3 py-2 font-bold transition-all border border-brand-200/40 dark:border-brand-800/40"
+              className="bg-brand-100/50 hover:bg-brand-200/50 dark:bg-brand-900/50 dark:hover:bg-brand-800/50 text-[10px] text-brand-900 dark:text-white rounded-xl px-3 py-2 font-bold transition-all border border-brand-200/40 dark:border-brand-800/40 cursor-pointer"
             >
               💼 HR Manager
-            </button>
+            </motion.button>
           </div>
         </div>
 
@@ -175,7 +254,7 @@ export const Login: React.FC = () => {
         <p className="text-center text-[10px] text-brand-400 dark:text-brand-500 mt-8 leading-relaxed font-semibold uppercase">
           OneBridge Infotech Pvt. Ltd. | Secure RBAC Node
         </p>
-      </div>
+      </motion.div>
     </div>
   );
 };

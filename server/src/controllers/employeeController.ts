@@ -197,41 +197,63 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
 
     const parsed = updateEmployeeSchema.parse(req.body);
 
-    const employee = await prisma.employee.findUnique({
+    let employee = await prisma.employee.findUnique({
       where: { employeeId },
     });
 
     if (!employee) {
-      return next(new AppError('Employee not found', 404));
-    }
+      if (req.user?.role === 'SUPER_ADMIN') {
+        const email = req.user.email;
+        const existingEmployeeByEmail = await prisma.employee.findFirst({
+          where: { email },
+        });
 
-    const updated = await prisma.employee.update({
-      where: { employeeId },
-      data: {
-        firstName: parsed.firstName !== undefined ? parsed.firstName : undefined,
-        lastName: parsed.lastName !== undefined ? parsed.lastName : undefined,
-        phone: parsed.phone !== undefined ? parsed.phone : undefined,
-        department: parsed.department !== undefined ? parsed.department : undefined,
-        designation: parsed.designation !== undefined ? parsed.designation : undefined,
-        bloodGroup: parsed.bloodGroup !== undefined ? parsed.bloodGroup : undefined,
-        validity: parsed.validity !== undefined ? parsed.validity : undefined,
-        currentAddress: parsed.currentAddress !== undefined ? parsed.currentAddress : undefined,
-        permanentAddress: parsed.permanentAddress !== undefined ? parsed.permanentAddress : undefined,
-        personalInfo: parsed.personalInfo !== undefined ? { ...employee.personalInfo, ...parsed.personalInfo } as any : undefined,
-        professionalInfo: parsed.professionalInfo !== undefined ? { ...employee.professionalInfo, ...parsed.professionalInfo } as any : undefined,
-        emergencyContact: parsed.emergencyContact !== undefined ? parsed.emergencyContact : undefined,
-        education: parsed.education !== undefined ? parsed.education : undefined,
-        experience: parsed.experience !== undefined ? parsed.experience : undefined,
-        skills: parsed.skills !== undefined ? parsed.skills : undefined,
-        certificates: parsed.certificates !== undefined ? parsed.certificates : undefined,
-      },
-    });
+        employee = await prisma.employee.create({
+          data: {
+            employeeId,
+            firstName: parsed.firstName || 'Super',
+            lastName: parsed.lastName || 'Admin',
+            email: existingEmployeeByEmail ? `admin-${employeeId.toLowerCase()}@onebridge.com` : email,
+            phone: parsed.phone || 'N/A',
+            department: parsed.department || 'Administration',
+            designation: parsed.designation || 'Super Administrator',
+            bloodGroup: parsed.bloodGroup || 'N/A',
+            validity: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 5),
+            skills: parsed.skills || ['SYSTEM SECURITY', 'DATABASE MANAGEMENT', 'USER ROLES & PERMISSIONS'],
+          }
+        });
+      } else {
+        return next(new AppError('Employee not found', 404));
+      }
+    } else {
+      employee = await prisma.employee.update({
+        where: { employeeId },
+        data: {
+          firstName: parsed.firstName !== undefined ? parsed.firstName : undefined,
+          lastName: parsed.lastName !== undefined ? parsed.lastName : undefined,
+          phone: parsed.phone !== undefined ? parsed.phone : undefined,
+          department: parsed.department !== undefined ? parsed.department : undefined,
+          designation: parsed.designation !== undefined ? parsed.designation : undefined,
+          bloodGroup: parsed.bloodGroup !== undefined ? parsed.bloodGroup : undefined,
+          validity: parsed.validity !== undefined ? parsed.validity : undefined,
+          currentAddress: parsed.currentAddress !== undefined ? parsed.currentAddress : undefined,
+          permanentAddress: parsed.permanentAddress !== undefined ? parsed.permanentAddress : undefined,
+          personalInfo: parsed.personalInfo !== undefined ? { ...employee.personalInfo, ...parsed.personalInfo } as any : undefined,
+          professionalInfo: parsed.professionalInfo !== undefined ? { ...employee.professionalInfo, ...parsed.professionalInfo } as any : undefined,
+          emergencyContact: parsed.emergencyContact !== undefined ? parsed.emergencyContact : undefined,
+          education: parsed.education !== undefined ? parsed.education : undefined,
+          experience: parsed.experience !== undefined ? parsed.experience : undefined,
+          skills: parsed.skills !== undefined ? parsed.skills : undefined,
+          certificates: parsed.certificates !== undefined ? parsed.certificates : undefined,
+        },
+      });
+    }
 
     await logActivity(req.user?.employeeId || 'SYSTEM', 'EMPLOYEE_UPDATE', `Updated details for ${employeeId}`, req);
 
     res.status(200).json({
       status: 'success',
-      data: updated,
+      data: employee,
     });
   } catch (error) {
     next(error);
