@@ -109,12 +109,12 @@ export const OfferAccepted: React.FC = () => {
 
         {/* Title */}
         <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1c1917', margin: '0 0 8px 0' }}>
-          {isAlreadyAccepted ? 'Already Accepted!' : 'Offer Accepted!'}
+          {isAlreadyAccepted ? 'Already Accepted!' : 'Offer Accepted! 🎉'}
         </h1>
         <p style={{ fontSize: 15, color: '#78350f', fontWeight: 600, margin: '0 0 24px 0' }}>
           {isAlreadyAccepted
-            ? 'This offer has already been confirmed.'
-            : `Welcome to OneBridge Infotech${name ? `, ${name}` : ''}! 🚀`}
+            ? 'This offer has already been confirmed. Please await HR onboarding instructions.'
+            : `Welcome to OneBridge Infotech${name ? `, ${name}` : ''}! HR will reach out with onboarding details.`}
         </p>
 
         {/* Info Cards */}
@@ -123,22 +123,28 @@ export const OfferAccepted: React.FC = () => {
             {email && (
               <div className="info-row">
                 <Mail size={16} color="#ea580c" />
-                <span className="info-label">Login Email:</span>
+                <span className="info-label">Your Email:</span>
                 <span className="info-value">{email}</span>
               </div>
             )}
             <div className="info-row">
               <PartyPopper size={16} color="#ea580c" />
-              <span className="info-label">Credentials:</span>
-              <span className="info-value">Sent to your email inbox</span>
+              <span className="info-label">Next Step:</span>
+              <span className="info-value">HR will contact you for onboarding</span>
             </div>
             <div className="info-row">
               <CheckCircle2 size={16} color="#22c55e" />
-              <span className="info-label">HR Status:</span>
-              <span className="info-value" style={{ color: '#16a34a' }}>✅ Updated to Active</span>
+              <span className="info-label">Offer Status:</span>
+              <span className="info-value" style={{ color: '#16a34a' }}>✅ Accepted</span>
+            </div>
+            <div className="info-row">
+              <Mail size={16} color="#2563eb" />
+              <span className="info-label">Credentials:</span>
+              <span className="info-value" style={{ color: '#1d4ed8' }}>Will be sent by HR during onboarding</span>
             </div>
           </div>
         )}
+
 
         {isAlreadyAccepted && (
           <div style={{ marginBottom: 28, padding: '16px', background: '#fef3c7', borderRadius: 12, border: '1px solid #fcd34d' }}>

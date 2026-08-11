@@ -1606,88 +1606,93 @@ const createEmployeeFromOnboarding = async (onboarding: any, actorId?: string) =
   const employeeId = await generateEmployeeId();
   const qrCodeUrl = await qrService.generateEmployeeQr(employeeId);
 
-  const result = await prisma.$transaction(async (tx) => {
-    const employee = await tx.employee.create({
-      data: {
-        employeeId,
-        firstName,
-        lastName,
-        email: data.email || offer.candidateEmail,
-        phone: data.phone || '',
-        department: offer.department,
-        designation: offer.role,
-        bloodGroup: 'O+',
-        validity: new Date(joiningDate.getTime() + 365 * 24 * 3600 * 1000),
-        currentAddress: data.currentAddress || '',
-        permanentAddress: data.permanentAddress || '',
-        qrCodeUrl,
-        personalInfo: {
-          dob: data.dateOfBirth ? new Date(data.dateOfBirth) : new Date(),
-          gender: data.gender || 'Other',
-          panCard: data.pan,
-          aadharCard: data.aadhaar,
+  // NOTE: All async/expensive work (bcrypt, QR, ID generation) is done BEFORE the
+  // transaction so the transaction only contains fast DB writes.
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const employee = await tx.employee.create({
+        data: {
+          employeeId,
+          firstName,
+          lastName,
+          email: data.email || offer.candidateEmail,
+          phone: data.phone || '',
+          department: offer.department,
+          designation: offer.role,
+          bloodGroup: 'O+',
+          validity: new Date(joiningDate.getTime() + 365 * 24 * 3600 * 1000),
+          currentAddress: data.currentAddress || '',
+          permanentAddress: data.permanentAddress || '',
+          qrCodeUrl,
+          personalInfo: {
+            dob: data.dateOfBirth ? new Date(data.dateOfBirth) : new Date(),
+            gender: data.gender || 'Other',
+            panCard: data.pan,
+            aadharCard: data.aadhaar,
+          },
+          professionalInfo: {
+            dateOfJoining: joiningDate,
+          },
+          emergencyContact: data.emergencyContact
+            ? {
+                name: data.emergencyContact.name,
+                relationship: data.emergencyContact.relationship,
+                phone: data.emergencyContact.phone,
+              }
+            : undefined,
+          education: Array.isArray(data.education)
+            ? data.education.map((e: any) => ({
+                degree: e.degree,
+                institution: e.college || e.institution,
+                passingYear: parseInt(e.year || e.passingYear || '0', 10),
+              }))
+            : undefined,
         },
-        professionalInfo: {
-          dateOfJoining: joiningDate,
+      });
+
+      const user = await tx.user.create({
+        data: {
+          email: data.email || offer.candidateEmail,
+          passwordHash,
+          role: 'EMPLOYEE',
+          employeeId,
         },
-        emergencyContact: data.emergencyContact
-          ? {
-              name: data.emergencyContact.name,
-              relationship: data.emergencyContact.relationship,
-              phone: data.emergencyContact.phone,
-            }
-          : undefined,
-        education: Array.isArray(data.education)
-          ? data.education.map((e: any) => ({
-              degree: e.degree,
-              institution: e.college || e.institution,
-              passingYear: parseInt(e.year || e.passingYear || '0', 10),
-            }))
-          : undefined,
-      },
-    });
+      });
 
-    const user = await tx.user.create({
-      data: {
-        email: data.email || offer.candidateEmail,
-        passwordHash,
-        role: 'EMPLOYEE',
-        employeeId,
-      },
-    });
+      await tx.offerLetter.update({
+        where: { id: offer.id },
+        data: { employeeId, status: 'ACCEPTED', version: { increment: 1 } },
+      });
 
-    await tx.offerLetter.update({
-      where: { id: offer.id },
-      data: { employeeId, status: 'ACCEPTED', version: { increment: 1 } },
-    });
+      await tx.employeeTimeline.create({
+        data: {
+          employeeId,
+          eventType: 'JOINED',
+          title: 'Employee Joined',
+          description: `Joined as ${offer.role} in ${offer.department}`,
+          date: joiningDate,
+          metadata: { onboardingId: onboarding.id, offerLetterId: offer.id },
+          createdBy: actorId || null,
+        },
+      });
 
-    await tx.employeeTimeline.create({
-      data: {
-        employeeId,
-        eventType: 'JOINED',
-        title: 'Employee Joined',
-        description: `Joined as ${offer.role} in ${offer.department}`,
-        date: joiningDate,
-        metadata: { onboardingId: onboarding.id, offerLetterId: offer.id },
-        createdBy: actorId || null,
-      },
-    });
+      await tx.hRDocument.create({
+        data: {
+          employeeId,
+          documentType: 'OFFER_LETTER',
+          title: `Offer Letter - ${firstName} ${lastName}`,
+          version: 1,
+          status: 'ISSUED',
+          generatedBy: actorId || null,
+          issuedDate: new Date(),
+          content: { role: offer.role, department: offer.department, salary: offer.salary, joiningDate: joiningDate.toISOString() },
+        },
+      });
 
-    await tx.hRDocument.create({
-      data: {
-        employeeId,
-        documentType: 'OFFER_LETTER',
-        title: `Offer Letter - ${firstName} ${lastName}`,
-        version: 1,
-        status: 'ISSUED',
-        generatedBy: actorId || null,
-        issuedDate: new Date(),
-        content: { role: offer.role, department: offer.department, salary: offer.salary, joiningDate: joiningDate.toISOString() },
-      },
-    });
-
-    return { employee, user };
-  });
+      return { employee, user };
+    },
+    { timeout: 60000 } // 60 seconds – plenty for DB-only writes
+  );
 
   // Rename drive folder to employee ID if possible (non-blocking)
   try {
@@ -1771,7 +1776,7 @@ const runMarkJoined = async (onboardingId: string, actorId?: string, opts?: { em
   });
   if (!onboarding) throw new AppError('Onboarding record not found', 404);
 
-  if (!['DOCUMENTS_VERIFIED', 'APPROVED', 'JOINING_LETTER_SENT', 'READY_TO_JOIN', 'JOINED'].includes(onboarding.status)) {
+  if (!['ACCEPTED', 'DOCUMENTS_VERIFIED', 'APPROVED', 'JOINING_LETTER_SENT', 'READY_TO_JOIN', 'JOINED'].includes(onboarding.status)) {
     throw new AppError(`Cannot mark employee as joined when status is ${onboarding.status}`, 400);
   }
 
@@ -2408,57 +2413,64 @@ export const autoAccept = async (req: Request, res: Response, next: NextFunction
       return res.status(404).send('Invalid or expired onboarding link.');
     }
 
-    if (onboarding.status === 'JOINED' || onboarding.status === 'ACTIVE' || onboarding.status === 'EMPLOYEE_CREATED') {
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/offer-accepted?status=already_joined`);
-    }
-
-    if (onboarding.status === 'ACCEPTED') {
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/offer-accepted?status=already_accepted`);
-    }
-
-    // Create Employee and Credentials instantly
-    const { employee, tempPassword, employeeId, firstName, lastName } = await createEmployeeFromOnboarding(onboarding, 'SYSTEM');
-
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const candidateEmail = employee.email || onboarding.offerLetter?.candidateEmail || '';
+    const candidateName = onboarding.offerLetter?.candidateName || '';
+    const candidateEmail = onboarding.offerLetter?.candidateEmail || '';
+    const nameParts = candidateName.split(' ');
+    const firstName = nameParts[0] || 'Candidate';
 
-    try {
-      await emailService.sendWelcomeCredentialsEmail(
-        candidateEmail,
-        `${firstName} ${lastName}`,
-        frontendUrl,
-        candidateEmail,
-        tempPassword,
-        employeeId
+    // Already accepted or further along – just redirect
+    if (['ACCEPTED', 'DOCUMENTS_PENDING', 'DOCUMENTS_SUBMITTED', 'HR_VERIFICATION',
+         'DOCUMENTS_VERIFIED', 'APPROVED', 'JOINING_LETTER_SENT', 'READY_TO_JOIN',
+         'JOINED', 'EMPLOYEE_CREATED', 'CREDENTIALS_SENT', 'ACTIVE', 'COMPLETED'].includes(onboarding.status)) {
+      return res.redirect(
+        `${frontendUrl}/offer-accepted?status=already_accepted&name=${encodeURIComponent(firstName)}&email=${encodeURIComponent(candidateEmail)}`
       );
-    } catch (error) {
-      console.error('Welcome credentials email failed:', error);
     }
 
-    // Accept the offer and link the employee ID
-    const updatedOnboarding = await prisma.onboarding.update({
+    // Mark offer as ACCEPTED only – HR will onboard the employee via the dashboard
+    await prisma.onboarding.update({
       where: { id: onboarding.id },
-      data: { 
-        status: 'ACTIVE',
-        acceptedAt: new Date(),
-        joinedAt: new Date(),
-        employeeId,
-        credentialsSentAt: new Date()
-      },
-      include: { offerLetter: true },
+      data: { status: 'ACCEPTED', acceptedAt: new Date() },
     });
 
-    await logOnboardingAudit(onboarding.id, 'ACCEPTED', 'Candidate automatically accepted offer via email link. Employee created and credentials sent.', null, 'CANDIDATE');
+    await prisma.offerLetter.update({
+      where: { id: onboarding.offerLetter!.id },
+      data: { status: 'ACCEPTED', version: { increment: 1 } },
+    });
 
-    // Broadcast real-time update to HR dashboard
+    await logOnboardingAudit(
+      onboarding.id,
+      'ACCEPTED',
+      'Candidate accepted the offer via email link. Awaiting HR to initiate onboarding.',
+      null,
+      'CANDIDATE'
+    );
+
+    // Notify HR in real-time
     socketService.broadcast('onboarding_status_update', {
-      id: updatedOnboarding.id,
-      status: 'ACTIVE',
-      candidateName: updatedOnboarding.offerLetter?.candidateName || '',
-      employeeId,
+      id: onboarding.id,
+      status: 'ACCEPTED',
+      candidateName,
     });
 
-    res.redirect(`${frontendUrl}/offer-accepted?name=${encodeURIComponent(firstName)}&email=${encodeURIComponent(candidateEmail)}`);
+    // Send confirmation email to candidate
+    try {
+      const confirmHtml = `<p style="font-size:15px;color:#374151;">Hi <strong>${firstName}</strong>,</p>
+        <p style="font-size:15px;color:#374151;">Thank you for accepting the offer! Our HR team will reach out to you shortly with next steps for your onboarding.</p>
+        <p style="font-size:15px;color:#374151;">Best regards,<br/>HR Team – OneBridge Infotech</p>`;
+      await emailService.sendMail(
+        candidateEmail,
+        `Offer Accepted – ${onboarding.offerLetter?.role || 'Position'}`,
+        confirmHtml
+      );
+    } catch (err) {
+      console.error('Offer acceptance confirmation email failed:', err);
+    }
+
+    res.redirect(
+      `${frontendUrl}/offer-accepted?name=${encodeURIComponent(firstName)}&email=${encodeURIComponent(candidateEmail)}`
+    );
   } catch (error) {
     console.error('Error in autoAccept:', error);
     res.status(500).send('An error occurred during automatic acceptance.');

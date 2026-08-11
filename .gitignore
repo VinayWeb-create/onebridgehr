@@ -8,10 +8,13 @@ client/dist/
 server/dist/
 dist/
 
-# Environment configurations
+# Environment configurations (never commit any .env files)
 .env
+.env.*
 server/.env
+server/.env.*
 client/.env
+client/.env.*
 
 # Local development files
 .DS_Store

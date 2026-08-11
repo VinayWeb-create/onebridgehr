@@ -67,7 +67,7 @@ class EmailService {
       const transporter = await this.getTransporter();
       const logoPath = this.logoPath();
       const mailOptions = {
-        from: '"OneBridge HR System" <hr@onebridgeinfotech.com>',
+        from: `"OneBridge HR System" <${process.env.EMAIL_USER || 'vinay@onebridgeinfotech.com'}>`,
         to,
         subject,
         html,
