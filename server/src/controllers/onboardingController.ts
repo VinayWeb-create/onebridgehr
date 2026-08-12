@@ -615,7 +615,9 @@ export const saveChanges = async (req: Request, res: Response, next: NextFunctio
         { filename: 'Internship Offer Letter.pdf', buffer: pdfBuffer, mimeType: 'application/pdf', subFolder: 'Acceptance' },
         { filename: 'Candidate Signature.png', buffer: signatureBuffer, mimeType: 'image/png', subFolder: 'Acceptance' },
       ],
+      allowLocalFallback: true,
     });
+
 
     const upsertDoc = async (type: string, fileName: string, mimeType: string, size: number, uploaded: any) => {
       const existing = await prisma.onboardingDocument.findFirst({ where: { onboardingId: onboarding.id, type } });

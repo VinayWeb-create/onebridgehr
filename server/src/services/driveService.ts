@@ -152,40 +152,37 @@ class DriveService {
   }
 
   /**
-   * Writes a file to local storage, tolerating files that are momentarily
-   * locked (e.g. still open in Microsoft Word, or being scanned). When the
-   * target cannot be written after a few short retries, the file is stored
-   * under a unique name so the request still succeeds and the returned URL
-   * resolves to the actual file.
+   * Writes a file to local storage. If the preferred filename is locked
+   * (EBUSY/EPERM/EACCES — e.g. still open in Microsoft Word), a unique
+   * timestamped name is used immediately so the request never blocks.
    */
   private writeLocalFile(dir: string, filename: string, buffer: Buffer): string {
-    const preferred = path.join(dir, filename);
-    const isLock = (e: any) => !!e && (e.code === 'EBUSY' || e.code === 'EPERM' || e.code === 'EACCES');
+    const isLock = (e: any) =>
+      !!e && (e.code === 'EBUSY' || e.code === 'EPERM' || e.code === 'EACCES');
 
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        fs.writeFileSync(preferred, buffer);
-        return filename;
-      } catch (err: any) {
-        if (!isLock(err)) throw err;
-        if (attempt < 2) {
-          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400);
-        }
-      }
+    // First attempt: try the preferred (human-readable) name.
+    const preferred = path.join(dir, filename);
+    try {
+      fs.writeFileSync(preferred, buffer);
+      return filename;
+    } catch (err: any) {
+      if (!isLock(err)) throw err;
+      // File is locked — fall through to unique name immediately.
+      console.warn(`[DriveService] "${filename}" is locked; writing under a unique name.`);
     }
 
+    // Second attempt: unique timestamped name (never collides).
     const ext = path.extname(filename);
     const base = path.basename(filename, ext);
-    for (let i = 0; i < 25; i++) {
-      const uniqueName = `${base}_${Date.now()}_${i}${ext}`;
-      try {
-        fs.writeFileSync(path.join(dir, uniqueName), buffer);
-        return uniqueName;
-      } catch (err2: any) {
-        if (!isLock(err2)) throw err2;
-      }
+    const uniqueName = `${base}_${Date.now()}${ext}`;
+    try {
+      fs.writeFileSync(path.join(dir, uniqueName), buffer);
+      return uniqueName;
+    } catch (err2: any) {
+      if (!isLock(err2)) throw err2;
     }
-    throw new Error(`Unable to write ${filename}: target remains locked`);
+
+    throw new Error(`Unable to write "${filename}": target remains locked even with a unique name.`);
   }
 
   private fallbackToLocal(folderKey: string, files: DriveFileInput[]): DriveUploadResult {

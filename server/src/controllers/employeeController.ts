@@ -295,25 +295,16 @@ export const getEmployeesList = async (req: Request, res: Response, next: NextFu
       orderBy: { employeeId: 'asc' },
     });
 
-    const employeesWithRatings = await Promise.all(
-      employees.map(async (emp) => {
-        const rating = await calculateEmployeeRating(emp.employeeId);
-        return {
-          ...emp,
-          rating,
-        };
-      })
-    );
-
     res.status(200).json({
       status: 'success',
       results: employees.length,
-      data: employeesWithRatings,
+      data: employees,
     });
   } catch (error) {
     next(error);
   }
 };
+
 
 export const uploadSignature = async (req: Request, res: Response, next: NextFunction) => {
   try {
