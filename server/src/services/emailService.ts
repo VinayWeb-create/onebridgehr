@@ -80,7 +80,55 @@ class EmailService {
   }
 
   public async sendMail(to: string, subject: string, html: string, attachments?: any[]) {
-    // 1. If RESEND_API_KEY is configured, use Resend HTTPS REST API (Port 443 - never blocked on cloud like Render)
+    // 1. If BREVO_API_KEY is configured, use Brevo HTTPS REST API (Port 443 - never blocked on cloud like Render)
+    if (process.env.BREVO_API_KEY) {
+      try {
+        const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || 'vinay@onebridgeinfotech.com';
+        const formattedAttachments = (attachments || []).map((a: any) => {
+          let contentBase64 = '';
+          if (a.content) {
+            contentBase64 = Buffer.isBuffer(a.content) ? a.content.toString('base64') : Buffer.from(a.content).toString('base64');
+          } else if (a.path && fs.existsSync(a.path)) {
+            contentBase64 = fs.readFileSync(a.path).toString('base64');
+          }
+          return {
+            name: a.filename,
+            content: contentBase64,
+          };
+        }).filter((a: any) => a.content);
+
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'api-key': process.env.BREVO_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: {
+              name: 'OneBridge HR System',
+              email: senderEmail,
+            },
+            to: [{ email: to }],
+            subject,
+            htmlContent: html,
+            attachment: formattedAttachments.length > 0 ? formattedAttachments : undefined,
+          }),
+        });
+
+        if (response.ok) {
+          const resData: any = await response.json();
+          console.log(`[Brevo HTTPS] Email sent successfully to ${to}: ${resData.messageId || resData.id}`);
+          return resData;
+        } else {
+          const errText = await response.text();
+          console.warn(`[Brevo HTTPS] API returned error: ${errText}, falling back...`);
+        }
+      } catch (brevoErr: any) {
+        console.warn(`[Brevo HTTPS] Failed (${brevoErr?.message}), trying next method...`);
+      }
+    }
+
+    // 2. If RESEND_API_KEY is configured, use Resend HTTPS REST API (Port 443)
     if (process.env.RESEND_API_KEY) {
       try {
         const fromEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'onboarding@resend.dev';
@@ -121,54 +169,7 @@ class EmailService {
           console.warn(`[Resend HTTPS] API returned error: ${errText}, falling back...`);
         }
       } catch (resendErr: any) {
-        console.warn(`[Resend HTTPS] Failed (${resendErr?.message}), trying next method...`);
-      }
-    }
-
-    // 2. If BREVO_API_KEY is configured, use Brevo HTTPS REST API (Port 443)
-    if (process.env.BREVO_API_KEY) {
-      try {
-        const formattedAttachments = (attachments || []).map((a: any) => {
-          let contentBase64 = '';
-          if (a.content) {
-            contentBase64 = Buffer.isBuffer(a.content) ? a.content.toString('base64') : Buffer.from(a.content).toString('base64');
-          } else if (a.path && fs.existsSync(a.path)) {
-            contentBase64 = fs.readFileSync(a.path).toString('base64');
-          }
-          return {
-            name: a.filename,
-            content: contentBase64,
-          };
-        }).filter((a: any) => a.content);
-
-        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: {
-            'api-key': process.env.BREVO_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            sender: {
-              name: 'OneBridge HR System',
-              email: process.env.EMAIL_USER || 'vinay@onebridgeinfotech.com',
-            },
-            to: [{ email: to }],
-            subject,
-            htmlContent: html,
-            attachment: formattedAttachments.length > 0 ? formattedAttachments : undefined,
-          }),
-        });
-
-        if (response.ok) {
-          const resData: any = await response.json();
-          console.log(`[Brevo HTTPS] Email sent successfully to ${to}: ${resData.messageId}`);
-          return resData;
-        } else {
-          const errText = await response.text();
-          console.warn(`[Brevo HTTPS] API returned error: ${errText}, falling back...`);
-        }
-      } catch (brevoErr: any) {
-        console.warn(`[Brevo HTTPS] Failed (${brevoErr?.message}), trying SMTP...`);
+        console.warn(`[Resend HTTPS] Failed (${resendErr?.message}), trying SMTP...`);
       }
     }
 
