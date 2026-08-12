@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { protect, restrictTo } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
@@ -17,13 +17,13 @@ let pendingState: string | null = null;
  * auth token and then opens it in the browser). A SUPER_ADMIN/HR authorizes the
  * company Google account for Drive access.
  */
-router.get('/auth', protect, restrictTo('SUPER_ADMIN', 'HR'), (req, res, next) => {
+router.get('/auth', protect, restrictTo('SUPER_ADMIN', 'HR'), (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!googleOAuth.isConfigured) {
       return next(
         new AppError(
           'Google OAuth is not configured. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI in the server .env.',
-          503
+          500
         )
       );
     }
@@ -39,7 +39,7 @@ router.get('/auth', protect, restrictTo('SUPER_ADMIN', 'HR'), (req, res, next) =
  * Google redirects back here after the admin approves. Exchanges the code,
  * stores encrypted tokens, then bounces back to the app.
  */
-router.get('/callback', async (req, res, next) => {
+router.get('/callback', async (req: Request, res: Response, next: NextFunction) => {
   const { code, state, error } = req.query;
 
   const frontend = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -70,7 +70,7 @@ router.get('/callback', async (req, res, next) => {
  * GET /api/drive/status
  * Reports whether Drive is configured/connected and which account is linked.
  */
-router.get('/status', protect, restrictTo('SUPER_ADMIN', 'HR'), async (req, res, next) => {
+router.get('/status', protect, restrictTo('SUPER_ADMIN', 'HR'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const connected = await googleOAuth.refreshStatus();
     let email: string | null = null;
@@ -98,7 +98,7 @@ router.get('/status', protect, restrictTo('SUPER_ADMIN', 'HR'), async (req, res,
  * POST /api/drive/disconnect
  * Removes the stored tokens so uploads stop using the connected account.
  */
-router.post('/disconnect', protect, restrictTo('SUPER_ADMIN', 'HR'), async (req, res, next) => {
+router.post('/disconnect', protect, restrictTo('SUPER_ADMIN', 'HR'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     await googleOAuth.disconnect();
     res.json({ success: true, data: { connected: false } });
@@ -111,7 +111,7 @@ router.post('/disconnect', protect, restrictTo('SUPER_ADMIN', 'HR'), async (req,
  * POST /api/drive/mock-connect
  * Mocks the Google Drive connection for local development.
  */
-router.post('/mock-connect', protect, restrictTo('SUPER_ADMIN', 'HR'), async (req, res, next) => {
+router.post('/mock-connect', protect, restrictTo('SUPER_ADMIN', 'HR'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const email = await googleOAuth.handleMockConnect();
     res.json({ success: true, data: { email } });
