@@ -44,6 +44,12 @@ class EmailService {
         port,
         secure: port === 465,
         auth: { user, pass },
+        // Prevent indefinite hangs on cloud (Render blocks outbound SMTP)
+        connectionTimeout: 15_000,  // 15s to establish TCP connection
+        greetingTimeout: 15_000,    // 15s for SMTP greeting
+        socketTimeout: 30_000,      // 30s per socket operation
+        pool: true,                 // reuse connections across requests
+        maxConnections: 3,
       });
     } else {
       console.log('Generating Ethereal SMTP test credentials...');
@@ -56,11 +62,15 @@ class EmailService {
           user: testAccount.user,
           pass: testAccount.pass,
         },
+        connectionTimeout: 15_000,
+        greetingTimeout: 15_000,
+        socketTimeout: 30_000,
       });
     }
 
     return this.transporter;
   }
+
 
   public async sendMail(to: string, subject: string, html: string, attachments?: any[]) {
     try {

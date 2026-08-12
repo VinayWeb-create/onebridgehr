@@ -885,8 +885,7 @@ export const submitDocuments = async (req: Request, res: Response, next: NextFun
       (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
       req.socket?.remoteAddress ||
       'unknown';
-    try {
-      await emailService.sendDocumentSubmittedConfirmation(
+    emailService.sendDocumentSubmittedConfirmation(
         onboarding.offerLetter?.candidateEmail || '',
         candidateData.fullName,
         {
@@ -896,10 +895,9 @@ export const submitDocuments = async (req: Request, res: Response, next: NextFun
           signatureHash,
           submittedAt,
         }
-      );
-    } catch (emailError) {
-      console.error('Failed to send confirmation email:', emailError);
-    }
+      ).catch((emailError: any) => {
+        console.error('[submitDocuments] Confirmation email failed:', emailError?.message || emailError);
+      });
     await prisma.onboarding.update({
       where: { id: onboarding.id },
       data: {
@@ -1002,8 +1000,8 @@ export const acceptOffer = async (req: Request, res: Response, next: NextFunctio
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const candidateEmail = employee.email || offer.candidateEmail;
 
-    // Send emails
-    await emailService.sendJoiningLetterEmail(
+    // Send joining letter email non-blocking
+    emailService.sendJoiningLetterEmail(
       candidateEmail,
       candidateName,
       {
@@ -1014,20 +1012,18 @@ export const acceptOffer = async (req: Request, res: Response, next: NextFunctio
         role: offer.role,
       },
       joiningPdf
-    );
+    ).catch((err: any) => console.error('[sendJoiningLetter] Email failed:', err?.message || err));
 
-    try {
-      await emailService.sendWelcomeCredentialsEmail(
-        candidateEmail,
-        `${firstName} ${lastName}`,
-        frontendUrl,
-        candidateEmail,
-        tempPassword,
-        employeeId
-      );
-    } catch (error) {
-      console.error('Welcome credentials email failed:', error);
-    }
+    // Send welcome credentials email non-blocking
+    emailService.sendWelcomeCredentialsEmail(
+      candidateEmail,
+      `${firstName} ${lastName}`,
+      frontendUrl,
+      candidateEmail,
+      tempPassword,
+      employeeId
+    ).catch((err: any) => console.error('[sendCredentials] Email failed:', err?.message || err));
+
 
     const updated = await prisma.onboarding.update({
       where: { id: onboarding.id },
@@ -1321,7 +1317,9 @@ export const sendOfferLetter = async (req: Request, res: Response, next: NextFun
       },
     });
 
-    await emailService.sendJoiningLetterEmail(
+    // Send email non-blocking — onboarding record is already created above.
+    // If SMTP is slow/blocked on this host the request must still succeed.
+    emailService.sendJoiningLetterEmail(
       offerLetter.candidateEmail,
       offerLetter.candidateName,
       {
@@ -1333,9 +1331,13 @@ export const sendOfferLetter = async (req: Request, res: Response, next: NextFun
       },
       offerPdf,
       onboarding.token
-    );
+    ).catch((mailErr: any) => {
+      console.error(`[sendOfferLetter] Email dispatch failed for ${offerLetter.candidateEmail}:`, mailErr?.message || mailErr);
+    });
 
+    // Audit log is fast (single DB write) — keep it awaited
     await logOnboardingAudit(
+
       onboarding.id,
       'OFFER_SENT',
       `Offer letter sent to ${offerLetter.candidateEmail} with secure portal link`,
