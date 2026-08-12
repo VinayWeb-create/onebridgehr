@@ -99,7 +99,7 @@ export const registerEmployee = async (req: Request, res: Response, next: NextFu
       });
 
       return { employee: newEmp, user: newUser };
-    });
+    }, { timeout: 30_000, maxWait: 10_000 });
 
     await logActivity(req.user?.employeeId || 'SYSTEM', 'EMPLOYEE_CREATE', `Created employee ${generatedEmployeeId}`, req);
 
@@ -443,7 +443,7 @@ export const deleteEmployee = async (req: Request, res: Response, next: NextFunc
       await tx.employee.delete({
         where: { employeeId }
       });
-    });
+    }, { timeout: 30_000, maxWait: 10_000 });
 
     await logActivity(req.user?.employeeId || 'SYSTEM', 'EMPLOYEE_DELETE', `Deleted employee ${employeeId}`, req);
 

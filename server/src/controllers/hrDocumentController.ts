@@ -685,7 +685,8 @@ export const approveAndCreateEmployeeWorkflow = async (req: Request, res: Respon
       });
 
       return { employee, user, offerLetter: updatedOffer };
-    });
+    }, { timeout: 30_000, maxWait: 10_000 });
+
 
     // Instead of generating a new PDF, we fetch the uploaded one
     if (!offerLetter.pdfFileUrl) {
