@@ -80,6 +80,99 @@ class EmailService {
   }
 
   public async sendMail(to: string, subject: string, html: string, attachments?: any[]) {
+    // 1. If RESEND_API_KEY is configured, use Resend HTTPS REST API (Port 443 - never blocked on cloud like Render)
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const fromEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'onboarding@resend.dev';
+        const formattedAttachments = (attachments || []).map((a: any) => {
+          let contentBase64 = '';
+          if (a.content) {
+            contentBase64 = Buffer.isBuffer(a.content) ? a.content.toString('base64') : Buffer.from(a.content).toString('base64');
+          } else if (a.path && fs.existsSync(a.path)) {
+            contentBase64 = fs.readFileSync(a.path).toString('base64');
+          }
+          return {
+            filename: a.filename,
+            content: contentBase64,
+          };
+        }).filter((a: any) => a.content);
+
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: fromEmail.includes('<') ? fromEmail : `"OneBridge HR" <${fromEmail}>`,
+            to: [to],
+            subject,
+            html,
+            attachments: formattedAttachments.length > 0 ? formattedAttachments : undefined,
+          }),
+        });
+
+        if (response.ok) {
+          const resData: any = await response.json();
+          console.log(`[Resend HTTPS] Email sent successfully to ${to}: ${resData.id}`);
+          return resData;
+        } else {
+          const errText = await response.text();
+          console.warn(`[Resend HTTPS] API returned error: ${errText}, falling back...`);
+        }
+      } catch (resendErr: any) {
+        console.warn(`[Resend HTTPS] Failed (${resendErr?.message}), trying next method...`);
+      }
+    }
+
+    // 2. If BREVO_API_KEY is configured, use Brevo HTTPS REST API (Port 443)
+    if (process.env.BREVO_API_KEY) {
+      try {
+        const formattedAttachments = (attachments || []).map((a: any) => {
+          let contentBase64 = '';
+          if (a.content) {
+            contentBase64 = Buffer.isBuffer(a.content) ? a.content.toString('base64') : Buffer.from(a.content).toString('base64');
+          } else if (a.path && fs.existsSync(a.path)) {
+            contentBase64 = fs.readFileSync(a.path).toString('base64');
+          }
+          return {
+            name: a.filename,
+            content: contentBase64,
+          };
+        }).filter((a: any) => a.content);
+
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'api-key': process.env.BREVO_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: {
+              name: 'OneBridge HR System',
+              email: process.env.EMAIL_USER || 'vinay@onebridgeinfotech.com',
+            },
+            to: [{ email: to }],
+            subject,
+            htmlContent: html,
+            attachment: formattedAttachments.length > 0 ? formattedAttachments : undefined,
+          }),
+        });
+
+        if (response.ok) {
+          const resData: any = await response.json();
+          console.log(`[Brevo HTTPS] Email sent successfully to ${to}: ${resData.messageId}`);
+          return resData;
+        } else {
+          const errText = await response.text();
+          console.warn(`[Brevo HTTPS] API returned error: ${errText}, falling back...`);
+        }
+      } catch (brevoErr: any) {
+        console.warn(`[Brevo HTTPS] Failed (${brevoErr?.message}), trying SMTP...`);
+      }
+    }
+
+    // 3. Fallback to SMTP (Nodemailer)
     const logoPath = this.logoPath();
     const mailOptions = {
       from: `"OneBridge HR System" <${process.env.EMAIL_USER || 'vinay@onebridgeinfotech.com'}>`,
@@ -103,10 +196,10 @@ class EmailService {
     try {
       const transporter = await this.getTransporter();
       const info = await transporter.sendMail(mailOptions);
-      console.log(`Email sent successfully to ${to}: ${info.messageId}`);
+      console.log(`[SMTP] Email sent successfully to ${to}: ${info.messageId}`);
       return info;
     } catch (error: any) {
-      console.warn(`Primary email dispatch failed (${error?.message || error}), attempting fallback port...`);
+      console.warn(`[SMTP] Primary email dispatch failed (${error?.message || error}), attempting fallback port...`);
 
       // Fallback: If port 465 timed out or failed, try port 587 (or vice-versa)
       const currentPort = parseInt(process.env.EMAIL_PORT || '587');
@@ -119,18 +212,22 @@ class EmailService {
         try {
           const fallbackTransporter = this.createSmtpTransporter(fallbackPort, fallbackPort === 465);
           const fallbackInfo = await fallbackTransporter.sendMail(mailOptions);
-          console.log(`Email sent via fallback port ${fallbackPort} to ${to}: ${fallbackInfo.messageId}`);
-          this.transporter = fallbackTransporter; // Use the working transporter for subsequent calls
+          console.log(`[SMTP] Email sent via fallback port ${fallbackPort} to ${to}: ${fallbackInfo.messageId}`);
+          this.transporter = fallbackTransporter;
           return fallbackInfo;
         } catch (fallbackError) {
-          console.error(`Fallback email dispatch on port ${fallbackPort} also failed:`, fallbackError);
+          console.error(`[SMTP] Fallback email dispatch on port ${fallbackPort} also failed.`);
         }
       }
 
-      console.error('Failed to send email:', error);
+      console.error(
+        `[Email Error] Failed to send email to ${to}. Note: Cloud platforms like Render block outbound SMTP ports (25/465/587). ` +
+        `To send emails reliably from Render, add RESEND_API_KEY or BREVO_API_KEY in Render Environment Variables.`
+      );
       throw error;
     }
   }
+
 
 
   private renderBrandedEmail(title: string, bodyHtml: string): string {
