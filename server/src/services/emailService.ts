@@ -30,6 +30,25 @@ class EmailService {
     return null;
   }
 
+  private createSmtpTransporter(port: number, secure: boolean): nodemailer.Transporter {
+    const host = process.env.EMAIL_HOST || 'smtp.hostinger.com';
+    const user = process.env.EMAIL_USER;
+    const pass = process.env.EMAIL_PASS;
+
+    return nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user: user || '', pass: pass || '' },
+      tls: {
+        rejectUnauthorized: false,
+      },
+      connectionTimeout: 10_000, // 10s TCP connection timeout
+      greetingTimeout: 10_000,   // 10s SMTP greeting timeout
+      socketTimeout: 15_000,     // 15s socket activity timeout
+    });
+  }
+
   private async getTransporter(): Promise<nodemailer.Transporter> {
     if (this.transporter) return this.transporter;
 
@@ -39,18 +58,7 @@ class EmailService {
     const pass = process.env.EMAIL_PASS;
 
     if (host && host !== 'smtp.ethereal.email' && user && pass) {
-      this.transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure: port === 465,
-        auth: { user, pass },
-        // Prevent indefinite hangs on cloud (Render blocks outbound SMTP)
-        connectionTimeout: 15_000,  // 15s to establish TCP connection
-        greetingTimeout: 15_000,    // 15s for SMTP greeting
-        socketTimeout: 30_000,      // 30s per socket operation
-        pool: true,                 // reuse connections across requests
-        maxConnections: 3,
-      });
+      this.transporter = this.createSmtpTransporter(port, port === 465);
     } else {
       console.log('Generating Ethereal SMTP test credentials...');
       const testAccount = await nodemailer.createTestAccount();
@@ -62,52 +70,68 @@ class EmailService {
           user: testAccount.user,
           pass: testAccount.pass,
         },
-        connectionTimeout: 15_000,
-        greetingTimeout: 15_000,
-        socketTimeout: 30_000,
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 15_000,
       });
     }
 
     return this.transporter;
   }
 
-
   public async sendMail(to: string, subject: string, html: string, attachments?: any[]) {
+    const logoPath = this.logoPath();
+    const mailOptions = {
+      from: `"OneBridge HR System" <${process.env.EMAIL_USER || 'vinay@onebridgeinfotech.com'}>`,
+      to,
+      subject,
+      html,
+      attachments: [
+        ...(attachments || []),
+        ...(logoPath
+          ? [
+              {
+                filename: 'logo.png',
+                path: logoPath,
+                cid: 'onebridge-logo',
+              },
+            ]
+          : []),
+      ],
+    };
+
     try {
       const transporter = await this.getTransporter();
-      const logoPath = this.logoPath();
-      const mailOptions = {
-        from: `"OneBridge HR System" <${process.env.EMAIL_USER || 'vinay@onebridgeinfotech.com'}>`,
-        to,
-        subject,
-        html,
-        attachments: [
-          ...(attachments || []),
-          ...(logoPath
-            ? [
-                {
-                  filename: 'logo.png',
-                  path: logoPath,
-                  cid: 'onebridge-logo',
-                },
-              ]
-            : []),
-        ],
-      };
-
       const info = await transporter.sendMail(mailOptions);
-      console.log(`Email sent: ${info.messageId}`);
-
-      const previewUrl = nodemailer.getTestMessageUrl(info);
-      if (previewUrl) {
-        console.log(`Preview URL: ${previewUrl}`);
-      }
+      console.log(`Email sent successfully to ${to}: ${info.messageId}`);
       return info;
-    } catch (error) {
+    } catch (error: any) {
+      console.warn(`Primary email dispatch failed (${error?.message || error}), attempting fallback port...`);
+
+      // Fallback: If port 465 timed out or failed, try port 587 (or vice-versa)
+      const currentPort = parseInt(process.env.EMAIL_PORT || '587');
+      const fallbackPort = currentPort === 465 ? 587 : 465;
+      const host = process.env.EMAIL_HOST;
+      const user = process.env.EMAIL_USER;
+      const pass = process.env.EMAIL_PASS;
+
+      if (host && host !== 'smtp.ethereal.email' && user && pass) {
+        try {
+          const fallbackTransporter = this.createSmtpTransporter(fallbackPort, fallbackPort === 465);
+          const fallbackInfo = await fallbackTransporter.sendMail(mailOptions);
+          console.log(`Email sent via fallback port ${fallbackPort} to ${to}: ${fallbackInfo.messageId}`);
+          this.transporter = fallbackTransporter; // Use the working transporter for subsequent calls
+          return fallbackInfo;
+        } catch (fallbackError) {
+          console.error(`Fallback email dispatch on port ${fallbackPort} also failed:`, fallbackError);
+        }
+      }
+
       console.error('Failed to send email:', error);
       throw error;
     }
   }
+
 
   private renderBrandedEmail(title: string, bodyHtml: string): string {
     const logoHtml = this.logoPath()

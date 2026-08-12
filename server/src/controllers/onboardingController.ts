@@ -1217,11 +1217,13 @@ export const sendOfferLetter = async (req: Request, res: Response, next: NextFun
         return next(new AppError('Offer letter not found', 404));
       }
       const existing = await prisma.onboarding.findUnique({ where: { offerLetterId } });
-      if (existing && existing.status !== 'EXPIRED') {
-        return next(new AppError('An onboarding workflow already exists for this offer letter.', 400));
-      }
-      if (existing && existing.status === 'EXPIRED') {
-        await prisma.onboarding.delete({ where: { id: existing.id } });
+      if (existing) {
+        if (['OFFER_SENT', 'EXPIRED'].includes(existing.status)) {
+          await prisma.onboardingDocument.deleteMany({ where: { onboardingId: existing.id } });
+          await prisma.onboarding.delete({ where: { id: existing.id } });
+        } else {
+          return next(new AppError(`An onboarding workflow already exists for this offer letter (Current status: ${existing.status}).`, 400));
+        }
       }
       if (offerLetter.status === 'DRAFT') {
         offerLetter = await prisma.offerLetter.update({
