@@ -69,22 +69,17 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       return next(new AppError('Invalid email or password', 401));
     }
 
-    // Password matches - Clear failed attempts and locks
+    // Generate Tokens
+    const { accessToken, refreshToken } = generateTokens(user);
+
+    // Password matches - Clear failed attempts, locks, and save refresh token in one update
     await prisma.user.update({
       where: { id: user.id },
       data: {
         failedLoginAttempts: 0,
         lockedUntil: null,
+        refreshToken,
       },
-    });
-
-    // Generate Tokens
-    const { accessToken, refreshToken } = generateTokens(user);
-
-    // Save refresh token in DB
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { refreshToken },
     });
 
     // Fetch employee details for frontend state
