@@ -219,36 +219,7 @@ export const Login: React.FC = () => {
           </motion.button>
         </form>
         
-        {/* Quick Demo Login Credentials */}
-        <div className="mt-6 pt-5 border-t border-brand-200 dark:border-brand-900 text-center">
-          <p className="text-[10px] text-brand-500 font-bold uppercase tracking-wider mb-2.5">Quick Demo Logins</p>
-          <div className="flex justify-center space-x-2">
-            <motion.button
-              whileHover={{ scale: 1.03, y: -1 }}
-              whileTap={{ scale: 0.98 }}
-              type="button"
-              onClick={() => {
-                setEmail('superadmin@onebridge.com');
-                setPassword('admin123');
-              }}
-              className="bg-brand-100/50 hover:bg-brand-200/50 dark:bg-brand-900/50 dark:hover:bg-brand-800/50 text-[10px] text-brand-900 dark:text-white rounded-xl px-3 py-2 font-bold transition-all border border-brand-200/40 dark:border-brand-800/40 cursor-pointer"
-            >
-              👑 Super Admin
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.03, y: -1 }}
-              whileTap={{ scale: 0.98 }}
-              type="button"
-              onClick={() => {
-                setEmail('hr@onebridge.com');
-                setPassword('hr12345');
-              }}
-              className="bg-brand-100/50 hover:bg-brand-200/50 dark:bg-brand-900/50 dark:hover:bg-brand-800/50 text-[10px] text-brand-900 dark:text-white rounded-xl px-3 py-2 font-bold transition-all border border-brand-200/40 dark:border-brand-800/40 cursor-pointer"
-            >
-              💼 HR Manager
-            </motion.button>
-          </div>
-        </div>
+
 
         {/* Footer info */}
         <p className="text-center text-[10px] text-brand-400 dark:text-brand-500 mt-8 leading-relaxed font-semibold uppercase">
