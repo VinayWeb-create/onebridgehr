@@ -79,7 +79,19 @@ class EmailService {
     return this.transporter;
   }
 
-  public async sendMail(to: string, subject: string, html: string, attachments?: any[]) {
+  public async sendMail(to: string, subject: string, html: string, attachments?: any[]): Promise<any> {
+    // 0. If emails are disabled globally via ENV, exit cleanly and immediately
+    const isEmailDisabled =
+      process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true' ||
+      process.env.DISABLE_EMAILS === 'true' ||
+      process.env.ENABLE_EMAIL_NOTIFICATIONS === 'false' ||
+      process.env.ENABLE_EMAILS === 'false';
+
+    if (isEmailDisabled) {
+      console.log(`[Email Service] (DISABLED) Skipped sending email to "${to}" | Subject: "${subject}"`);
+      return { success: true, message: 'Emails are temporarily disabled via configuration', skipped: true };
+    }
+
     // 1. If BREVO_API_KEY is configured, use Brevo HTTPS REST API (Port 443 - never blocked on cloud like Render)
     if (process.env.BREVO_API_KEY) {
       try {
@@ -221,11 +233,12 @@ class EmailService {
         }
       }
 
-      console.error(
-        `[Email Error] Failed to send email to ${to}. Note: Cloud platforms like Render block outbound SMTP ports (25/465/587). ` +
-        `To send emails reliably from Render, add RESEND_API_KEY or BREVO_API_KEY in Render Environment Variables.`
+      console.warn(
+        `[Email Service] Could not deliver email to ${to} (Subject: "${subject}"). ` +
+        `Cloud platforms like Render block outbound SMTP ports (25/465/587). ` +
+        `To send live emails on Render in the future, configure BREVO_API_KEY or RESEND_API_KEY.`
       );
-      throw error;
+      return { success: false, error: error?.message || 'Email delivery failed' };
     }
   }
 

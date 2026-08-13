@@ -20,12 +20,13 @@ client/.env.*
 .DS_Store
 *.log
 
-# Temporary and design scrap files
+# Runtime generated uploads and documents
+server/documents/
+server/uploads/
+uploads/
+documents/
 temp_docx/
 server/temp_docx.xml
 *.xml
-*.docx
-*.png
-*.html
-!client/index.html
-!Logo Design Enhancement.html
+*.log
+
