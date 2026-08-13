@@ -15,7 +15,7 @@ const router = Router();
 router.use(protect);
 
 // Static routes MUST come before parameterized routes
-router.post('/', restrictTo('TEAM_LEAD', 'HR', 'SUPER_ADMIN'), createTask);
+router.post('/', createTask);
 router.get('/my-tasks', getEmployeeTasks);
 router.get('/my-assigned', getAssignedTasks);
 router.get('/all', restrictTo('HR', 'SUPER_ADMIN'), getAllTasks);

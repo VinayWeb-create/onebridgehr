@@ -343,6 +343,7 @@ export const Tasks: React.FC = () => {
   };
 
   const isAdmin = user?.role === 'HR' || user?.role === 'SUPER_ADMIN';
+  const isPrivileged = !!user?.role && ['TEAM_LEAD', 'HR', 'SUPER_ADMIN'].includes(user.role);
 
   // ═══════════════════════════════════════
   // RENDER
@@ -362,8 +363,14 @@ export const Tasks: React.FC = () => {
           </h1>
           <p className="text-xs text-brand-500 mt-1 font-semibold">Track deliverables, manage progress, and audit time logs</p>
         </div>
-        {user?.role && ['TEAM_LEAD', 'HR', 'SUPER_ADMIN'].includes(user.role) && (
-          <button onClick={() => setShowAddModal(true)}
+        {user?.role && (
+          <button onClick={() => {
+            setNewTask(prev => ({
+              ...prev,
+              employeeId: isPrivileged ? '' : (user.employeeId || '')
+            }));
+            setShowAddModal(true);
+          }}
             className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-2xl px-5 py-3 font-bold text-xs tracking-wider uppercase transition-all flex items-center space-x-2 shadow-lg shadow-indigo-600/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0">
             <Plus size={16} /><span>Create Task</span>
           </button>
@@ -849,12 +856,20 @@ export const Tasks: React.FC = () => {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1 flex items-center gap-1"><User size={10} /> Assign To *</label>
-                <select required value={newTask.employeeId} onChange={e => setNewTask({ ...newTask, employeeId: e.target.value })}
-                  className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all">
-                  <option value="">— Select Employee —</option>
-                  {employees.map(emp => (
-                    <option key={emp.employeeId} value={emp.employeeId}>{emp.firstName} {emp.lastName} ({emp.employeeId}) — {emp.designation}</option>
-                  ))}
+                <select required value={newTask.employeeId} disabled={!isPrivileged} onChange={e => setNewTask({ ...newTask, employeeId: e.target.value })}
+                  className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all disabled:opacity-75">
+                  {isPrivileged ? (
+                    <>
+                      <option value="">— Select Employee —</option>
+                      {employees.map(emp => (
+                        <option key={emp.employeeId} value={emp.employeeId}>{emp.firstName} {emp.lastName} ({emp.employeeId}) — {emp.designation}</option>
+                      ))}
+                    </>
+                  ) : (
+                    <option value={user?.employeeId || ''}>
+                      {user?.firstName} {user?.lastName} ({user?.employeeId})
+                    </option>
+                  )}
                 </select>
               </div>
               <div className="space-y-1.5">

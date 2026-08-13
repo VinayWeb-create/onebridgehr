@@ -20,9 +20,16 @@ const markOverdueTasks = async () => {
 export const createTask = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const creatorId = req.user?.employeeId;
+    const role = req.user?.role;
     if (!creatorId) return next(new AppError('Unauthorized', 401));
 
     const parsed = taskSchema.parse(req.body);
+
+    // If regular employee (not Admin/HR/Lead), they can only assign to themselves
+    const isPrivileged = role === 'HR' || role === 'SUPER_ADMIN' || role === 'TEAM_LEAD';
+    if (!isPrivileged && parsed.employeeId !== creatorId) {
+      return next(new AppError('Employees can only assign tasks to themselves', 403));
+    }
 
     const employee = await prisma.employee.findUnique({
       where: { employeeId: parsed.employeeId },
