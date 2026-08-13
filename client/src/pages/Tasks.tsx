@@ -437,6 +437,7 @@ export const Tasks: React.FC = () => {
                     { label: 'Progress', field: 'progress' as SortField, width: 'min-w-[120px]' },
                     { label: 'Due Date', field: 'dueDate' as SortField, width: 'min-w-[110px]' },
                     { label: 'Time', field: null, width: 'min-w-[60px]' },
+                    ...(isAdmin ? [{ label: 'Actions', field: null, width: 'w-20 text-right' }] : []),
                   ].map(col => (
                     <th key={col.label}
                       className={`px-4 py-3 text-[9px] font-extrabold text-brand-500 uppercase tracking-wider ${col.width} ${col.field ? 'cursor-pointer hover:text-indigo-600 select-none' : ''}`}
@@ -452,7 +453,7 @@ export const Tasks: React.FC = () => {
               <tbody>
                 {filteredTasks.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-16">
+                    <td colSpan={isAdmin ? 8 : 7} className="text-center py-16">
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-10 h-10 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center">
                           <CheckSquare size={18} className="text-brand-400" />
@@ -556,6 +557,30 @@ export const Tasks: React.FC = () => {
                             )}
                           </div>
                         </td>
+
+                        {/* Direct Delete for Admin/HR */}
+                        {isAdmin && (
+                          <td className="px-4 py-3.5 text-right">
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`Are you sure you want to delete task "${task.title}"?`)) {
+                                  try {
+                                    await api.delete(`/tasks/${task.id}`);
+                                    fetchTasks(); fetchStats();
+                                    showToast('success', 'Task deleted successfully!');
+                                  } catch (err: any) {
+                                    showToast('error', err.response?.data?.message || 'Failed to delete task');
+                                  }
+                                }
+                              }}
+                              title="Delete Task"
+                              className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 hover:text-rose-600 transition-colors inline-flex items-center justify-center"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })

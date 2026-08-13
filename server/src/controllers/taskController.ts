@@ -72,11 +72,10 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
       },
     });
 
-    try {
-      await sendTaskAssignmentNotificationInternal(task.id);
-    } catch (notifyErr: any) {
+    // Send task assignment notification asynchronously (fire-and-forget) to keep task creation fast
+    sendTaskAssignmentNotificationInternal(task.id).catch((notifyErr: any) => {
       console.error('Failed to send task assignment notification:', notifyErr?.message || notifyErr);
-    }
+    });
 
     await logActivity(creatorId, 'TASK_CREATE', `Assigned task ${task.id} to ${parsed.employeeId}`, req);
 
