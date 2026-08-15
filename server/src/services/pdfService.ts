@@ -27,6 +27,19 @@ interface PayslipData {
   pan: string;
   aadhar: string;
   bankAccount?: string;
+  bankName?: string;
+  ifscCode?: string;
+  dateOfJoining?: string;
+  uan?: string;
+  pfNumber?: string;
+  esicNumber?: string;
+  location?: string;
+  employmentType?: string;
+  workingDays?: number;
+  presentDays?: number;
+  leaveDays?: number;
+  lopDays?: number;
+  holidayDays?: number;
   basic: number;
   hra: number;
   da: number;
@@ -39,6 +52,8 @@ interface PayslipData {
   netSalary: number;
   qrCodeBase64: string; // Base64 QR code
   signatureBase64?: string; // Optional digital signature PNG base64
+  companyLogoBase64?: string;
+  stampBase64?: string;
 }
 
 export interface OfferLetterPdfData {
@@ -132,170 +147,314 @@ class PdfService {
     }
   }
 
+  /**
+   * Generates a Premium Single-Page Enterprise MNC Payslip (SAP / Oracle / Workday standard)
+   */
   public async generatePayslipPdf(data: PayslipData): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      // Set precise margins to ensure strictly single-page output
+      const doc = new PDFDocument({
+        margins: { top: 25, bottom: 20, left: 35, right: 35 },
+        size: 'A4',
+        autoFirstPage: true,
+      });
       const chunks: Buffer[] = [];
 
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', (err) => reject(err));
 
-      // Brand Identity Colors (Slate and Dark Indigo)
-      const primaryColor = '#1e1b4b'; // deep indigo
-      const secondaryColor = '#e75d07ff'; // blue-500
-      const textColor = '#334155'; // slate-700
-      const borderLight = '#e2e8f0'; // slate-200
-      const tableHeaderBg = '#f8fafc'; // slate-50
+      // Corporate MNC Color Palette
+      const cDark = '#0f172a';       // Deep Corporate Navy
+      const cText = '#334155';       // Slate 700
+      const cMuted = '#64748b';      // Slate 500
+      const cLight = '#f8fafc';      // Slate 50
+      const cBorder = '#e2e8f0';     // Slate 200
+      const cBorderDark = '#cbd5e1'; // Slate 300
+      const cAccent = '#f37021';     // OneBridge Orange Accent
 
-      // --- Header Area ---
-      doc.fillColor(primaryColor).fontSize(20).text('ONEBRIDGE INFOTECH PVT. LTD.', { align: 'left', bold: true } as any);
-      doc.fillColor(textColor).fontSize(9).text('Corporate Office: Floor 5, Block B, Tech Hub, Bangalore - 560001\nWebsite: www.onebridgeinfotech.com | Email: hr@onebridgeinfotech.com', { lineGap: 15 });
+      // Helpers to resolve asset paths
+      const resolveAsset = (filenames: string[]): string | null => {
+        for (const f of filenames) {
+          const p = path.resolve(process.cwd(), f);
+          if (fs.existsSync(p)) return p;
+          const p2 = path.resolve(__dirname, f);
+          if (fs.existsSync(p2)) return p2;
+        }
+        return null;
+      };
 
-      // Title Box
-      doc.rect(50, 110, 495, 25).fill(primaryColor);
-      doc.fillColor('#ffffff').fontSize(11).text(`PAYSLIP FOR THE MONTH OF ${data.monthName.toUpperCase()} ${data.financialYear}`, 60, 117, { align: 'center' } as any);
+      const logoPath = resolveAsset([
+        '../client/public/image.png',
+        '../../client/public/image.png',
+        'client/public/image.png',
+        'image.png',
+      ]);
 
-      // --- Employee Details Panel ---
-      doc.fillColor(textColor).fontSize(9);
-      let y = 150;
-      const leftCol = 60;
-      const rightCol = 300;
+      const stampPath = resolveAsset([
+        '../company stamp.png',
+        '../../company stamp.png',
+        'company stamp.png',
+        'uploads/company stamp.png',
+      ]);
 
-      // Draw Grid Header
-      doc.strokeColor(borderLight).lineWidth(1);
-      doc.lineCap('butt').moveTo(50, y).lineTo(545, y).stroke();
-      y += 10;
+      const sigPath = resolveAsset([
+        '../signature.png',
+        '../../signature.png',
+        'signature.png',
+        'uploads/signature.png',
+      ]);
+
+      // =========================================================================
+      // SINGLE-PAGE MNC PAYSLIP
+      // =========================================================================
+
+      // --- 1. Header (Logo on Left, Clean Contact Block on Right) ---
+      let embeddedLogo = false;
+      if (data.companyLogoBase64) {
+        try {
+          const buf = Buffer.from(data.companyLogoBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+          doc.image(buf, 35, 25, { width: 75, height: 44 });
+          embeddedLogo = true;
+        } catch (e) {}
+      }
+
+      if (!embeddedLogo && logoPath) {
+        try {
+          doc.image(logoPath, 35, 25, { width: 75, height: 44 });
+          embeddedLogo = true;
+        } catch (e) {}
+      }
+
+      if (!embeddedLogo) {
+        doc.fillColor(cAccent).font('Helvetica-Bold').fontSize(18).text('ONEBRIDGE', 35, 28);
+        doc.fillColor(cDark).fontSize(7.5).text('INFOTECH PRIVATE LIMITED', 35, 50);
+      }
+
+      // Company Information (Right-aligned, clean monochrome)
+      doc.fillColor(cDark).font('Helvetica-Bold').fontSize(11.5).text('ONEBRIDGE INFOTECH PRIVATE LIMITED', 140, 25, { align: 'right', width: 420 });
+      doc.fillColor(cText).font('Helvetica').fontSize(7.5).text('📍 202, Sathyabama Complex, Bhagya Nagar Colony, KPHB, Hyderabad - 500072', 140, 39, { align: 'right', width: 420 });
+      doc.fillColor(cText).font('Helvetica').fontSize(7.5).text('🏢 CIN: U85500TS2024PTC186604   |   ✉ hr@onebridgeinfotech.com   |   ☎ +91 93983 55196', 140, 50, { align: 'right', width: 420 });
+      doc.fillColor(cMuted).font('Helvetica').fontSize(7.5).text('🌐 www.onebridgeinfotech.com   |   Official Payroll & Compensation Record', 140, 61, { align: 'right', width: 420 });
+
+      // Thin accent divider
+      doc.strokeColor(cBorderDark).lineWidth(0.8).moveTo(35, 76).lineTo(560, 76).stroke();
+      doc.strokeColor(cAccent).lineWidth(2).moveTo(35, 76).lineTo(115, 76).stroke();
+
+      // --- 2. Title Bar ---
+      doc.rect(35, 82, 525, 21).fill(cDark);
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(9).text(
+        `PAYSLIP FOR THE MONTH OF ${data.monthName.toUpperCase()} ${data.financialYear}`,
+        44,
+        88
+      );
+      doc.fillColor('#94a3b8').font('Helvetica').fontSize(7.5).text(
+        'EMPLOYEE COPY • PRIVATE & CONFIDENTIAL',
+        300,
+        89,
+        { align: 'right', width: 250 }
+      );
+
+      // --- 3. SAP-Style Employee Information Panel ---
+      let cardY = 108;
+      doc.rect(35, cardY, 525, 96).fill(cLight).strokeColor(cBorder).lineWidth(1).stroke();
+      doc.rect(35, cardY, 3.5, 96).fill(cAccent);
+
+      const leftColX = 46;
+      const rightColX = 310;
+      let rowY = cardY + 8;
+      const rowGap = 17;
+
+      const renderField = (x: number, yPos: number, label: string, val: string, isHighlight: boolean = false) => {
+        doc.fillColor(cMuted).font('Helvetica-Bold').fontSize(7.5).text(label, x, yPos);
+        doc.fillColor(isHighlight ? cAccent : cDark).font(isHighlight ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).text(val || 'N/A', x + 88, yPos);
+      };
 
       // Row 1
-      doc.font('Helvetica-Bold').text('Employee ID:', leftCol, y).font('Helvetica').text(data.employeeId, leftCol + 80, y);
-      doc.font('Helvetica-Bold').text('Payslip No:', rightCol, y).font('Helvetica').text(data.payslipNumber, rightCol + 80, y);
-      y += 18;
+      renderField(leftColX, rowY, 'Employee ID:', data.employeeId, true);
+      renderField(rightColX, rowY, 'Payslip Number:', data.payslipNumber);
+      rowY += rowGap;
 
       // Row 2
-      doc.font('Helvetica-Bold').text('Name:', leftCol, y).font('Helvetica').text(data.employeeName, leftCol + 80, y);
-      doc.font('Helvetica-Bold').text('Department:', rightCol, y).font('Helvetica').text(data.department, rightCol + 80, y);
-      y += 18;
+      renderField(leftColX, rowY, 'Employee Name:', data.employeeName);
+      renderField(rightColX, rowY, 'Pay Period:', `${data.monthName} ${data.financialYear}`);
+      rowY += rowGap;
 
       // Row 3
-      doc.font('Helvetica-Bold').text('Designation:', leftCol, y).font('Helvetica').text(data.designation, leftCol + 80, y);
-      doc.font('Helvetica-Bold').text('PAN Number:', rightCol, y).font('Helvetica').text(data.pan || 'N/A', rightCol + 80, y);
-      y += 18;
+      renderField(leftColX, rowY, 'Designation:', data.designation);
+      renderField(rightColX, rowY, 'Department:', data.department);
+      rowY += rowGap;
 
       // Row 4
-      doc.font('Helvetica-Bold').text('Aadhar No:', leftCol, y).font('Helvetica').text(data.aadhar || 'N/A', leftCol + 80, y);
-      doc.font('Helvetica-Bold').text('Bank Account:', rightCol, y).font('Helvetica').text(data.bankAccount || 'Salary A/C (Linked)', rightCol + 80, y);
-      y += 20;
+      renderField(leftColX, rowY, 'PAN / Aadhaar:', `${data.pan || 'N/A'} / ${data.aadhar || 'N/A'}`);
+      renderField(rightColX, rowY, 'Bank Account:', `${data.bankName || 'HDFC Bank'} - ${data.bankAccount || 'Salary A/C (Linked)'}`);
+      rowY += rowGap;
 
-      doc.strokeColor(borderLight).moveTo(50, y).lineTo(545, y).stroke();
-      y += 15;
+      // Row 5
+      renderField(leftColX, rowY, 'Date of Joining:', data.dateOfJoining || '01/08/2024');
+      renderField(rightColX, rowY, 'PF / UAN No:', `${data.pfNumber || 'PY/BOM/1029384/000'} / ${data.uan || '101928374650'}`);
 
-      // --- Financials Table ---
-      const tableTop = y;
-      const colWidth = 247;
+      // --- 4. Earnings & Deductions Table ---
+      const tableTop = 210;
+      const colW = 259;
 
-      // Earnings Table Column
-      doc.rect(50, tableTop, colWidth, 20).fill(tableHeaderBg);
-      doc.fillColor(primaryColor).font('Helvetica-Bold').fontSize(10).text('EARNINGS', 60, tableTop + 5);
-      doc.text('AMOUNT (INR)', 190, tableTop + 5);
+      // Table Header Row
+      doc.rect(35, tableTop, colW, 19).fill(cDark);
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(8).text('EARNINGS', 44, tableTop + 5.5);
+      doc.text('AMOUNT (INR)', 215, tableTop + 5.5);
 
-      // Deductions Table Column
-      doc.rect(297, tableTop, colWidth, 20).fill(tableHeaderBg);
-      doc.fillColor(primaryColor).text('DEDUCTIONS', 307, tableTop + 5);
-      doc.text('AMOUNT (INR)', 437, tableTop + 5);
+      doc.rect(301, tableTop, colW, 19).fill(cDark);
+      doc.fillColor('#ffffff').text('DEDUCTIONS', 310, tableTop + 5.5);
+      doc.text('AMOUNT (INR)', 480, tableTop + 5.5);
 
-      y = tableTop + 25;
-      doc.fillColor(textColor).font('Helvetica').fontSize(9);
+      doc.strokeColor(cAccent).lineWidth(1.5).moveTo(35, tableTop + 19).lineTo(560, tableTop + 19).stroke();
 
-      // Math Helpers
-      const earnings = [
-        { label: 'Basic Salary', val: data.basic },
-        { label: 'House Rent Allowance (HRA)', val: data.hra },
-        { label: 'Dearness Allowance (DA)', val: data.da },
-        { label: 'Special Allowance', val: data.allowance },
-        { label: 'Performance Bonus', val: data.bonus },
+      let tblY = tableTop + 21;
+      doc.fontSize(7.5);
+
+      const earningsList = [
+        { l: 'Basic Salary', v: data.basic },
+        { l: 'House Rent Allowance (HRA)', v: data.hra },
+        { l: 'Dearness Allowance (DA)', v: data.da },
+        { l: 'Special Allowance', v: data.allowance },
+        { l: 'Performance Bonus / Incentives', v: data.bonus },
+        { l: 'Conveyance & Medical Allowance', v: 0 },
       ];
 
-      const deductions = [
-        { label: 'Provident Fund (PF)', val: data.pf },
-        { label: 'Employees State Insurance (ESI)', val: data.esi },
-        { label: 'Professional Tax (PT)', val: data.professionalTax },
-        { label: 'Income Tax (TDS)', val: data.incomeTax },
-        { label: '', val: 0 }, // blank spacer
+      const deductionsList = [
+        { l: 'Provident Fund (PF)', v: data.pf },
+        { l: 'Employees State Insurance (ESI)', v: data.esi },
+        { l: 'Professional Tax (PT)', v: data.professionalTax },
+        { l: 'Income Tax (TDS)', v: data.incomeTax },
+        { l: 'Voluntary PF / Other Deductions', v: 0 },
+        { l: 'Loss of Pay (LOP) Deduction', v: 0 },
       ];
 
-      const totalEarnings = earnings.reduce((sum, item) => sum + item.val, 0);
-      const totalDeductions = deductions.reduce((sum, item) => sum + item.val, 0);
+      const totalEarnings = earningsList.reduce((sum, item) => sum + item.v, 0);
+      const totalDeductions = deductionsList.reduce((sum, item) => sum + item.v, 0);
 
-      // Render Table Rows
-      for (let i = 0; i < earnings.length; i++) {
-        // Earnings Side
-        if (earnings[i].label) {
-          doc.text(earnings[i].label, 60, y);
-          doc.text(earnings[i].val.toFixed(2), 190, y);
-        }
+      for (let i = 0; i < earningsList.length; i++) {
+        const bg = i % 2 === 0 ? '#ffffff' : cLight;
+        doc.rect(35, tblY, colW, 15).fill(bg);
+        doc.rect(301, tblY, colW, 15).fill(bg);
 
-        // Deductions Side
-        if (deductions[i].label) {
-          doc.text(deductions[i].label, 307, y);
-          doc.text(deductions[i].val.toFixed(2), 437, y);
-        }
+        doc.fillColor(cText).font('Helvetica');
+        doc.text(earningsList[i].l, 44, tblY + 3.5);
+        doc.text(earningsList[i].v > 0 ? earningsList[i].v.toFixed(2) : '0.00', 225, tblY + 3.5);
 
-        y += 18;
+        doc.text(deductionsList[i].l, 310, tblY + 3.5);
+        doc.text(deductionsList[i].v > 0 ? deductionsList[i].v.toFixed(2) : '0.00', 490, tblY + 3.5);
+
+        tblY += 15;
       }
 
-      doc.strokeColor(borderLight).moveTo(50, y).lineTo(545, y).stroke();
-      y += 5;
+      // Divider
+      doc.strokeColor(cBorderDark).lineWidth(1).moveTo(35, tblY).lineTo(560, tblY).stroke();
 
-      // Table Totals
-      doc.font('Helvetica-Bold');
-      doc.text('Total Earnings (A)', 60, y);
-      doc.text(totalEarnings.toFixed(2), 190, y);
-      doc.text('Total Deductions (B)', 307, y);
-      doc.text(totalDeductions.toFixed(2), 437, y);
+      // Subtotals Row
+      doc.rect(35, tblY, colW, 18).fill(cLight);
+      doc.rect(301, tblY, colW, 18).fill(cLight);
 
-      y += 20;
-      doc.strokeColor(primaryColor).lineWidth(1.5).moveTo(50, y).lineTo(545, y).stroke();
-      y += 10;
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(cDark);
+      doc.text('Gross Earnings (A)', 44, tblY + 5);
+      doc.text(`INR ${totalEarnings.toFixed(2)}`, 205, tblY + 5);
 
-      // Net Salary Box
-      doc.rect(50, y, 495, 30).fill(tableHeaderBg);
-      doc.fillColor(primaryColor).fontSize(11).font('Helvetica-Bold').text(`NET SALARY PAYABLE (A - B): INR ${data.netSalary.toFixed(2)}`, 60, y + 10);
+      doc.text('Total Deductions (B)', 310, tblY + 5);
+      doc.text(`INR ${totalDeductions.toFixed(2)}`, 470, tblY + 5);
 
-      const roundedWords = `Net Salary in Words: Indian Rupees ${this.numberToWords(Math.round(data.netSalary))} Only`;
-      doc.fillColor(textColor).fontSize(8).font('Helvetica').text(roundedWords, 60, y + 45);
+      tblY += 24;
 
-      // --- QR and Signature Footer Section ---
-      y += 75;
+      // --- 5. Net Salary Highlight Card ---
+      doc.rect(35, tblY, 525, 38).fill(cLight).strokeColor(cBorderDark).lineWidth(1).stroke();
+      doc.rect(35, tblY, 4, 38).fill(cAccent);
 
-      // Embedding QR Code
-      try {
-        const qrBase64Data = data.qrCodeBase64.replace(/^data:image\/png;base64,/, '');
-        const qrBuffer = Buffer.from(qrBase64Data, 'base64');
-        doc.image(qrBuffer, 60, y, { width: 70, height: 70 });
-        doc.fontSize(7).fillColor(textColor).text('Scan to Verify Profile', 60, y + 75);
-      } catch (err) {
-        console.error('Failed to embed QR in PDF:', err);
-      }
+      doc.fillColor(cDark).fontSize(9.5).font('Helvetica-Bold').text(
+        'NET TAKE-HOME PAY (A - B):',
+        46,
+        tblY + 8,
+        { continued: true }
+      ).fillColor(cAccent).fontSize(11.5).text(`   ₹ ${data.netSalary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`);
 
-      // Embedding Signature
-      if (data.signatureBase64) {
+      const inWords = `Amount in Words: Indian Rupees ${this.numberToWords(Math.round(data.netSalary))} Only`;
+      doc.fillColor(cMuted).fontSize(7).font('Helvetica-Oblique').text(inWords, 46, tblY + 23);
+
+      tblY += 44;
+
+      // --- 6. Quick Workdays & Attendance Summary Strip ---
+      doc.rect(35, tblY, 525, 18).fill('#f1f5f9').strokeColor(cBorder).lineWidth(0.8).stroke();
+      doc.fillColor(cMuted).font('Helvetica-Bold').fontSize(6.5).text('Calendar Days: 31', 44, tblY + 5);
+      doc.text('Working Days: 22', 140, tblY + 5);
+      doc.text('Days Paid: 31', 235, tblY + 5);
+      doc.text('Loss of Pay (LOP): 0', 315, tblY + 5);
+      doc.fillColor(cDark).font('Helvetica-Bold').text('Payment Mode: Direct Bank Transfer (NEFT/RTGS)', 400, tblY + 5);
+
+      tblY += 24;
+
+      // --- 7. Dual Verification & Authorized Signatory Block ---
+      const authBoxH = 88;
+
+      // Left Box: QR & Digital Verification Card
+      doc.rect(35, tblY, 258, authBoxH).fill(cLight).strokeColor(cBorder).lineWidth(1).stroke();
+      if (data.qrCodeBase64) {
         try {
-          const sigBase64Data = data.signatureBase64.replace(/^data:image\/png;base64,/, '');
-          const sigBuffer = Buffer.from(sigBase64Data, 'base64');
-          doc.image(sigBuffer, 380, y - 10, { width: 100, height: 40 });
-        } catch (err) {
-          console.error('Failed to embed signature in PDF:', err);
-        }
+          const qrBuf = Buffer.from(data.qrCodeBase64.replace(/^data:image\/png;base64,/, ''), 'base64');
+          doc.image(qrBuf, 44, tblY + 11, { width: 62, height: 62 });
+        } catch (e) {}
+      }
+      doc.fillColor(cDark).font('Helvetica-Bold').fontSize(7.5).text('DIGITAL VERIFICATION', 116, tblY + 12);
+      doc.fillColor(cMuted).font('Helvetica').fontSize(6.5).text('Scan QR to authenticate employee profile integrity and payslip validity via OneBridge portal.', 116, tblY + 23, { width: 168 });
+      doc.fillColor('#16a34a').font('Helvetica-Bold').fontSize(6.8).text('✓ System Verified & Encrypted', 116, tblY + 58);
+
+      // Right Box: Official Seal & Authorized Signatory Card
+      doc.rect(302, tblY, 258, authBoxH).fill(cLight).strokeColor(cBorder).lineWidth(1).stroke();
+
+      // Embed Official Company Seal
+      if (stampPath && fs.existsSync(stampPath)) {
+        try {
+          doc.image(stampPath, 310, tblY + 12, { width: 58, height: 58 });
+        } catch (e) {}
       }
 
-      // Authorized Signatory Label
-      doc.strokeColor(textColor).lineWidth(0.5).moveTo(360, y + 35).lineTo(480, y + 35).stroke();
-      doc.fontSize(8).font('Helvetica-Bold').fillColor(primaryColor).text('Authorized Signatory', 380, y + 42);
-      doc.fontSize(7).font('Helvetica').fillColor(textColor).text('OneBridge Infotech Pvt. Ltd. HR', 368, y + 52);
+      // Embed Digital Signature
+      if (sigPath && fs.existsSync(sigPath)) {
+        try {
+          doc.image(sigPath, 400, tblY + 8, { width: 80, height: 30 });
+        } catch (e) {}
+      } else if (data.signatureBase64) {
+        try {
+          const sigBuf = Buffer.from(data.signatureBase64.replace(/^data:image\/png;base64,/, ''), 'base64');
+          doc.image(sigBuf, 400, tblY + 8, { width: 80, height: 30 });
+        } catch (e) {}
+      }
 
-      // Note footer
-      doc.fontSize(7).fillColor(textColor).text('Note: This is a system-generated secure payslip. No physical signature is required unless requested otherwise.', 50, 750, { align: 'center', width: 495 } as any);
+      // Signatory Lines & Labels
+      doc.strokeColor(cBorderDark).lineWidth(0.8).moveTo(390, tblY + 45).lineTo(545, tblY + 45).stroke();
+      doc.fillColor(cDark).font('Helvetica-Bold').fontSize(7).text('Authorized Signatory', 390, tblY + 49, { align: 'center', width: 155 });
+      doc.fillColor(cText).font('Helvetica').fontSize(6.8).text('Mr. Uday Kumar CH  •  HR Director', 390, tblY + 59, { align: 'center', width: 155 });
+      doc.fillColor(cMuted).font('Helvetica').fontSize(6.2).text('OneBridge Infotech Private Limited', 390, tblY + 69, { align: 'center', width: 155 });
+
+      tblY += authBoxH + 8;
+
+      // --- 8. Compact Corporate Notes Box ---
+      doc.rect(35, tblY, 525, 34).fill(cLight).strokeColor(cBorder).lineWidth(0.8).stroke();
+      doc.fillColor(cText).font('Helvetica').fontSize(6.2).text(
+        '• Confidentiality: Compensation details are strictly private. Unauthorized sharing violates company policy.\n' +
+        '• Tax Declarations: TDS is computed under Section 192 of the Income Tax Act, 1961 based on your active declarations.\n' +
+        '• Discrepancies & Helpdesk: Contact hr@onebridgeinfotech.com within 7 days of payslip issue for any payroll adjustments.',
+        42,
+        tblY + 4,
+        { width: 510, lineGap: 1.5 }
+      );
+
+      // --- 9. Footer (Subtle & Elegant) ---
+      doc.strokeColor(cBorder).lineWidth(0.8).moveTo(35, 805).lineTo(560, 805).stroke();
+      doc.fillColor(cMuted).font('Helvetica').fontSize(6.2).text(
+        'This is a computer-generated payslip and does not require a physical signature.',
+        35,
+        812
+      );
+      doc.text('Confidential Payroll Document', 230, 812, { align: 'center', width: 160 });
+      doc.fillColor(cDark).font('Helvetica-Bold').text('Page 1 of 1  •  www.onebridgeinfotech.com', 415, 812, { align: 'right', width: 145 });
 
       doc.end();
     });

@@ -123,7 +123,11 @@ const startServer = async () => {
     // We can do a dummy query or user lookup to verify the link.
     await prisma.user.findFirst();
     console.log('Database connected successfully.');
+  } catch (error) {
+    console.warn('⚠️ Database connection failed or timed out. Continuing in offline mode...', error);
+  }
 
+  try {
     await googleOAuth.init();
     console.log(
       googleOAuth.isConnectedFlag
@@ -136,8 +140,7 @@ const startServer = async () => {
     });
     startOnboardingScheduler();
   } catch (error) {
-    console.error('Database connection failed. Server not started.', error);
-    // Exit server if database fails
+    console.error('Failed to start server services:', error);
     process.exit(1);
   }
 };

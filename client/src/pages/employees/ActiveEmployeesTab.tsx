@@ -1,3 +1,4 @@
+import { useDialog } from '../../context/DialogContext';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import {
@@ -35,6 +36,7 @@ interface Employee {
 }
 
 export const Employees: React.FC = () => {
+  const { alert, confirm } = useDialog();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -204,7 +206,7 @@ export const Employees: React.FC = () => {
       });
       fetchEmployees();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to register employee');
+      alert({ title: 'Error', message: err.response?.data?.message || 'Failed to register employee', variant: 'error' });
     }
   };
 
@@ -225,7 +227,7 @@ export const Employees: React.FC = () => {
       setEditEmp(null);
       fetchEmployees();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to update employee');
+      alert({ title: 'Error', message: err.response?.data?.message || 'Failed to update employee', variant: 'error' });
     }
   };
 
@@ -261,7 +263,7 @@ export const Employees: React.FC = () => {
       reader.readAsArrayBuffer(blob);
     } catch (error) {
       console.error('Error generating document:', error);
-      alert('Failed to generate offer letter.');
+      alert({ title: 'Notification', message: 'Failed to generate offer letter.', variant: 'info' });
     }
   };
 
@@ -271,10 +273,10 @@ export const Employees: React.FC = () => {
     }
     try {
       await api.delete(`/employees/${employeeId}`);
-      alert('Employee deleted successfully');
+      alert({ title: 'Notification', message: 'Employee deleted successfully', variant: 'info' });
       fetchEmployees();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to delete employee');
+      alert({ title: 'Error', message: err.response?.data?.message || 'Failed to delete employee', variant: 'error' });
     }
   };
 
@@ -290,7 +292,7 @@ export const Employees: React.FC = () => {
       const res = await api.post(`/employees/${selectedEmp.employeeId}/${type}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      alert('Upload completed successfully!');
+      alert({ title: 'Notification', message: 'Upload completed successfully!', variant: 'info' });
       // Update selected state
       if (type === 'signature') {
         setSelectedEmp({ ...selectedEmp, signatureUrl: res.data.data.signatureUrl });
@@ -299,7 +301,7 @@ export const Employees: React.FC = () => {
       }
       fetchEmployees();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'File upload failed');
+      alert({ title: 'Error', message: err.response?.data?.message || 'File upload failed', variant: 'error' });
     }
   };
 

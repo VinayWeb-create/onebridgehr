@@ -8,6 +8,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import api from '../services/api';
+import { useDialog } from '../context/DialogContext';
 
 interface DriveStatus {
   configured: boolean;
@@ -22,6 +23,7 @@ interface Banner {
 }
 
 const GoogleDriveCard: React.FC = () => {
+  const { confirm, alert } = useDialog();
   const [status, setStatus] = useState<DriveStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -99,7 +101,7 @@ const GoogleDriveCard: React.FC = () => {
   };
 
   const handleDisconnect = async () => {
-    if (!window.confirm('Disconnect the company Google account from Drive uploads?')) return;
+    if (!(await confirm({ title: 'Confirmation', message: 'Disconnect the company Google account from Drive uploads?' }))) return;
     setBusy(true);
     try {
       await api.post('/drive/disconnect');

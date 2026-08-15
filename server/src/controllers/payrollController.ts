@@ -43,10 +43,6 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
       },
     });
 
-    if (existing) {
-      return next(new AppError(`Payroll already generated for ${employeeId} for month ${month}, ${financialYear}`, 400));
-    }
-
     // Verify employee details
     const employee = await prisma.employee.findUnique({
       where: { employeeId },
@@ -95,7 +91,7 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
     // Read HR Signature file
     const hrSigBase64 = getLocalFileAsBase64(hrEmployee?.signatureUrl || null);
 
-    // Generate PDF Buffer
+    // Generate PDF Buffer with OneBridge Branding & Logo
     const pdfBuffer = await pdfService.generatePayslipPdf({
       payslipNumber,
       monthName,
@@ -106,6 +102,7 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
       designation: employee.designation,
       pan: employee.personalInfo?.panCard || 'N/A',
       aadhar: employee.personalInfo?.aadharCard || 'N/A',
+      dateOfJoining: employee.professionalInfo?.dateOfJoining ? new Date(employee.professionalInfo.dateOfJoining).toLocaleDateString('en-GB') : '01/08/2024',
       basic: parsed.basic,
       hra: parsed.hra,
       da: parsed.da,
@@ -132,25 +129,45 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
 
     const pdfUrl = `${req.protocol}://${req.get('host')}/documents/${pdfFilename}`;
 
-    const payroll = await prisma.payroll.create({
-      data: {
-        employeeId,
-        month,
-        financialYear,
-        payslipNumber,
-        basic: parsed.basic,
-        hra: parsed.hra,
-        da: parsed.da,
-        allowance: parsed.allowance,
-        bonus: parsed.bonus,
-        pf: parsed.pf,
-        esi: parsed.esi,
-        professionalTax: parsed.professionalTax,
-        incomeTax: parsed.incomeTax,
-        netSalary,
-        payslipPdfUrl: pdfUrl,
-      },
-    });
+    let payroll;
+    if (existing) {
+      payroll = await prisma.payroll.update({
+        where: { id: existing.id },
+        data: {
+          basic: parsed.basic,
+          hra: parsed.hra,
+          da: parsed.da,
+          allowance: parsed.allowance,
+          bonus: parsed.bonus,
+          pf: parsed.pf,
+          esi: parsed.esi,
+          professionalTax: parsed.professionalTax,
+          incomeTax: parsed.incomeTax,
+          netSalary,
+          payslipPdfUrl: pdfUrl,
+        },
+      });
+    } else {
+      payroll = await prisma.payroll.create({
+        data: {
+          employeeId,
+          month,
+          financialYear,
+          payslipNumber,
+          basic: parsed.basic,
+          hra: parsed.hra,
+          da: parsed.da,
+          allowance: parsed.allowance,
+          bonus: parsed.bonus,
+          pf: parsed.pf,
+          esi: parsed.esi,
+          professionalTax: parsed.professionalTax,
+          incomeTax: parsed.incomeTax,
+          netSalary,
+          payslipPdfUrl: pdfUrl,
+        },
+      });
+    }
 
     // Notify employee
     await prisma.notification.create({
@@ -171,6 +188,236 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
     res.status(201).json({
       status: 'success',
       data: payroll,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+export const generateMyPayslip = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const employeeId = req.user?.employeeId;
+    if (!employeeId) return next(new AppError('Unauthorized', 401));
+
+    const { month, financialYear } = req.body;
+    if (!month || !financialYear) {
+      return next(new AppError('Month and financialYear are required', 400));
+    }
+
+    // Check if payroll already exists for this month and year
+    const existing = await prisma.payroll.findFirst({
+      where: {
+        employeeId,
+        month: parseInt(month),
+        financialYear,
+      },
+    });
+
+    const employee = await prisma.employee.findUnique({
+      where: { employeeId },
+      select: {
+        employeeId: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        department: true,
+        designation: true,
+        qrCodeUrl: true,
+        personalInfo: true,
+        professionalInfo: true,
+        salaryStructure: true,
+      },
+    });
+
+    if (!employee) {
+      return next(new AppError('Employee not found', 404));
+    }
+
+    // Find latest payroll to copy salary structure (fallback if no template)
+    const lastPayroll = await prisma.payroll.findFirst({
+      where: { employeeId },
+      orderBy: [{ financialYear: 'desc' }, { month: 'desc' }],
+    });
+
+    let basic = 0;
+    let hra = 0;
+    let da = 0;
+    let allowance = 0;
+    let bonus = 0;
+    let pf = 0;
+    let esi = 0;
+    let professionalTax = 0;
+    let incomeTax = 0;
+
+    if (employee.salaryStructure && employee.salaryStructure.basic > 0) {
+      basic = employee.salaryStructure.basic;
+      hra = employee.salaryStructure.hra;
+      da = employee.salaryStructure.da;
+      allowance = employee.salaryStructure.allowance;
+      bonus = employee.salaryStructure.bonus;
+      pf = employee.salaryStructure.pf;
+      esi = employee.salaryStructure.esi;
+      professionalTax = employee.salaryStructure.professionalTax;
+      incomeTax = employee.salaryStructure.incomeTax;
+    } else if (lastPayroll && lastPayroll.basic > 0) {
+      basic = lastPayroll.basic;
+      hra = lastPayroll.hra;
+      da = lastPayroll.da;
+      allowance = lastPayroll.allowance;
+      bonus = lastPayroll.bonus;
+      pf = lastPayroll.pf;
+      esi = lastPayroll.esi;
+      professionalTax = lastPayroll.professionalTax;
+      incomeTax = lastPayroll.incomeTax;
+    } else {
+      return next(new AppError('Your salary template has not been configured yet. Please contact HR to set up your salary structure before generating your payslip.', 400));
+    }
+
+    const parsedMonth = parseInt(month);
+
+    // Get HR user for signature (Assuming role HR exists, take first one)
+    const hrUser = await prisma.user.findFirst({ where: { role: 'HR' } });
+    let hrSigBase64;
+    if (hrUser) {
+      const hrEmployee = await prisma.employee.findUnique({ where: { employeeId: hrUser.employeeId } });
+      hrSigBase64 = getLocalFileAsBase64(hrEmployee?.signatureUrl || null);
+    }
+
+    // Net Salary Math
+    const netSalary =
+      basic +
+      hra +
+      da +
+      allowance +
+      bonus -
+      (pf + esi + professionalTax + incomeTax);
+
+    const formattedMonth = parsedMonth.toString().padStart(2, '0');
+    const cleanYear = financialYear.split('-')[0];
+    const payslipNumber = `PS-${employeeId}-${cleanYear}${formattedMonth}`;
+
+    // Get QR Code
+    let qrCodeBase64 = employee.qrCodeUrl;
+    if (!qrCodeBase64) {
+      qrCodeBase64 = await qrService.generateEmployeeQr(employeeId);
+      await prisma.employee.update({
+        where: { employeeId },
+        data: { qrCodeUrl: qrCodeBase64 },
+      });
+    }
+
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const monthName = monthNames[parsedMonth - 1];
+
+    // Generate PDF Buffer with OneBridge Branding & Logo
+    const pdfBuffer = await pdfService.generatePayslipPdf({
+      payslipNumber,
+      monthName,
+      financialYear,
+      employeeId,
+      employeeName: `${employee.firstName} ${employee.lastName}`,
+      department: employee.department,
+      designation: employee.designation,
+      pan: employee.personalInfo?.panCard || 'N/A',
+      aadhar: employee.personalInfo?.aadharCard || 'N/A',
+      dateOfJoining: employee.professionalInfo?.dateOfJoining ? new Date(employee.professionalInfo.dateOfJoining).toLocaleDateString('en-GB') : '01/08/2024',
+      basic: basic,
+      hra: hra,
+      da: da,
+      allowance: allowance,
+      bonus: bonus,
+      pf: pf,
+      esi: esi,
+      professionalTax: professionalTax,
+      incomeTax: incomeTax,
+      netSalary,
+      qrCodeBase64: qrCodeBase64 || '',
+      signatureBase64: hrSigBase64,
+    });
+
+    // Write PDF to local directory
+    const docsDir = path.join(process.cwd(), 'documents');
+    if (!fs.existsSync(docsDir)) {
+      fs.mkdirSync(docsDir, { recursive: true });
+    }
+
+    const pdfFilename = `${payslipNumber}.pdf`;
+    const pdfPath = path.join(docsDir, pdfFilename);
+    fs.writeFileSync(pdfPath, pdfBuffer);
+
+    const pdfUrl = `${req.protocol}://${req.get('host')}/documents/${pdfFilename}`;
+
+    let payroll;
+    if (existing) {
+      payroll = await prisma.payroll.update({
+        where: { id: existing.id },
+        data: {
+          basic: basic,
+          hra: hra,
+          da: da,
+          allowance: allowance,
+          bonus: bonus,
+          pf: pf,
+          esi: esi,
+          professionalTax: professionalTax,
+          incomeTax: incomeTax,
+          netSalary,
+          payslipPdfUrl: pdfUrl,
+        },
+      });
+    } else {
+      payroll = await prisma.payroll.create({
+        data: {
+          employeeId,
+          month: parsedMonth,
+          financialYear,
+          payslipNumber,
+          basic: basic,
+          hra: hra,
+          da: da,
+          allowance: allowance,
+          bonus: bonus,
+          pf: pf,
+          esi: esi,
+          professionalTax: professionalTax,
+          incomeTax: incomeTax,
+          netSalary,
+          payslipPdfUrl: pdfUrl,
+        },
+      });
+    }
+
+    // Notify & Email
+    await prisma.notification.create({
+      data: {
+        employeeId,
+        title: 'Payslip Generated',
+        message: `Your payslip for ${monthName} ${financialYear} has been generated.`,
+      },
+    });
+
+    socketService.sendNotification(employeeId, 'notification', {
+      title: 'Payslip Generated',
+      message: `Payslip for ${monthName} is available`,
+    });
+
+    await emailService.sendPayslipEmail(
+      employee.email,
+      `${employee.firstName} ${employee.lastName}`,
+      `${monthName} ${financialYear}`,
+      pdfBuffer
+    );
+
+    await logActivity(employeeId, 'PAYROLL_GENERATE_SELF', `Generated own payroll ${payslipNumber}`, req);
+
+    res.status(201).json({
+      status: 'success',
+      data: payroll,
+      message: 'Payslip generated and emailed successfully'
     });
   } catch (error) {
     next(error);

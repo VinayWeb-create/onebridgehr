@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { Mail, Search, Edit, Eye, Plus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useDialog } from '../../context/DialogContext';
 
 export const SelectedCandidatesTab: React.FC = () => {
+  const { alert, confirm } = useDialog();
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState<string | null>(null);
@@ -38,16 +40,22 @@ export const SelectedCandidatesTab: React.FC = () => {
   };
 
   const handleSendAcceptanceEmail = async (offerLetterId: string) => {
-    if (!window.confirm('Generate 1-page Offer Letter and send Welcome Email with acceptance instructions?')) return;
+    const confirmed = await confirm({
+      title: 'Generate Offer Letter',
+      message: 'Generate 1-page Offer Letter and send Welcome Email with acceptance instructions?',
+      confirmText: 'Generate & Send',
+      cancelText: 'Cancel'
+    });
+    if (!confirmed) return;
     
     try {
       setSending(offerLetterId);
       await api.post('/onboarding/send', { offerLetterId });
-      alert('Acceptance email sent successfully! The candidate has been moved to the onboarding workflow.');
+      await alert({ title: 'Success', message: 'Acceptance email sent successfully! The candidate has been moved to the onboarding workflow.', variant: 'success' });
       fetchCandidates();
     } catch (err: any) {
       console.error(err);
-      alert(err.response?.data?.message || 'Failed to send acceptance email');
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Failed to send acceptance email', variant: 'error' });
     } finally {
       setSending(null);
     }
@@ -58,13 +66,13 @@ export const SelectedCandidatesTab: React.FC = () => {
     try {
       setAdding(true);
       await api.post('/onboarding/candidates', formData);
-      alert('Candidate added successfully!');
+      await alert({ title: 'Success', message: 'Candidate added successfully!', variant: 'success' });
       setShowAddModal(false);
       setFormData({ name: '', email: '', role: '', department: '', salary: '', joiningDate: '', remarks: 'Excellent' });
       fetchCandidates();
     } catch (err: any) {
       console.error(err);
-      alert(err.response?.data?.message || 'Failed to add candidate');
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Failed to add candidate', variant: 'error' });
     } finally {
       setAdding(false);
     }

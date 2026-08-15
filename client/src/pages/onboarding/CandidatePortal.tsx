@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import { useDialog } from '../../context/DialogContext';
 import axios from 'axios';
 import { renderAsync } from 'docx-preview';
 import PizZip from 'pizzip';
@@ -244,6 +245,7 @@ const insertSignatureIntoDocx = (docxBytes: Uint8Array, signatureDataUrl: string
 };
 
 export const CandidatePortal: React.FC = () => {
+  const { alert, confirm } = useDialog();
   const { token } = useParams<{ token: string }>();
   const [onboarding, setOnboarding] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -587,12 +589,12 @@ export const CandidatePortal: React.FC = () => {
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return;
-      if (file.size > MAX_FILE_SIZE) return alert('Image exceeds the 10 MB limit.');
+      if (file.size > MAX_FILE_SIZE) alert({ title: 'Alert', message: 'Image exceeds the 10 MB limit.', variant: 'warning' }); return;
       const reader = new FileReader();
       reader.onload = (e) => {
         if (e.target?.result) exec('insertImage', e.target.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(file as Blob);
     };
     input.click();
   };
@@ -614,7 +616,7 @@ export const CandidatePortal: React.FC = () => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       if (file.size > MAX_FILE_SIZE) {
-        return alert('Signature image exceeds the 10 MB limit.');
+        alert({ title: 'Alert', message: 'Signature image exceeds the 10 MB limit.', variant: 'warning' }); return;
       }
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -739,7 +741,7 @@ export const CandidatePortal: React.FC = () => {
       else accepted.push(f);
     }
     if (rejected.length > 0) {
-      alert(rejected.join('\n'));
+      alert({ title: 'Notification', message: rejected.join('\n'), variant: 'info' });
     }
     if (accepted.length === 0) return;
 
@@ -830,7 +832,7 @@ export const CandidatePortal: React.FC = () => {
 
   const handleSave = async () => {
     if (!hasSignature && formData.signatureType !== 'TYPE') {
-      return alert('Please provide your digital signature before saving.');
+      alert({ title: 'Alert', message: 'Please provide your digital signature before saving.', variant: 'warning' }); return;
     }
     setSaving(true);
     setSavedInfo(null);
@@ -873,7 +875,7 @@ export const CandidatePortal: React.FC = () => {
             }
           : prev
       );
-      alert('Changes saved. Updated DOCX, PDF and signature uploaded successfully.');
+      alert({ title: 'Notification', message: 'Changes saved. Updated DOCX, PDF and signature uploaded successfully.', variant: 'info' });
     } catch (err: any) {
       console.error(err);
       const msg = err.response?.data?.message || 'Failed to save changes';
@@ -886,7 +888,7 @@ export const CandidatePortal: React.FC = () => {
             }
           : prev
       );
-      alert(msg);
+      alert({ title: 'Notification', message: msg, variant: 'info' });
     } finally {
       window.clearTimeout(phaseTimer);
       setSaving(false);
@@ -895,7 +897,7 @@ export const CandidatePortal: React.FC = () => {
 
   const handleAcceptOffer = async () => {
     if (!hasSignature && formData.signatureType !== 'TYPE') {
-      return alert('Please provide your digital signature before accepting.');
+      alert({ title: 'Alert', message: 'Please provide your digital signature before accepting.', variant: 'warning' }); return;
     }
     setSubmitting(true);
     try {
@@ -907,10 +909,10 @@ export const CandidatePortal: React.FC = () => {
       const res = await axios.post(`${API_BASE}/onboarding/portal/${token}/accept`);
       setOnboarding(res.data.data.onboarding);
       setStep(2);
-      alert('Offer accepted successfully! Your credentials have been emailed to you. Please proceed to upload your documents.');
+      alert({ title: 'Notification', message: 'Offer accepted successfully! Your credentials have been emailed to you. Please proceed to upload your documents.', variant: 'info' });
     } catch (err: any) {
       console.error(err);
-      alert(err.response?.data?.message || 'Failed to accept offer');
+      alert({ title: 'Error', message: err.response?.data?.message || 'Failed to accept offer', variant: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -918,13 +920,13 @@ export const CandidatePortal: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!hasSignature) {
-      return alert('Please provide your digital signature before submitting.');
+      alert({ title: 'Alert', message: 'Please provide your digital signature before submitting.', variant: 'warning' }); return;
     }
     if (requiredMissing.length > 0) {
-      return alert(`Please upload: ${requiredMissing.join(', ')}`);
+      alert({ title: 'Alert', message: `Please upload: ${requiredMissing.join(', ')}`, variant: 'warning' }); return;
     }
     if (!declaration) {
-      return alert('Please accept the declaration to proceed.');
+      alert({ title: 'Alert', message: 'Please accept the declaration to proceed.', variant: 'warning' }); return;
     }
 
     setSubmitting(true);
@@ -1015,7 +1017,7 @@ export const CandidatePortal: React.FC = () => {
             }
           : prev
       );
-      alert(msg);
+      alert({ title: 'Notification', message: msg, variant: 'info' });
     } finally {
       window.clearTimeout(phaseTimer);
       setSubmitting(false);
@@ -1061,7 +1063,7 @@ export const CandidatePortal: React.FC = () => {
       saveAs(blob, 'Acceptance Letter.docx');
     } catch (err) {
       console.error('Failed to download DOCX:', err);
-      alert('Failed to generate the DOCX download. Please try again.');
+      alert({ title: 'Notification', message: 'Failed to generate the DOCX download. Please try again.', variant: 'info' });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, formData.signatureData, tokenValue]);
@@ -1080,12 +1082,12 @@ export const CandidatePortal: React.FC = () => {
   const goNext = () => {
     if (step === 1) {
       if (!hasSignature) {
-        return alert('Please provide your digital signature before continuing.');
+        alert({ title: 'Alert', message: 'Please provide your digital signature before continuing.', variant: 'warning' }); return;
       }
       setStep(2);
     } else if (step === 2) {
       if (requiredMissing.length > 0) {
-        return alert(`Please upload required documents: ${requiredMissing.join(', ')}`);
+        alert({ title: 'Alert', message: `Please upload required documents: ${requiredMissing.join(', ')}`, variant: 'warning' }); return;
       }
       setStep(3);
     }
@@ -1229,7 +1231,7 @@ export const CandidatePortal: React.FC = () => {
                   onClick={() => {
                     const url = savedInfo?.pdf || onboarding.signedOfferUrl;
                     if (url) downloadFileFromUrl(url, 'Internship Offer Letter.pdf');
-                    else alert('Please save your changes first, then download the PDF.');
+                    else alert({ title: 'Notification', message: 'Please save your changes first, then download the PDF.', variant: 'info' });
                   }}
                   className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-4 py-2 rounded-full"
                 >

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
 import {
   Plus, CheckSquare, Clock, MessageSquare, AlertCircle, Calendar, Send,
   X, Check, Eye, Trash2, Search, Filter, ListChecks, Timer,
@@ -126,7 +127,7 @@ export const Tasks: React.FC = () => {
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { confirm } = useDialog();
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -174,7 +175,6 @@ export const Tasks: React.FC = () => {
       if (e.key === 'Escape') {
         setSelectedTask(null);
         setShowAddModal(false);
-        setShowDeleteConfirm(false);
       }
     };
     window.addEventListener('keydown', handleEsc);
@@ -256,9 +256,10 @@ export const Tasks: React.FC = () => {
 
   const handleDeleteTask = async () => {
     if (!selectedTask) return;
+    if (!(await confirm({ title: 'Delete Task', message: `Are you sure you want to delete task "${selectedTask.title}"?`, variant: 'danger', confirmText: 'Delete' }))) return;
     try {
       await api.delete(`/tasks/${selectedTask.id}`);
-      setShowDeleteConfirm(false); setSelectedTask(null);
+      setSelectedTask(null);
       fetchTasks(); fetchStats();
       showToast('success', 'Task deleted successfully!');
     } catch (err: any) { showToast('error', err.response?.data?.message || 'Failed to delete'); }
@@ -352,27 +353,28 @@ export const Tasks: React.FC = () => {
     <div className="space-y-5">
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
-      {/* ─── Header ─── */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-brand-900 to-indigo-950 p-6 rounded-3xl border border-brand-800 shadow-xl">
         <div>
-          <h1 className="font-extrabold text-2xl tracking-tight text-brand-950 dark:text-white flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-600/20">
-              <Target size={16} className="text-white" />
-            </div>
+          <h1 className="font-extrabold text-2xl tracking-tight text-white flex items-center gap-2">
+            <Target className="text-indigo-400" size={24} />
             Task Management
           </h1>
-          <p className="text-xs text-brand-500 mt-1 font-semibold">Track deliverables, manage progress, and audit time logs</p>
+          <p className="text-xs text-brand-300 mt-1 font-medium">Track deliverables, manage workflow progress, and audit time logs</p>
         </div>
         {user?.role && (
-          <button onClick={() => {
-            setNewTask(prev => ({
-              ...prev,
-              employeeId: isPrivileged ? '' : (user.employeeId || '')
-            }));
-            setShowAddModal(true);
-          }}
-            className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-2xl px-5 py-3 font-bold text-xs tracking-wider uppercase transition-all flex items-center space-x-2 shadow-lg shadow-indigo-600/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0">
-            <Plus size={16} /><span>Create Task</span>
+          <button
+            onClick={() => {
+              setNewTask(prev => ({
+                ...prev,
+                employeeId: isPrivileged ? '' : (user.employeeId || '')
+              }));
+              setShowAddModal(true);
+            }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 shrink-0"
+          >
+            <Plus size={16} />
+            <span>Create Task</span>
           </button>
         )}
       </div>
@@ -571,7 +573,7 @@ export const Tasks: React.FC = () => {
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation();
-                                if (window.confirm(`Are you sure you want to delete task "${task.title}"?`)) {
+                                if (await confirm({ title: 'Delete Task', message: `Are you sure you want to delete task "${task.title}"?`, variant: 'danger', confirmText: 'Delete' })) {
                                   try {
                                     await api.delete(`/tasks/${task.id}`);
                                     fetchTasks(); fetchStats();
@@ -787,20 +789,10 @@ export const Tasks: React.FC = () => {
                   {/* Delete (Admin) */}
                   {isAdmin && (
                     <div className="pt-3 border-t border-brand-100 dark:border-brand-800/40">
-                      {!showDeleteConfirm ? (
-                        <button onClick={() => setShowDeleteConfirm(true)}
-                          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-bold uppercase text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 transition-all">
-                          <Trash2 size={12} /> Delete Task
-                        </button>
-                      ) : (
-                        <div className="bg-rose-50 dark:bg-rose-950/30 rounded-xl p-3 border border-rose-200 dark:border-rose-900/40 space-y-2">
-                          <p className="text-[10px] font-bold text-rose-600">Are you sure? This cannot be undone.</p>
-                          <div className="flex gap-2">
-                            <button onClick={handleDeleteTask} className="flex-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg py-1.5 text-[10px] font-bold uppercase transition-all">Yes, Delete</button>
-                            <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 bg-brand-200 dark:bg-brand-800 text-brand-700 dark:text-brand-300 rounded-lg py-1.5 text-[10px] font-bold uppercase transition-all">Cancel</button>
-                          </div>
-                        </div>
-                      )}
+                      <button onClick={handleDeleteTask}
+                        className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-bold uppercase text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 transition-all">
+                        <Trash2 size={12} /> Delete Task
+                      </button>
                     </div>
                   )}
                 </div>

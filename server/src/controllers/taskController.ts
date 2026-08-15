@@ -157,8 +157,25 @@ const sendTaskAssignmentNotificationInternal = async (taskId: string) => {
     title: 'New Task Assigned',
     message: `Task: ${task.title}`,
   };
-  socketService.io?.emit('notification', notificationPayload);
+
+  // Notify the assigned employee
   socketService.sendNotification(task.employee.employeeId, 'notification', notificationPayload);
+
+  // Notify SUPER_ADMINs
+  try {
+    const superAdmins = await prisma.user.findMany({
+      where: { role: 'SUPER_ADMIN' },
+      select: { employeeId: true }
+    });
+    
+    for (const admin of superAdmins) {
+      if (admin.employeeId !== task.employee.employeeId) {
+        socketService.sendNotification(admin.employeeId, 'notification', notificationPayload);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to notify super admins:', err);
+  }
 };
 
 export const sendTaskAssignmentNotification = async (req: Request, res: Response, next: NextFunction) => {

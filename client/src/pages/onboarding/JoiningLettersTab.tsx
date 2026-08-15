@@ -17,6 +17,7 @@ import {
   Send,
   UserPlus,
 } from 'lucide-react';
+import { useDialog } from '../../context/DialogContext';
 
 interface JoiningLettersTabProps {
   statusFilter?: string[];
@@ -75,6 +76,7 @@ const PIPELINE_INDEX: Record<string, number> = {
 };
 
 export const JoiningLettersTab: React.FC<JoiningLettersTabProps> = ({ statusFilter }) => {
+  const { alert, confirm } = useDialog();
   const [onboardings, setOnboardings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -151,25 +153,25 @@ export const JoiningLettersTab: React.FC<JoiningLettersTabProps> = ({ statusFilt
         decision,
         note: verifyNote,
       });
-      alert(`Submission ${decision.toLowerCase()}d successfully.`);
+      await alert({ title: 'Success', message: `Submission ${decision.toLowerCase()}d successfully.`, variant: 'success' });
       setVerifyModal(false);
       setVerifyNote('');
       fetchOnboardings();
     } catch (err: any) {
       console.error(err);
-      alert(err.response?.data?.message || 'Failed to verify');
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Failed to verify', variant: 'error' });
     }
   };
 
   const runAction = async (fn: () => Promise<any>, successMsg: string) => {
     try {
       const res = await fn();
-      alert(successMsg);
+      await alert({ title: 'Success', message: successMsg, variant: 'success' });
       fetchOnboardings();
       return res;
     } catch (err: any) {
       console.error(err);
-      alert(err.response?.data?.message || 'Action failed');
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Action failed', variant: 'error' });
       return null;
     }
   };
@@ -186,34 +188,37 @@ export const JoiningLettersTab: React.FC<JoiningLettersTabProps> = ({ statusFilt
       'Joining letter emailed to the candidate.'
     );
 
-  const handlePreviewJoiningLetter = (ob: any) => {
+  const handlePreviewJoiningLetter = async (ob: any) => {
     const url = joiningLetterUrl(ob);
     if (url) {
       window.open(url, '_blank');
     } else {
-      alert('No joining letter has been generated yet. Generate one first.');
+      await alert({ title: 'Warning', message: 'No joining letter has been generated yet. Generate one first.', variant: 'warning' });
     }
   };
 
   const handleMarkJoined = async (ob: any) => {
-    const confirmed = window.confirm(
-      `Mark ${ob.offerLetter.candidateName} as joined? This will automatically create the employee account, generate login credentials and send the welcome email.`
-    );
+    const confirmed = await confirm({
+      title: 'Confirm Onboarding',
+      message: `Mark ${ob.offerLetter.candidateName} as joined? This will automatically create the employee account, generate login credentials and send the welcome email.`,
+      confirmText: 'Mark as Joined',
+      cancelText: 'Cancel'
+    });
     if (!confirmed) return;
     setActionId(ob.id);
     try {
       const res = await api.post(`/onboarding/${ob.id}/joined`, { email: true });
       const onboarding = res.data.data.onboarding;
       if (onboarding.status === 'JOINED') {
-        alert('Candidate marked as joined. The employee account will be created automatically after the configured delay (process now if needed).');
+        await alert({ title: 'Success', message: 'Candidate marked as joined. The employee account will be created automatically after the configured delay (process now if needed).', variant: 'success' });
       } else {
         const empId = res.data.data.employee?.employeeId || onboarding.employeeId || '';
-        alert(`Employee ${empId} created and activated. Login credentials + welcome email were sent automatically.`);
+        await alert({ title: 'Success', message: `Employee ${empId} created and activated. Login credentials + welcome email were sent automatically.`, variant: 'success' });
       }
       fetchOnboardings();
     } catch (err: any) {
       console.error(err);
-      alert(err.response?.data?.message || 'Failed to mark as joined');
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Failed to mark as joined', variant: 'error' });
     } finally {
       setActionId(null);
     }

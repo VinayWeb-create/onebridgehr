@@ -138,10 +138,13 @@ model Employee {
   qrCodeUrl       String?
   profileImageUrl String?
   signatureUrl    String?          // Transparent PNG URL (max 2MB)
+  customUrl       String?
+  customQrUrl     String?
   currentAddress  String?
   permanentAddress String?
   personalInfo    PersonalInfo?
   professionalInfo ProfessionalInfo?
+  salaryStructure  SalaryStructure?
   emergencyContact EmergencyContact?
   education       Education[]
   experience      Experience[]
@@ -181,6 +184,18 @@ type ProfessionalInfo {
   offerLetterUrl   String?
   joiningLetterUrl String?
   resumeUrl        String?
+}
+
+type SalaryStructure {
+  basic           Float
+  hra             Float
+  da              Float
+  allowance       Float
+  bonus           Float
+  pf              Float
+  esi             Float
+  professionalTax Float
+  incomeTax       Float
 }
 
 type EmergencyContact {

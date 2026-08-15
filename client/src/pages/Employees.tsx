@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import SelectedCandidatesTab from './onboarding/SelectedCandidatesTab';
 import JoiningLettersTab from './onboarding/JoiningLettersTab';
 import ActiveEmployeesTab from './employees/ActiveEmployeesTab';
+import { Users } from 'lucide-react';
 
 export const Employees: React.FC = () => {
   const [activeTab, setActiveTab] = useState('joining_onboarding');
@@ -14,11 +15,14 @@ export const Employees: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Container Header */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-brand-900 to-indigo-950 p-6 rounded-3xl border border-brand-800 shadow-xl">
         <div>
-          <h1 className="font-extrabold text-2xl tracking-tight text-brand-950 dark:text-white">Employees Directory</h1>
-          <p className="text-xs text-brand-500 mt-1 font-semibold">Manage candidates, onboarding, and active employees</p>
+          <h1 className="font-extrabold text-2xl tracking-tight text-white flex items-center gap-2">
+            <Users className="text-indigo-400" size={24} />
+            Employees Directory
+          </h1>
+          <p className="text-xs text-brand-300 mt-1 font-medium">Manage corporate candidates, onboarding pipelines, and active staff profiles</p>
         </div>
       </div>
 

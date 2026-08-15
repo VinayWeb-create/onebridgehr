@@ -1,3 +1,4 @@
+import { useDialog } from '../../context/DialogContext';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -62,6 +63,7 @@ const validateFile = (file: File): string | null => {
 };
 
 export const OnboardingSection: React.FC = () => {
+  const { alert, confirm } = useDialog();
   const navigate = useNavigate();
   const { updateUserCache } = useAuth();
 
@@ -323,14 +325,14 @@ export const OnboardingSection: React.FC = () => {
       setLastSavedAt(data.lastSavedAt || new Date().toISOString());
       if (data.pdf || data.docx) setSavedInfo({ pdf: data.pdf?.url, docx: data.docx?.url });
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Save failed');
+      alert({ title: 'Error', message: err.response?.data?.message || 'Save failed', variant: 'error' });
     } finally {
       setSaving(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (!declaration) return alert('Please check the declaration box.');
+    if (!declaration) alert({ title: 'Alert', message: 'Please check the declaration box.', variant: 'warning' }); return;
     setSubmitting(true);
     try {
       const payload = new FormData();
@@ -338,8 +340,8 @@ export const OnboardingSection: React.FC = () => {
       for (const def of DOC_DEFS) {
         const f = files[def.key];
         if (!f) continue;
-        if (Array.isArray(f)) { f.forEach((file) => payload.append(def.key, file)); }
-        else { payload.append(def.key, f); }
+        if (Array.isArray(f)) { (f as File[]).forEach((file: File) => payload.append(def.key, file)); }
+        else { payload.append(def.key, f as File); }
       }
       await api.post('/onboarding/my-onboarding/submit', payload, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -347,7 +349,7 @@ export const OnboardingSection: React.FC = () => {
       setSubmitted(true);
       updateUserCache({ onboardingPending: false } as any);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Submission failed. Please try again.');
+      alert({ title: 'Error', message: err.response?.data?.message || 'Submission failed. Please try again.', variant: 'error' });
     } finally {
       setSubmitting(false);
     }

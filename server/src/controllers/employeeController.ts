@@ -226,6 +226,19 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
         return next(new AppError('Employee not found', 404));
       }
     } else {
+      let customQrUrl: string | null | undefined = undefined;
+      let customUrlToSave: string | null | undefined = undefined;
+
+      if (parsed.customUrl !== undefined) {
+        if (parsed.customUrl.trim() === '') {
+          customUrlToSave = null;
+          customQrUrl = null;
+        } else {
+          customUrlToSave = parsed.customUrl;
+          customQrUrl = await qrService.generateCustomQr(parsed.customUrl);
+        }
+      }
+
       employee = await prisma.employee.update({
         where: { employeeId },
         data: {
@@ -245,6 +258,8 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
           experience: parsed.experience !== undefined ? parsed.experience : undefined,
           skills: parsed.skills !== undefined ? parsed.skills : undefined,
           certificates: parsed.certificates !== undefined ? parsed.certificates : undefined,
+          customUrl: customUrlToSave !== undefined ? customUrlToSave : undefined,
+          customQrUrl: customQrUrl !== undefined ? customQrUrl : undefined,
         },
       });
     }
@@ -448,6 +463,47 @@ export const deleteEmployee = async (req: Request, res: Response, next: NextFunc
     await logActivity(req.user?.employeeId || 'SYSTEM', 'EMPLOYEE_DELETE', `Deleted employee ${employeeId}`, req);
 
     res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateSalaryStructure = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { employeeId } = req.params;
+    const { basic, hra, da, allowance, bonus, pf, esi, professionalTax, incomeTax } = req.body;
+
+    const employee = await prisma.employee.findUnique({
+      where: { employeeId },
+    });
+
+    if (!employee) {
+      return next(new AppError('Employee not found', 404));
+    }
+
+    const updatedEmployee = await prisma.employee.update({
+      where: { employeeId },
+      data: {
+        salaryStructure: {
+          basic: Number(basic) || 0,
+          hra: Number(hra) || 0,
+          da: Number(da) || 0,
+          allowance: Number(allowance) || 0,
+          bonus: Number(bonus) || 0,
+          pf: Number(pf) || 0,
+          esi: Number(esi) || 0,
+          professionalTax: Number(professionalTax) || 0,
+          incomeTax: Number(incomeTax) || 0,
+        },
+      },
+    });
+
+    await logActivity(req.user?.employeeId || 'SYSTEM', 'SALARY_TEMPLATE_UPDATE', `Updated salary template for ${employeeId}`, req);
+
+    res.status(200).json({
+      status: 'success',
+      data: updatedEmployee,
+    });
   } catch (error) {
     next(error);
   }

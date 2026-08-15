@@ -1,3 +1,4 @@
+import { useDialog } from '../context/DialogContext';
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -26,6 +27,7 @@ interface EmployeeCard {
 }
 
 export const IdCard: React.FC = () => {
+  const { alert, confirm } = useDialog();
   const { user } = useAuth();
   
   const [employeeIdInput, setEmployeeIdInput] = useState('');
@@ -47,7 +49,7 @@ export const IdCard: React.FC = () => {
       const res = await api.get(`/employees/${id}`);
       setCardData(res.data.data);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Employee not found');
+      alert({ title: 'Error', message: err.response?.data?.message || 'Employee not found', variant: 'error' });
     } finally {
       setLoading(false);
     }
@@ -82,26 +84,29 @@ export const IdCard: React.FC = () => {
   return (
     <div className="space-y-6">
       
-      {/* Header */}
-      <div className="flex justify-between items-center">
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-brand-900 to-indigo-950 p-6 rounded-3xl border border-brand-800 shadow-xl">
         <div>
-          <h1 className="font-extrabold text-2xl tracking-tight text-brand-950 dark:text-white">Corporate ID Cards</h1>
-          <p className="text-xs text-brand-500 mt-1 font-semibold">Generate corporate cards with animated flips and security QR codes</p>
+          <h1 className="font-extrabold text-2xl tracking-tight text-white flex items-center gap-2">
+            <CreditCard className="text-indigo-400" size={24} />
+            Corporate ID Cards
+          </h1>
+          <p className="text-xs text-brand-300 mt-1 font-medium">Generate corporate cards with animated flips and security QR codes</p>
         </div>
         {cardData && (
-          <div className="flex space-x-3">
+          <div className="flex space-x-3 shrink-0">
             <button
               onClick={handleDownloadPng}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl px-5 py-3 font-bold text-xs tracking-wider uppercase transition-all flex items-center space-x-2 shadow-md"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-2.5 font-bold text-xs tracking-wider uppercase transition-all flex items-center space-x-2 shadow-md shadow-indigo-600/20"
             >
-              <Download size={16} />
+              <Download size={14} />
               <span>Download PNG</span>
             </button>
             <button
               onClick={handlePrint}
-              className="bg-brand-900 text-white dark:bg-brand-200 dark:text-brand-950 rounded-2xl px-5 py-3 font-bold text-xs tracking-wider uppercase transition-all flex items-center space-x-2 shadow-md"
+              className="bg-brand-800 text-white border border-brand-700 rounded-xl px-4 py-2.5 font-bold text-xs tracking-wider uppercase transition-all flex items-center space-x-2 shadow-md hover:bg-brand-700"
             >
-              <Printer size={16} />
+              <Printer size={14} />
               <span>Print ID Card</span>
             </button>
           </div>

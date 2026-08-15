@@ -8,6 +8,7 @@ import {
   uploadProfileImage,
   uploadDocument,
   deleteEmployee,
+  updateSalaryStructure,
 } from '../controllers/employeeController';
 import { protect, restrictTo } from '../middleware/auth';
 import { upload } from '../middleware/upload';
@@ -21,6 +22,7 @@ router.get('/', getEmployeesList);
 router.get('/:employeeId', getEmployee);
 router.put('/:employeeId', updateEmployee);
 router.delete('/:employeeId', restrictTo('SUPER_ADMIN', 'HR'), deleteEmployee);
+router.put('/:employeeId/salary-structure', restrictTo('SUPER_ADMIN', 'HR'), updateSalaryStructure);
 
 // File uploads
 router.post('/:employeeId/signature', upload.single('signature'), uploadSignature);

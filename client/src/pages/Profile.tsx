@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import {
@@ -29,6 +30,8 @@ interface FullProfile {
     dateOfJoining?: string;
   };
   skills: string[];
+  customUrl?: string;
+  customQrUrl?: string;
 }
 
 const THEMES = [
@@ -41,6 +44,7 @@ const THEMES = [
 
 export const Profile: React.FC = () => {
   const { user, updateUserCache } = useAuth();
+  const { alert } = useDialog();
   
   const [profile, setProfile] = useState<FullProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +60,7 @@ export const Profile: React.FC = () => {
   const [editBloodGroup, setEditBloodGroup] = useState('');
   const [editDesignation, setEditDesignation] = useState('');
   const [editDepartment, setEditDepartment] = useState('');
+  const [editCustomUrl, setEditCustomUrl] = useState('');
 
   // Password fields
   const [currentPassword, setCurrentPassword] = useState('');
@@ -117,6 +122,7 @@ export const Profile: React.FC = () => {
     setEditBloodGroup(profile.bloodGroup || '');
     setEditDesignation(profile.designation || '');
     setEditDepartment(profile.department || '');
+    setEditCustomUrl(profile.customUrl || '');
     setIsEditing(true);
   };
 
@@ -125,13 +131,14 @@ export const Profile: React.FC = () => {
     if (!profile) return;
 
     try {
-      await api.put(`/employees/${profile.employeeId}`, {
+      const res = await api.put(`/employees/${profile.employeeId}`, {
         firstName: editFirstName,
         lastName: editLastName,
         phone: editPhone,
         bloodGroup: editBloodGroup,
         designation: editDesignation,
         department: editDepartment,
+        customUrl: editCustomUrl,
       });
 
       setProfile({
@@ -142,6 +149,8 @@ export const Profile: React.FC = () => {
         bloodGroup: editBloodGroup,
         designation: editDesignation,
         department: editDepartment,
+        customUrl: editCustomUrl,
+        customQrUrl: res.data.data.customQrUrl,
       });
 
       updateUserCache({
@@ -153,7 +162,7 @@ export const Profile: React.FC = () => {
 
       setIsEditing(false);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Profile update failed');
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Profile update failed', variant: 'error' });
     }
   };
 
@@ -187,9 +196,9 @@ export const Profile: React.FC = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setProfile({ ...profile, signatureUrl: res.data.data.signatureUrl });
-      alert('Transparent signature uploaded successfully!');
+      await alert({ title: 'Success', message: 'Transparent signature uploaded successfully!', variant: 'success' });
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Signature upload failed');
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Signature upload failed', variant: 'error' });
     }
   };
 
@@ -198,7 +207,7 @@ export const Profile: React.FC = () => {
     localStorage.setItem('profileTheme', themeId);
   };
 
-  const copySignatureToClipboard = () => {
+  const copySignatureToClipboard = async () => {
     const el = document.getElementById(selectedBrand === 'onebridge' ? 'profObCardWrapper' : 'profGlCardWrapper');
     if (!el) return;
 
@@ -209,9 +218,9 @@ export const Profile: React.FC = () => {
     
     try {
       document.execCommand('copy');
-      alert('Email signature copied to clipboard! You can now paste it directly into Outlook, Gmail, or Apple Mail.');
+      await alert({ title: 'Success', message: 'Email signature copied to clipboard! You can now paste it directly into Outlook, Gmail, or Apple Mail.', variant: 'success' });
     } catch (err) {
-      alert('Failed to copy signature automatically. Please select it manually.');
+      await alert({ title: 'Error', message: 'Failed to copy signature automatically. Please select it manually.', variant: 'error' });
     }
     window.getSelection()?.removeAllRanges();
   };
@@ -245,16 +254,19 @@ export const Profile: React.FC = () => {
   return (
     <div className="space-y-6">
       
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-brand-900 to-indigo-950 p-6 rounded-3xl border border-brand-800 shadow-xl">
         <div>
-          <h1 className="font-extrabold text-2xl tracking-tight text-brand-950 dark:text-white">Profile Settings</h1>
-          <p className="text-xs text-brand-500 mt-1 font-semibold">Customize profile attributes, security details, and signature configurations</p>
+          <h1 className="font-extrabold text-2xl tracking-tight text-white flex items-center gap-2">
+            <User className="text-indigo-400" size={24} />
+            Profile Settings
+          </h1>
+          <p className="text-xs text-brand-300 mt-1 font-medium">Customize profile attributes, security details, and signature configurations</p>
         </div>
         
         {/* Profile Theme Select widget */}
-        <div className="flex items-center space-x-2 bg-brand-100/60 dark:bg-brand-900/60 p-2 rounded-2xl border border-brand-200 dark:border-brand-850">
-          <span className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1 pr-1.5">Theme:</span>
+        <div className="flex items-center space-x-2 bg-brand-800/60 p-2 rounded-2xl border border-brand-700 shrink-0">
+          <span className="text-[10px] font-bold text-brand-300 uppercase tracking-wider pl-1 pr-1.5">Theme:</span>
           <div className="flex space-x-1.5">
             {THEMES.map((themeOption) => (
               <motion.button
@@ -263,7 +275,7 @@ export const Profile: React.FC = () => {
                 key={themeOption.id}
                 onClick={() => handleThemeSelect(themeOption.id)}
                 className={`w-6 h-6 rounded-full cursor-pointer flex items-center justify-center border-2 ${themeOption.color} ${
-                  profileTheme === themeOption.id ? 'border-indigo-600 dark:border-white scale-110 shadow-sm' : 'border-transparent opacity-80'
+                  profileTheme === themeOption.id ? 'border-white scale-110 shadow-sm' : 'border-transparent opacity-80'
                 }`}
                 title={themeOption.name}
               >
@@ -390,6 +402,16 @@ export const Profile: React.FC = () => {
                           className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 outline-none focus:border-indigo-600 text-brand-950 dark:text-white"
                         />
                       </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Custom QR Link (LinkedIn / Portfolio URL)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. https://www.linkedin.com/in/username"
+                          value={editCustomUrl}
+                          onChange={(e) => setEditCustomUrl(e.target.value)}
+                          className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 outline-none focus:border-indigo-600 text-brand-950 dark:text-white"
+                        />
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-end space-x-2 pt-2">
@@ -447,6 +469,21 @@ export const Profile: React.FC = () => {
                       <span className="text-brand-500">ID Validity</span>
                       <p className="text-brand-950 dark:text-white">{new Date(profile.validity).toLocaleDateString()}</p>
                     </div>
+                    {profile.customUrl && (
+                      <div className="space-y-1 sm:col-span-2 pt-3 border-t border-brand-100 dark:border-brand-900 flex items-center justify-between gap-4">
+                        <div>
+                          <span className="text-[10px] font-bold text-brand-500 uppercase tracking-wider block">Custom QR Link</span>
+                          <a href={profile.customUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-orange-400 font-bold hover:underline break-all">
+                            {profile.customUrl}
+                          </a>
+                        </div>
+                        {profile.customQrUrl && (
+                          <div className="p-1 bg-white border border-brand-200 dark:border-brand-800 rounded-xl shadow-sm shrink-0">
+                            <img src={profile.customQrUrl} alt="Custom URL QR" className="w-20 h-20 object-contain" />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>

@@ -92,6 +92,7 @@ export const updateEmployeeSchema = z.object({
   experience: z.array(experienceSchema).optional(),
   skills: z.array(z.string()).optional(),
   certificates: z.array(certificateSchema).optional(),
+  customUrl: z.string().optional(),
 });
 
 export const checkInSchema = z.object({

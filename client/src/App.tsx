@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from '
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { DialogProvider } from './context/DialogContext';
 
 // Layouts & Pages
 import DashboardLayout from './layouts/DashboardLayout';
@@ -63,31 +64,33 @@ export const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AuthProvider>
-          <BrowserRouter>
-            <Routes>
-              {/* Auth & Public Routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/onboarding/accept/:token" element={<CandidatePortal />} />
-              <Route path="/accept-offer/:token" element={<RedirectToNewPortal />} />
-              <Route path="/offer-accepted" element={<OfferAccepted />} />
+        <DialogProvider>
+          <AuthProvider>
+            <BrowserRouter>
+              <Routes>
+                {/* Auth & Public Routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/onboarding/accept/:token" element={<CandidatePortal />} />
+                <Route path="/accept-offer/:token" element={<RedirectToNewPortal />} />
+                <Route path="/offer-accepted" element={<OfferAccepted />} />
 
-              {/* Protected Workspace Nodes */}
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
-              <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
-              <Route path="/leaves" element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
-              <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
-              <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
-              <Route path="/onboarding/my-documents" element={<ProtectedRoute><OnboardingSection /></ProtectedRoute>} />
-              <Route path="/onboarding/*" element={<Navigate to="/employees" replace />} />
-              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                {/* Protected Workspace Nodes */}
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
+                <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+                <Route path="/leaves" element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
+                <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
+                <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
+                <Route path="/onboarding/my-documents" element={<ProtectedRoute><OnboardingSection /></ProtectedRoute>} />
+                <Route path="/onboarding/*" element={<Navigate to="/employees" replace />} />
+                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
 
-              {/* Redirect Node */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </BrowserRouter>
-        </AuthProvider>
+                {/* Redirect Node */}
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </BrowserRouter>
+          </AuthProvider>
+        </DialogProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
+import { useDialog } from '../context/DialogContext';
 import api from '../services/api';
 import { motion } from 'framer-motion';
 import {
@@ -15,7 +16,7 @@ import {
   TrendingUp, TrendingDown, Award, Zap, Target, Crown, Medal, Trophy, Star,
   BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon, DollarSign,
   ShoppingBag, Wallet, PiggyBank, Briefcase, CalendarCheck, UserMinus, UserPlus,
-  Activity, PieChart as PieIcon, Gauge, Rocket, Flame, CheckSquare, Bell, Loader2
+  Activity, PieChart as PieIcon, Gauge, Rocket, Flame, CheckSquare, Bell, Loader2, RefreshCw
 } from 'lucide-react';
 import GoogleDriveCard from '../components/GoogleDriveCard';
 
@@ -222,6 +223,14 @@ const StatCard: React.FC<{
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  const { alert } = useDialog();
+  const getDynamicGreeting = () => {
+    const hour = new Date().getHours();
+    let greeting = "Good morning";
+    if (hour >= 12 && hour < 17) greeting = "Good afternoon";
+    else if (hour >= 17) greeting = "Good evening";
+    return `${greeting}, ${user?.firstName || 'User'} ${user?.lastName || ''}`;
+  };
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [hrData, setHrData] = useState<HRStats | null>(null);
@@ -276,7 +285,7 @@ export const Dashboard: React.FC = () => {
       await api.post('/attendance/check-in', { latitude, longitude, workFromHome: wfh });
       await fetchStats(false);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Check-in failed');
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Check-in failed', variant: 'error' });
     } finally {
       setActionLoading(null);
     }
@@ -288,7 +297,7 @@ export const Dashboard: React.FC = () => {
       await api.post('/attendance/check-out');
       await fetchStats(false);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Check-out failed');
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Check-out failed', variant: 'error' });
     } finally {
       setActionLoading(null);
     }
@@ -300,7 +309,7 @@ export const Dashboard: React.FC = () => {
       await api.post('/attendance/break/start');
       await fetchStats(false);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Start break failed');
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Start break failed', variant: 'error' });
     } finally {
       setActionLoading(null);
     }
@@ -312,7 +321,7 @@ export const Dashboard: React.FC = () => {
       await api.post('/attendance/break/end');
       await fetchStats(false);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'End break failed');
+      await alert({ title: 'Error', message: err.response?.data?.message || 'End break failed', variant: 'error' });
     } finally {
       setActionLoading(null);
     }
@@ -342,6 +351,27 @@ export const Dashboard: React.FC = () => {
 
     return (
       <div className="space-y-8 pb-8">
+        {/* Header Banner */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-brand-900 to-indigo-950 p-6 rounded-3xl border border-brand-800 shadow-xl">
+          <div>
+            <h1 className="font-extrabold text-2xl tracking-tight text-white flex items-center gap-2">
+              {getDynamicGreeting()} 👋
+            </h1>
+            <p className="text-xs text-brand-300 mt-1.5 font-medium leading-relaxed">
+              {c.pendingLeaves > 0 
+                ? `You have ${c.pendingLeaves} pending leave request(s) requiring immediate manager action and ${c.pendingTasks} active tasks to monitor.`
+                : `All leave approval pipelines are currently clear. There are ${c.pendingTasks} active tasks currently in play.`}
+            </p>
+          </div>
+          <button
+            onClick={() => { fetchStats(true); }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 shrink-0"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            Refresh Analytics
+          </button>
+        </div>
+
         {/* Top KPI Cards Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
@@ -1275,8 +1305,32 @@ export const Dashboard: React.FC = () => {
   const rating = empData.rating;
   const isBreakActive = att?.breaks ? att.breaks.some((b: any) => !b.end) : false;
 
+  const checkInTime = att?.checkIn 
+    ? new Date(att.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
+  const taskCount = tasks?.pending || 0;
+  const employeeGreetingSub = checkInTime
+    ? `You clocked in today at ${checkInTime} (${att.workFromHome ? 'Work from Home' : 'Office'}). You have ${taskCount} active task(s) currently pending.`
+    : `You haven't checked in yet today. Don't forget to mark your attendance. You have ${taskCount} pending task(s) waiting.`;
+
   return (
     <div className="space-y-8 pb-8">
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-brand-900 to-indigo-950 p-6 rounded-3xl border border-brand-800 shadow-xl">
+        <div>
+          <h1 className="font-extrabold text-2xl tracking-tight text-white flex items-center gap-2">
+            {getDynamicGreeting()} 👋
+          </h1>
+          <p className="text-xs text-brand-300 mt-1.5 font-medium leading-relaxed">{employeeGreetingSub}</p>
+        </div>
+        <button
+          onClick={() => { fetchStats(true); }}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 shrink-0"
+        >
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          Sync Workspace
+        </button>
+      </div>
       {empData.needsOnboardingDocs && (
         <div className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-3xl p-6 text-white shadow-xl shadow-orange-500/20 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
 import { Mail, Phone, Globe, MapPin, Copy, Download, RefreshCw, AlertCircle, Search } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
@@ -15,10 +16,13 @@ interface EmployeeDetails {
   validity: string;
   qrCodeUrl?: string;
   profileImageUrl?: string;
+  customUrl?: string;
+  customQrUrl?: string;
 }
 
 export const Signature: React.FC = () => {
   const { user } = useAuth();
+  const { alert } = useDialog();
   const [employeeIdInput, setEmployeeIdInput] = useState('');
   const [employee, setEmployee] = useState<EmployeeDetails | null>(null);
   const [loading, setLoading] = useState(false);
@@ -40,7 +44,7 @@ export const Signature: React.FC = () => {
       const res = await api.get(`/employees/${id}`);
       setEmployee(res.data.data);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Employee not found');
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Employee not found', variant: 'error' });
     } finally {
       setLoading(false);
     }
@@ -53,7 +57,7 @@ export const Signature: React.FC = () => {
     }
   };
 
-  const copySignatureToClipboard = () => {
+  const copySignatureToClipboard = async () => {
     const el = document.getElementById(selectedBrand === 'onebridge' ? 'obCardWrapper' : 'glCardWrapper');
     if (!el) return;
 
@@ -64,9 +68,9 @@ export const Signature: React.FC = () => {
     
     try {
       document.execCommand('copy');
-      alert('Email signature copied to clipboard! You can now paste it directly into Outlook, Gmail, or Apple Mail.');
+      await alert({ title: 'Success', message: 'Email signature copied to clipboard! You can now paste it directly into Outlook, Gmail, or Apple Mail.', variant: 'success' });
     } catch (err) {
-      alert('Failed to copy signature automatically. Please select it manually.');
+      await alert({ title: 'Error', message: 'Failed to copy signature automatically. Please select it manually.', variant: 'error' });
     }
     window.getSelection()?.removeAllRanges();
   };
@@ -93,11 +97,14 @@ export const Signature: React.FC = () => {
   return (
     <div className="space-y-6">
       
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-brand-900 to-indigo-950 p-6 rounded-3xl border border-brand-800 shadow-xl">
         <div>
-          <h1 className="font-extrabold text-2xl tracking-tight text-brand-950 dark:text-white">Email Signature Generator</h1>
-          <p className="text-xs text-brand-500 mt-1 font-semibold">Generate responsive, premium corporate HTML email signatures</p>
+          <h1 className="font-extrabold text-2xl tracking-tight text-white flex items-center gap-2">
+            <Mail className="text-indigo-400" size={24} />
+            Email Signature Generator
+          </h1>
+          <p className="text-xs text-brand-300 mt-1 font-medium">Generate responsive, premium corporate HTML email signatures</p>
         </div>
       </div>
 
@@ -296,10 +303,10 @@ export const Signature: React.FC = () => {
                           width: '140px'
                         }}>
                           <div style={{ padding: '6px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#ffffff', display: 'inline-block', boxShadow: '0 4px 8px rgba(0,0,0,0.06)', marginBottom: '8px' }}>
-                            <img src={employee.qrCodeUrl || '/image copy.png'} style={{ width: '85px', height: '85px', objectFit: 'contain' }} alt="Check-in QR" />
+                            <img src={employee.customQrUrl || employee.qrCodeUrl || '/image copy.png'} style={{ width: '85px', height: '85px', objectFit: 'contain' }} alt="Check-in QR" />
                           </div>
                           <span style={{ fontSize: '10px', fontWeight: 600, color: '#475569', display: 'block', lineHeight: 1.3 }}>
-                            Scan to Visit<br /><span style={{ fontWeight: 800, color: '#0f172a' }}>Our Website</span>
+                            Scan to Visit<br /><span style={{ fontWeight: 800, color: '#0f172a' }}>{employee.customUrl ? 'My Custom Link' : 'Our Website'}</span>
                           </span>
                           <div style={{ width: '22px', height: '2.5px', background: '#f37021', borderRadius: '9999px', margin: '6px auto 0 auto' }}></div>
                         </td>
@@ -465,10 +472,10 @@ export const Signature: React.FC = () => {
                           width: '140px'
                         }}>
                           <div style={{ padding: '6px', border: '2px solid #0052cc', borderRadius: '12px', background: 'linear-gradient(135deg, #f0f4ff, #e8eeff)', display: 'inline-block', boxShadow: '0 4px 14px rgba(0, 82, 204, 0.15)', marginBottom: '8px' }}>
-                            <img src={employee.qrCodeUrl || '/GoLiveClasses_QR_Code.png'} style={{ width: '85px', height: '85px', objectFit: 'contain' }} alt="GoLive QR" />
+                            <img src={employee.customQrUrl || employee.qrCodeUrl || '/GoLiveClasses_QR_Code.png'} style={{ width: '85px', height: '85px', objectFit: 'contain' }} alt="GoLive QR" />
                           </div>
                           <span style={{ fontSize: '9px', fontWeight: 605, color: '#475569', display: 'block', lineHeight: 1.2 }}>
-                            Scan to check<br /><span style={{ fontWeight: 800, color: '#00173d' }}>Live Profile</span>
+                            Scan to check<br /><span style={{ fontWeight: 800, color: '#00173d' }}>{employee.customUrl ? 'My Custom Link' : 'Live Profile'}</span>
                           </span>
                           <div style={{ width: '20px', height: '2px', background: '#0052cc', borderRadius: '9999px', margin: '6px auto 0 auto' }}></div>
                         </td>

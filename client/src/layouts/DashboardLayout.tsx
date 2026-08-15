@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { io, Socket } from 'socket.io-client';
 import { SOCKET_URL } from '../services/api';
+import { useDialog } from '../context/DialogContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -33,6 +34,7 @@ interface NotificationToast {
 export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { confirm } = useDialog();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -121,8 +123,10 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const filteredLinks = links.filter((l) => l.roles.includes(user.role));
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    if (await confirm({ title: 'Sign Out', message: 'Are you sure you want to sign out of your session?', variant: 'warning', confirmText: 'Sign Out' })) {
+      await logout();
+      navigate('/login');
+    }
   };
 
   return (
@@ -134,17 +138,20 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
 
       {/* --- Sidebar (Mobile Drawer & Desktop Fixed) --- */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 glass flex flex-col transition-transform duration-300 md:relative md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 glass flex flex-col transition-transform duration-300 md:relative md:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
         {/* Header Branding */}
         <div className="p-6 flex items-center justify-between border-b border-brand-200 dark:border-brand-900">
-          <Link to="/dashboard" className="flex items-center space-x-3">
-            <img src="/image.png" className="w-9 h-9 object-contain animate-pulse" alt="OneBridge Logo" />
+          <Link to="/dashboard" className="flex items-center space-x-3.5">
+            <img src="/image.png" className="w-12 h-12 object-contain animate-pulse" alt="OneBridge Logo" />
             <div>
-              <h1 className="font-extrabold text-sm tracking-tight text-brand-950 dark:text-white leading-none">ONEBRIDGE</h1>
-              <p className="text-[9px] text-brand-500 font-bold tracking-wider uppercase mt-1">HR PORTAL</p>
+              <h1 className="font-extrabold text-lg tracking-tight leading-none">
+                <span className="text-orange-500">ONE</span>
+                <span className="text-slate-900 dark:text-white">BRIDGE</span>
+              </h1>
+              <p className="text-[10px] text-brand-500 font-bold tracking-wider uppercase mt-1.5">HR PORTAL</p>
             </div>
           </Link>
           <button onClick={() => setSidebarOpen(false)} className="md:hidden text-brand-600 dark:text-brand-400">
@@ -162,10 +169,10 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                 key={link.path}
                 to={link.path}
                 onClick={() => setSidebarOpen(false)}
-                className={`relative flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                className={`group relative flex items-center space-x-3.5 px-5 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 ${
                   isActive
-                    ? 'text-white'
-                    : 'text-brand-600 dark:text-brand-400 hover:text-indigo-600 dark:hover:text-orange-400'
+                    ? 'text-white shadow-md'
+                    : 'text-brand-600 dark:text-brand-400 hover:text-indigo-600 dark:hover:text-orange-400 hover:bg-brand-100 dark:hover:bg-brand-900/40 hover:translate-x-1'
                 }`}
               >
                 {isActive && (
@@ -188,9 +195,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleLogout}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all cursor-pointer"
+            className="group w-full flex items-center space-x-3.5 px-5 py-3.5 rounded-xl text-sm font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:shadow-sm hover:-translate-y-0.5 transition-all cursor-pointer"
           >
-            <LogOut size={18} />
+            <LogOut size={18} className="group-hover:rotate-12 transition-transform" />
             <span>Sign Out</span>
           </motion.button>
         </div>
@@ -208,9 +215,11 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             >
               <Menu size={20} />
             </button>
-            <h2 className="hidden md:block font-extrabold text-xl bg-clip-text text-transparent bg-gradient-to-r from-orange-500 via-indigo-600 to-rose-500 dark:from-orange-400 dark:via-indigo-400 dark:to-rose-400 capitalize">
-              Welcome, {user.firstName} 👋
-            </h2>
+            <div className="hidden md:flex items-center space-x-2 text-xs font-semibold text-brand-500 dark:text-brand-400">
+              <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+              <span className="text-brand-300 dark:text-brand-800">•</span>
+              <span className="text-[10px] bg-brand-100 dark:bg-brand-900 px-2 py-0.5 rounded font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400 border border-brand-200/50 dark:border-brand-800/50">OBI Node</span>
+            </div>
           </div>
 
           <div className="flex items-center space-x-4">
