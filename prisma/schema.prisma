@@ -628,3 +628,357 @@ model PerformanceReview {
 
   @@index([employeeId, reviewPeriod])
 }
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  PROPOSAL_REQUESTED
+  PROPOSAL_SENT
+  PROPOSAL_ACCEPTED
+  DEMO_SCHEDULED
+  DEMO_COMPLETED
+  NEGOTIATING
+  WON
+  LOST
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum InvoicePaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum VoucherType {
+  PAYMENT
+  RECEIPT
+  JOURNAL
+  CONTRA
+  SALES
+  PURCHASE
+}
+
+enum AccountGroup {
+  ASSET
+  LIABILITY
+  INCOME
+  EXPENSE
+  EQUITY
+}
+
+model Lead {
+  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  leadNumber        String      @unique
+  clientName        String
+  companyName       String?
+  email             String
+  phone             String
+  serviceOfInterest String?     // Cloud Solutions, AI & Automation, DevOps & CI/CD, Cybersecurity, Software Development, Staffing, Digital Transformation, AI Agents, Marketing Cloud, Other
+  projectDetails    String?     // Challenge, goals, scope from contact form
+  timeline          String?     // Immediate, 1-3 Months, 3-6 Months, Flexible
+  source            String      @default("WEBSITE") // WEBSITE, REFERRAL, LINKEDIN, COLD_CALL, CAMPAIGN, OTHER
+  status            LeadStatus  @default(NEW)
+  estimatedValue    Float       @default(0)
+  currency          String      @default("INR")
+  notes             String?
+  assignedTo        String?     // employeeId or Super Admin
+  followUpDate      DateTime?
+  quotations        Quotation[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([status, email])
+}
+
+model Quotation {
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  quotationNumber   String          @unique // e.g. QUO-2026-0001
+  leadId            String?         @db.ObjectId
+  lead              Lead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  clientName        String
+  clientCompany     String?
+  clientEmail       String
+  clientPhone       String?
+  clientAddress     String?
+  clientGst         String?
+  items             Json            // Array of { description, quantity, unitPrice, taxPercent, amount }
+  subTotal          Float
+  taxPercent        Float           @default(18)
+  taxAmount         Float           @default(0)
+  discountAmount    Float           @default(0)
+  totalAmount       Float
+  currency          String          @default("INR")
+  termsAndConditions String?
+  notes             String?
+  status            QuotationStatus @default(DRAFT)
+  validUntil        DateTime?
+  pdfUrl            String?
+  sentViaEmail      Boolean         @default(false)
+  sentViaWhatsApp   Boolean         @default(false)
+  lastSentAt        DateTime?
+  invoices          Invoice[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([status, clientEmail])
+}
+
+model Invoice {
+  id                 String               @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceNumber      String               @unique // e.g. INV-2026-0001
+  quotationId        String?              @db.ObjectId
+  quotation          Quotation?           @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  clientName         String
+  clientCompany      String?
+  clientEmail        String
+  clientPhone        String?
+  clientGst          String?
+  billingAddress     String?
+  items              Json                 // Array of { description, quantity, unitPrice, taxPercent, amount }
+  subTotal           Float
+  taxPercent         Float                @default(18)
+  taxAmount          Float                @default(0)
+  discountAmount     Float                @default(0)
+  totalAmount        Float
+  amountPaid         Float                @default(0)
+  balanceDue         Float                @default(0)
+  currency           String               @default("INR")
+  issueDate          DateTime             @default(now())
+  dueDate            DateTime
+  paymentStatus      InvoicePaymentStatus @default(UNPAID)
+  paymentMethod      String?              // BANK_TRANSFER, UPI, CHEQUE, CASH, CARD
+  paymentReference   String?              // UTR / Transaction ID
+  paymentQrCodeUrl   String?
+  pdfUrl             String?
+  notes              String?
+  termsAndConditions String?
+  sentViaEmail       Boolean              @default(false)
+  sentViaWhatsApp    Boolean              @default(false)
+  lastReminderSentAt DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@index([paymentStatus, clientEmail, issueDate])
+}
+
+model FinanceLedger {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  code           String       @unique // e.g. ACC-1001
+  name           String       // e.g. HDFC Bank, Client Receivables, Salary Exp, Office Rent
+  group          AccountGroup // ASSET, LIABILITY, INCOME, EXPENSE, EQUITY
+  openingBalance Float        @default(0)
+  currentBalance Float        @default(0)
+  description    String?
+  isSystem       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  debitVouchers  FinanceVoucher[] @relation("DebitLedger")
+  creditVouchers FinanceVoucher[] @relation("CreditLedger")
+
+  @@index([group])
+}
+
+model FinanceVoucher {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  voucherNumber  String       @unique // e.g. VCH-2026-0001
+  voucherType    VoucherType  @default(PAYMENT) // PAYMENT, RECEIPT, JOURNAL, CONTRA, SALES, PURCHASE
+  date           DateTime     @default(now())
+  debitLedgerId  String       @db.ObjectId
+  debitLedger    FinanceLedger @relation("DebitLedger", fields: [debitLedgerId], references: [id], onDelete: Cascade)
+  creditLedgerId String       @db.ObjectId
+  creditLedger   FinanceLedger @relation("CreditLedger", fields: [creditLedgerId], references: [id], onDelete: Cascade)
+  amount         Float
+  narration      String
+  referenceNo    String?      // Cheque/UTR/Invoice No
+  invoiceId      String?      // linked invoice if any
+  documentUrl    String?      // attached receipt / bill
+  isGstApplicable Boolean     @default(false)
+  gstRate        Float?       @default(18)
+  gstType        String?      // CGST_SGST, IGST
+  gstAmount      Float?       @default(0)
+  verifiedByCA   Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([voucherType, date])
+}
+
+model AutomationTemplate {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  channel      String   // EMAIL, WHATSAPP
+  triggerEvent String   // QUOTATION_CREATED, INVOICE_SENT, PAYMENT_REMINDER, PAYMENT_RECEIVED, WELCOME_LEAD
+  subject      String?  // For Email
+  content      String   // Markdown / HTML or WhatsApp text with {{clientName}}, {{invoiceNumber}}, etc.
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([triggerEvent, channel])
+}
+
+model CommunicationLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  channel     String   // EMAIL, WHATSAPP
+  recipient   String   // Email or Phone Number
+  recipientName String?
+  subject     String?
+  messageBody String
+  status      String   @default("SENT") // SENT, DELIVERED, FAILED, QUEUED
+  errorMessage String?
+  referenceId String?  // quotationId or invoiceId
+  metadata    Json?
+  sentAt      DateTime @default(now())
+
+  @@index([channel, sentAt])
+}
+
+model ParsedStatementLog {
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  originalFileName      String
+  fileUrl               String
+  fileType              String   @default("BANK_STATEMENT") // BANK_STATEMENT, INVOICE_PDF, EXPENSE_RECEIPT
+  extractedData         Json     // parsed summary and line items
+  status                String   @default("PENDING_REVIEW") // PENDING_REVIEW, PROCESSED, REJECTED
+  totalAmountParsed     Float    @default(0)
+  totalItemsCount       Int      @default(0)
+  generatedInvoiceIds   String[] // generated invoices if any
+  generatedVoucherIds   String[] // generated finance vouchers if any
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// -------------------------------------------------------------
+// AI-FIRST AUTONOMOUS BUSINESS OPERATING SYSTEM (BOS)
+// -------------------------------------------------------------
+
+enum AiAgentRole {
+  LEAD_QUALIFIER       // Ava: Lead qualification & enrichment
+  SOLUTION_ARCHITECT   // Scott: BRD, SRS, Technical architecture & scope
+  PROPOSAL_ENGINEER    // Paige: Multi-tier proposals & pricing
+  NEGOTIATION_AGENT    // Neo: Concession matrix & trade-offs
+  FINANCE_OFFICER      // Fiona: Auto-invoicing, payments, & double-entry ledgers
+  FOLLOWUP_MANAGER     // Chase: Omnichannel cadence nurturing
+  EXECUTIVE_ANALYST    // Orion: CEO forecasting & risk intelligence
+}
+
+enum AiAutonomyMode {
+  FULLY_AUTONOMOUS     // AI acts automatically with no human intervention
+  SUPERVISED           // High-confidence acts automatically, low-confidence seeks approval
+  MANUAL_APPROVAL_ONLY // All actions queued for human signoff
+}
+
+model AiAgentConfig {
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  agentRole         AiAgentRole    @unique
+  name              String         // Ava, Scott, Paige, Neo, Fiona, Chase, Orion
+  title             String         // "AI Senior Solution Architect", etc.
+  avatar            String?
+  autonomyMode      AiAutonomyMode @default(SUPERVISED)
+  minConfidence     Float          @default(0.85) // Threshold for fully autonomous execution
+  maxAutonomousVal  Float          @default(500000) // Deals/invoices above this require supervisor review
+  isActive          Boolean        @default(true)
+  totalActionsTaken Int            @default(0)
+  totalSuccessCount Int            @default(0)
+  averageLatencyMs  Int            @default(450)
+  systemPrompt      String?
+  capabilities      String[]
+  metadata          Json?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model AiDecisionLog {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  agentRole       AiAgentRole
+  agentName       String
+  eventType       String       // lead.created, discovery.requested, quote.generate, etc.
+  entityId        String?      // leadId, quotationId, invoiceId, etc.
+  entityType      String?      // LEAD, QUOTATION, INVOICE, VOUCHER, CLIENT
+  confidence      Float        // 0.00 to 1.00
+  reasoningChain  String       // Explanation of decision
+  actionTaken     String       // What the agent executed
+  inputPayload    Json?
+  outputPayload   Json?
+  status          String       @default("EXECUTED") // EXECUTED, ESCALATED_FOR_REVIEW, APPROVED_BY_HUMAN, REJECTED
+  reviewedBy      String?      // Supervisor ID
+  reviewedAt      DateTime?
+  reviewComments  String?
+  executionTimeMs Int          @default(0)
+  createdAt       DateTime     @default(now())
+
+  @@index([agentRole, eventType, createdAt])
+  @@index([status, entityId])
+}
+
+model AiDiscoveryDocument {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  leadId             String    @db.ObjectId
+  leadNumber         String
+  clientName         String
+  serviceCategory    String
+  executiveSummary   String
+  businessObjectives String[]
+  technicalScope     Json      // Components, Stack, Cloud Architecture, Integrations
+  functionalReqs     String[]  // Key functional requirements (SRS)
+  nonFunctionalReqs  String[]  // Security, Scalability, Compliance, SLA
+  milestones         Json      // Phases: Discovery, Design, Dev, QA, Deploy with weeks
+  teamComposition    Json      // Architects, Engineers, QA, PM with FTE %
+  riskMatrix         Json      // Risk, Impact, Mitigation Strategy
+  estimatedTimeline  String    // e.g. "8-10 Weeks"
+  recommendedStack   String[]
+  architectureDiagram String?  // Mermaid diagram code or image URL
+  confidenceScore    Float     @default(0.92)
+  version            Int       @default(1)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([leadId, leadNumber])
+}
+
+model AiNegotiationLog {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  quotationId       String   @db.ObjectId
+  quotationNumber   String
+  clientFeedback    String   // e.g. "Budget is 15% lower than quote"
+  objectionCategory String   // PRICING, TIMELINE, SCOPE, PAYMENT_TERMS
+  originalAmount    Float
+  proposedAmount    Float
+  counterOfferScope Json     // Scope adjustments, payment term alterations
+  marginPreserved   Float    // Gross profit margin %
+  concessionPolicy  String   // STRICT_MARGIN, VOLUME_DISCOUNT, MVP_PHASING
+  status            String   @default("COUNTER_OFFER_DISPATCHED") // COUNTER_OFFER_DISPATCHED, ACCEPTED, ESCALATED
+  createdAt         DateTime @default(now())
+
+  @@index([quotationId, quotationNumber])
+}
+
+model AutonomousFollowupTask {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  leadId           String    @db.ObjectId
+  channel          String    // EMAIL, WHATSAPP, SMS
+  cadenceDay       Int       // Day 1, Day 2, Day 5, Day 8, Day 12, Day 20
+  scheduledFor     DateTime
+  templateSubject  String?
+  templateBody     String
+  status           String    @default("PENDING") // PENDING, EXECUTED, CANCELLED_CLIENT_REPLIED, FAILED
+  executedAt       DateTime?
+  cancellationNote String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([scheduledFor, status])
+  @@index([leadId, status])
+}
+
+

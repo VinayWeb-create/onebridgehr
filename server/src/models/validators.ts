@@ -75,6 +75,9 @@ export const registerEmployeeSchema = z.object({
 });
 
 export const updateEmployeeSchema = z.object({
+  email: z.string().email('Invalid email address').optional(),
+  password: z.string().min(6, 'Password must be at least 6 characters long').optional().or(z.literal('')),
+  role: z.enum(['SUPER_ADMIN', 'HR', 'TEAM_LEAD', 'EMPLOYEE']).optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   phone: z.string().optional(),
@@ -84,9 +87,22 @@ export const updateEmployeeSchema = z.object({
   validity: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
   currentAddress: z.string().optional(),
   permanentAddress: z.string().optional(),
+  profileImageUrl: z.string().optional(),
+  signatureUrl: z.string().optional(),
   
   personalInfo: personalInfoSchema.optional(),
   professionalInfo: professionalInfoSchema.optional(),
+  salaryStructure: z.object({
+    basic: z.number().optional(),
+    hra: z.number().optional(),
+    da: z.number().optional(),
+    allowance: z.number().optional(),
+    bonus: z.number().optional(),
+    pf: z.number().optional(),
+    esi: z.number().optional(),
+    professionalTax: z.number().optional(),
+    incomeTax: z.number().optional(),
+  }).optional(),
   emergencyContact: emergencyContactSchema.optional(),
   education: z.array(educationSchema).optional(),
   experience: z.array(experienceSchema).optional(),
@@ -129,11 +145,19 @@ export const taskSchema = z.object({
 });
 
 export const taskUpdateSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().optional(),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
+  dueDate: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  employeeId: z.string().optional(),
+  projectName: z.string().optional(),
+  expectedHours: z.number().optional(),
+  riskLevel: z.string().optional(),
   status: z.enum(['PENDING', 'IN_PROGRESS', 'REVIEW', 'COMPLETED', 'REJECTED', 'OVERDUE']).optional(),
   progress: z.number().min(0).max(100).optional(),
   subtasks: z.array(z.object({
     title: z.string(),
-    isCompleted: z.boolean(),
+    isCompleted: z.boolean().default(false),
   })).optional(),
   timeLogMinutes: z.number().optional(),
   comment: z.string().optional(),

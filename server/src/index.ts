@@ -27,7 +27,13 @@ import hrDocumentRoutes from './routes/hrDocumentRoutes';
 import financeRoutes from './routes/financeRoutes';
 import onboardingRoutes from './routes/onboardingRoutes';
 import driveRoutes from './routes/driveRoutes';
+import crmRoutes from './routes/crmRoutes';
+import caFinanceRoutes from './routes/caFinanceRoutes';
+import ocrRoutes from './routes/ocrRoutes';
+import automationRoutes from './routes/automationRoutes';
+import aiAgentRoutes from './routes/aiAgentRoutes';
 import { googleOAuth } from './services/googleOAuth';
+import { AiAgentOrchestrator } from './services/ai/aiAgentOrchestrator';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -46,7 +52,15 @@ app.use(
 // 2. CORS Integration
 app.use(
   cors({
-    origin: [FRONTEND_URL, 'http://localhost:5173', 'https://onebridgehr.vercel.app', 'https://hrms.onebridgeinfotech.com'],
+    origin: [
+      FRONTEND_URL,
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://onebridgehr.vercel.app',
+      'https://hrms.onebridgeinfotech.com',
+      'https://www.onebridgeinfotech.com',
+      'https://onebridgeinfotech.com',
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true,
   })
@@ -56,15 +70,22 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 4. Rate Limiter
+// 4. Rate Limiter (High threshold in dev, protected in prod)
+const isDev = process.env.NODE_ENV !== 'production';
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // Limit each IP to 200 requests per window
-  message: 'Too many requests from this IP, please try again after 15 minutes',
+  max: isDev ? 10000 : 2000, // Generous allowance for dev & production dashboards
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 'fail',
+    message: 'Too many requests from this IP, please try again after a few moments',
+  },
+  skip: (_req) => isDev, // Skip rate limiting completely in local development
 });
 app.use('/api', limiter);
 
-// 5. Static Files Serving (Signatures, Profiles, Payslip PDFs)
+// 5. Static Files Serving (Signatures, Profiles, Payslip PDFs, Quotes, Invoices)
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/documents', express.static(path.join(process.cwd(), 'documents')));
 
@@ -99,10 +120,17 @@ app.use('/api/leaves', leaveRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/reports', reportRoutes);
-  app.use('/api/hr-docs', hrDocumentRoutes);
-  app.use('/api/finance', financeRoutes);
-  app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/hr-docs', hrDocumentRoutes);
+app.use('/api/finance', financeRoutes);
+app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/drive', driveRoutes);
+
+// Super Admin ERP & AI Routes
+app.use('/api/crm', crmRoutes);
+app.use('/api/ca-finance', caFinanceRoutes);
+app.use('/api/ocr', ocrRoutes);
+app.use('/api/automations', automationRoutes);
+app.use('/api/ai', aiAgentRoutes);
 
 // Fallback Route
 app.use('*', (req, res) => {
@@ -128,6 +156,9 @@ const startServer = async () => {
   }
 
   try {
+    // Initialize Autonomous AI Workforce (Ava, Scott, Paige, Neo, Fiona, Chase, Orion)
+    await AiAgentOrchestrator.init();
+
     await googleOAuth.init();
     console.log(
       googleOAuth.isConnectedFlag

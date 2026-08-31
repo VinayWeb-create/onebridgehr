@@ -144,7 +144,11 @@ export const Payroll: React.FC = () => {
 
   const fetchEmployees = useCallback(async () => {
     if (!isHR) return;
-    try { const res = await api.get("/employees"); setEmployees(res.data.data || res.data); } catch {/**/}
+    try {
+      const res = await api.get("/employees");
+      const list = (res.data.data || res.data || []).filter((e: any) => !['OBI0001', 'OBI1117'].includes(e.employeeId));
+      setEmployees(list);
+    } catch {/**/}
   }, [isHR]);
 
   const fetchMyProfile = useCallback(async () => {

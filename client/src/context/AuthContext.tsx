@@ -39,12 +39,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(JSON.parse(savedUser));
         
         try {
-          // Verify against backend health
+          // Verify against backend health and synchronize fresh role & employee details
           const res = await api.get('/auth/me');
           if (res.data.status === 'success') {
             const savedUserParsed = JSON.parse(savedUser);
             const freshUser = {
               ...savedUserParsed,
+              role: res.data.data.user?.role || savedUserParsed.role,
+              email: res.data.data.user?.email || savedUserParsed.email,
+              employeeId: res.data.data.user?.employeeId || savedUserParsed.employeeId,
               firstName: res.data.data.employee?.firstName || savedUserParsed.firstName || 'User',
               lastName: res.data.data.employee?.lastName || savedUserParsed.lastName || '',
               profileImageUrl: res.data.data.employee?.profileImageUrl || savedUserParsed.profileImageUrl,

@@ -1,8 +1,10 @@
 import { useDialog } from '../../context/DialogContext';
+import { useAuth } from '../../context/AuthContext';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import {
-  Search, Plus, UserPlus, Eye, Edit2, Upload, FileText, X, Check, Trash2, CalendarDays
+  Search, Plus, UserPlus, Eye, Edit2, Upload, FileText, X, Check, Trash2, CalendarDays,
+  Lock, Key, Shield, DollarSign, Mail, Phone, UserCheck, AlertCircle, Building2, MapPin
 } from 'lucide-react';
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
@@ -13,6 +15,7 @@ interface Employee {
   firstName: string;
   lastName: string;
   email: string;
+  role?: string;
   phone: string;
   department: string;
   designation: string;
@@ -36,6 +39,10 @@ interface Employee {
 }
 
 export const Employees: React.FC = () => {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isHr = user?.role === 'HR';
+  const isPrivileged = isSuperAdmin || isHr;
   const { alert, confirm } = useDialog();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,11 +109,9 @@ export const Employees: React.FC = () => {
     try {
       const url = query ? `/reports/search?query=${query}` : '/employees';
       const res = await api.get(url);
-      if (query) {
-        setEmployees(res.data.data.employees);
-      } else {
-        setEmployees(res.data.data);
-      }
+      const rawData = query ? res.data.data.employees : res.data.data;
+      const filtered = (rawData || []).filter((e: any) => !['OBI0001', 'OBI1117'].includes(e.employeeId));
+      setEmployees(filtered);
     } catch (err) {
       console.error('Failed to load employee records:', err);
     } finally {
@@ -210,22 +215,91 @@ export const Employees: React.FC = () => {
     }
   };
 
+  const openEditModal = (emp: any) => {
+    setEditEmp({
+      employeeId: emp.employeeId,
+      firstName: emp.firstName || '',
+      lastName: emp.lastName || '',
+      email: emp.email || '',
+      password: '',
+      role: emp.role || 'EMPLOYEE',
+      phone: emp.phone || '',
+      department: emp.department || '',
+      designation: emp.designation || '',
+      bloodGroup: emp.bloodGroup || 'O+',
+      validity: emp.validity ? new Date(emp.validity).toISOString().split('T')[0] : '',
+      gender: emp.personalInfo?.gender || 'Male',
+      dob: emp.personalInfo?.dob ? new Date(emp.personalInfo.dob).toISOString().split('T')[0] : '1995-01-01',
+      panCard: emp.personalInfo?.panCard || '',
+      aadharCard: emp.personalInfo?.aadharCard || '',
+      currentAddress: emp.currentAddress || '',
+      permanentAddress: emp.permanentAddress || '',
+      dateOfJoining: emp.professionalInfo?.dateOfJoining ? new Date(emp.professionalInfo.dateOfJoining).toISOString().split('T')[0] : '',
+      emergencyName: emp.emergencyContact?.name || '',
+      emergencyRelationship: emp.emergencyContact?.relationship || '',
+      emergencyPhone: emp.emergencyContact?.phone || '',
+      basicSalary: emp.salaryStructure?.basic || 0,
+      hra: emp.salaryStructure?.hra || 0,
+      allowance: emp.salaryStructure?.allowance || 0,
+    });
+    setShowEditModal(true);
+  };
+
   const handleUpdateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.put(`/employees/${editEmp.employeeId}`, {
+      const payload: any = {
         firstName: editEmp.firstName,
         lastName: editEmp.lastName,
+        email: editEmp.email,
         phone: editEmp.phone,
         department: editEmp.department,
         designation: editEmp.designation,
         bloodGroup: editEmp.bloodGroup,
+        validity: editEmp.validity ? new Date(editEmp.validity) : undefined,
         currentAddress: editEmp.currentAddress,
         permanentAddress: editEmp.permanentAddress,
-      });
+        personalInfo: {
+          dob: editEmp.dob ? new Date(editEmp.dob) : new Date('1995-01-01'),
+          gender: editEmp.gender,
+          panCard: editEmp.panCard,
+          aadharCard: editEmp.aadharCard,
+        },
+        professionalInfo: {
+          dateOfJoining: editEmp.dateOfJoining ? new Date(editEmp.dateOfJoining) : new Date(),
+        },
+        emergencyContact: {
+          name: editEmp.emergencyName || 'N/A',
+          relationship: editEmp.emergencyRelationship || 'Family',
+          phone: editEmp.emergencyPhone || editEmp.phone || '0000000000',
+        },
+      };
+
+      if (editEmp.role) {
+        payload.role = editEmp.role;
+      }
+      if (editEmp.password && editEmp.password.trim() !== '') {
+        payload.password = editEmp.password.trim();
+      }
+      if (editEmp.basicSalary || editEmp.hra || editEmp.allowance) {
+        payload.salaryStructure = {
+          basic: Number(editEmp.basicSalary) || 0,
+          hra: Number(editEmp.hra) || 0,
+          da: 0,
+          allowance: Number(editEmp.allowance) || 0,
+          bonus: 0,
+          pf: 0,
+          esi: 0,
+          professionalTax: 0,
+          incomeTax: 0,
+        };
+      }
+
+      await api.put(`/employees/${editEmp.employeeId}`, payload);
       setShowEditModal(false);
       setEditEmp(null);
-      fetchEmployees();
+      await fetchEmployees();
+      alert({ title: 'Success', message: `Full profile and credentials updated successfully for ${editEmp.firstName} ${editEmp.lastName}`, variant: 'info' });
     } catch (err: any) {
       alert({ title: 'Error', message: err.response?.data?.message || 'Failed to update employee', variant: 'error' });
     }
@@ -348,6 +422,7 @@ export const Employees: React.FC = () => {
               <tr className="bg-brand-100/50 dark:bg-brand-900/50 text-[10px] font-bold text-brand-500 uppercase border-b border-brand-200 dark:border-brand-900">
                 <th className="px-6 py-4">Employee ID</th>
                 <th className="px-6 py-4">Full Name</th>
+                <th className="px-6 py-4">Role</th>
                 <th className="px-6 py-4">Department</th>
                 <th className="px-6 py-4">Designation</th>
                 <th className="px-6 py-4">Blood Group</th>
@@ -359,18 +434,18 @@ export const Employees: React.FC = () => {
             <tbody className="divide-y divide-brand-100 dark:divide-brand-900 text-xs font-semibold">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-10">
+                  <td colSpan={9} className="text-center py-10">
                     <span className="w-6 h-6 rounded-full border-2 border-indigo-600/30 border-t-indigo-600 animate-spin inline-block" />
                   </td>
                 </tr>
               ) : employees.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-10 text-brand-500">No records found.</td>
+                  <td colSpan={9} className="text-center py-10 text-brand-500">No records found.</td>
                 </tr>
               ) : (
                 employees.map((emp) => (
                   <tr key={emp.employeeId} className="hover:bg-brand-100/30 dark:hover:bg-brand-900/30 transition-all">
-                    <td className="px-6 py-4 font-bold text-indigo-600">{emp.employeeId}</td>
+                    <td className="px-6 py-4 font-bold text-indigo-600 font-mono">{emp.employeeId}</td>
                     <td className="px-6 py-4 flex items-center space-x-3">
                       <div className="w-7 h-7 rounded-lg overflow-hidden bg-brand-200 dark:bg-brand-950 flex items-center justify-center border border-indigo-600/20">
                         {emp.profileImageUrl ? (
@@ -379,11 +454,24 @@ export const Employees: React.FC = () => {
                           <span className="uppercase text-[9px] font-bold text-indigo-600">{emp.firstName[0]}{emp.lastName[0]}</span>
                         )}
                       </div>
-                      <span className="text-brand-950 dark:text-white">{emp.firstName} {emp.lastName}</span>
+                      <span className="text-brand-950 dark:text-white font-bold">{emp.firstName} {emp.lastName}</span>
                     </td>
-                    <td className="px-6 py-4 text-brand-600 dark:text-brand-400">{emp.department}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase tracking-wider border ${
+                        emp.role === 'SUPER_ADMIN'
+                          ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                          : emp.role === 'HR'
+                          ? 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                          : emp.role === 'TEAM_LEAD'
+                          ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                          : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                      }`}>
+                        {emp.role || 'EMPLOYEE'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-brand-600 dark:text-brand-400 font-semibold">{emp.department}</td>
                     <td className="px-6 py-4 font-medium">{emp.designation}</td>
-                    <td className="px-6 py-4">{emp.bloodGroup}</td>
+                    <td className="px-6 py-4 font-bold text-brand-600">{emp.bloodGroup}</td>
                     <td className="px-6 py-4 text-brand-500">{new Date(emp.validity).toLocaleDateString()}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-1">
@@ -400,16 +488,33 @@ export const Employees: React.FC = () => {
                         >
                           <Eye size={14} />
                         </button>
-                        { !['OBI0001', 'OBI1117'].includes(emp.employeeId) && (
-                          <button
-                            onClick={() => { setEditEmp(emp); setShowEditModal(true); }}
-                            className="p-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900 text-amber-600 rounded-xl transition-all"
-                            title="Edit Employee"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                        )}
-                        { !['OBI0001', 'OBI1117'].includes(emp.employeeId) && (
+
+                        {/* Edit Button: Super Admins & HR can edit all staff; Team Leads can edit their department staff */}
+                        {(() => {
+                          const isRootAdmin = ['OBI0001', 'OBI1117'].includes(emp.employeeId);
+                          if (isRootAdmin) return null;
+
+                          const canEdit = isSuperAdmin || user?.role === 'HR' || 
+                            (user?.role === 'TEAM_LEAD' && (
+                              emp.department?.toLowerCase() === (employees.find(e => e.employeeId === user?.employeeId)?.department || '').toLowerCase() ||
+                              emp.employeeId === user?.employeeId
+                            ));
+
+                          if (!canEdit) return null;
+
+                          return (
+                            <button
+                              onClick={() => openEditModal(emp)}
+                              className="p-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900 text-amber-600 rounded-xl transition-all"
+                              title="Edit Employee Information"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                          );
+                        })()}
+
+                        {/* Delete Button: ONLY Super Admin and HR (Never Team Leads or Employees) */}
+                        {(isSuperAdmin || user?.role === 'HR') && !['OBI0001', 'OBI1117'].includes(emp.employeeId) && (
                           <button
                             onClick={() => handleDeleteEmployee(emp.employeeId)}
                             className="p-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900 text-red-600 rounded-xl transition-all"
@@ -880,54 +985,337 @@ export const Employees: React.FC = () => {
         </div>
       )}
 
-      {/* --- EDIT EMPLOYEE MODAL --- */}
+      {/* --- EDIT EMPLOYEE MODAL (FULL EDIT FOR SUPER ADMINS, LOCKED EMPLOYEE ID) --- */}
       {showEditModal && editEmp && (
-        <div className="fixed inset-0 z-50 bg-brand-950/40 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="w-full max-w-2xl glass rounded-3xl border border-brand-200 dark:border-brand-900 shadow-2xl p-6 md:p-8 max-h-[85vh] overflow-y-auto">
-            <div className="flex justify-between items-center pb-4 border-b border-brand-200 dark:border-brand-900">
-              <h2 className="font-extrabold text-lg">Edit Employee Profile</h2>
-              <button onClick={() => setShowEditModal(false)} className="p-1 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900">
-                <X size={20} />
+        <div className="fixed inset-0 z-50 bg-brand-950/60 backdrop-blur-md flex items-center justify-center p-4 md:p-6">
+          <div className="w-full max-w-3xl glass rounded-3xl border border-brand-200 dark:border-brand-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-brand-200 dark:border-brand-800 flex justify-between items-center bg-brand-50/50 dark:bg-brand-900/30">
+              <div>
+                <h2 className="font-extrabold text-base text-brand-950 dark:text-white flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white shadow-md">
+                    <Edit2 size={14} />
+                  </div>
+                  Edit Employee Information
+                </h2>
+                <p className="text-xs text-brand-500 font-medium mt-1">
+                  Update credentials, roles, profile, job specifications, and compensation details
+                </p>
+              </div>
+              <button onClick={() => setShowEditModal(false)} className="p-2 rounded-xl hover:bg-brand-100 dark:hover:bg-brand-900 text-brand-500 transition-colors">
+                <X size={18} />
               </button>
             </div>
-            <form onSubmit={handleUpdateEmployee} className="mt-6 space-y-6 text-left">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">First Name</label>
-                  <input type="text" required value={editEmp.firstName} onChange={e => setEditEmp({...editEmp, firstName: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
+
+            <form onSubmit={handleUpdateEmployee} className="p-6 space-y-6 text-left text-xs font-semibold overflow-y-auto flex-1">
+              
+              {/* IMMUTABLE EMPLOYEE ID BANNER */}
+              <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                    <Lock size={18} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300">Employee ID:</span>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-white dark:bg-brand-900 border border-amber-300 dark:border-amber-700 text-xs font-black text-brand-950 dark:text-white font-mono">
+                        {editEmp.employeeId}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-amber-700/80 dark:text-amber-400/80 mt-0.5">
+                      🔒 Permanent System Identifier (Immutable — Cannot be changed by anyone, including Super Admins)
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Last Name</label>
-                  <input type="text" required value={editEmp.lastName} onChange={e => setEditEmp({...editEmp, lastName: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Phone Number</label>
-                  <input type="text" required value={editEmp.phone} onChange={e => setEditEmp({...editEmp, phone: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Blood Group</label>
-                  <input type="text" required value={editEmp.bloodGroup} onChange={e => setEditEmp({...editEmp, bloodGroup: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Department</label>
-                  <input type="text" required value={editEmp.department} onChange={e => setEditEmp({...editEmp, department: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Designation</label>
-                  <input type="text" required value={editEmp.designation} onChange={e => setEditEmp({...editEmp, designation: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
-                </div>
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Current Address</label>
-                  <input type="text" value={editEmp.currentAddress || ''} onChange={e => setEditEmp({...editEmp, currentAddress: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
-                </div>
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">Permanent Address</label>
-                  <input type="text" value={editEmp.permanentAddress || ''} onChange={e => setEditEmp({...editEmp, permanentAddress: e.target.value})} className="w-full bg-brand-100/50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-600" />
+                <span className="px-2.5 py-1 rounded-lg bg-amber-200/60 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-[10px] font-extrabold uppercase shrink-0">
+                  Locked
+                </span>
+              </div>
+
+              {/* 1. LOGIN CREDENTIALS & SYSTEM ROLE */}
+              <div className="space-y-3 bg-brand-50/40 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-2xl p-4">
+                <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Key size={13} /> Account Login Credentials & Role
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1 flex items-center gap-1">
+                      <Mail size={10} /> Login Email / Username *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={editEmp.email}
+                      onChange={e => setEditEmp({ ...editEmp, email: e.target.value })}
+                      className="w-full bg-white dark:bg-brand-900/70 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1 flex items-center gap-1">
+                      <Shield size={10} /> Change Password
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="Leave blank to keep same"
+                      value={editEmp.password}
+                      onChange={e => setEditEmp({ ...editEmp, password: e.target.value })}
+                      className="w-full bg-white dark:bg-brand-900/70 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1 flex items-center gap-1">
+                      <UserCheck size={10} /> System Role
+                    </label>
+                    <select
+                      value={editEmp.role}
+                      onChange={e => setEditEmp({ ...editEmp, role: e.target.value })}
+                      className="w-full bg-white dark:bg-brand-900/70 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-bold"
+                    >
+                      <option value="EMPLOYEE">EMPLOYEE</option>
+                      <option value="TEAM_LEAD">TEAM LEAD</option>
+                      <option value="HR">HR</option>
+                      <option value="SUPER_ADMIN">SUPER ADMIN</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-              <div className="pt-4 border-t border-brand-200 dark:border-brand-900 flex justify-end space-x-3">
-                <button type="button" onClick={() => setShowEditModal(false)} className="bg-brand-200 text-brand-850 dark:bg-brand-900 dark:text-white rounded-xl px-5 py-2.5 font-bold text-xs uppercase">Cancel</button>
-                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-6 py-2.5 font-bold text-xs uppercase shadow-md shadow-indigo-600/10">Save Changes</button>
+
+              {/* 2. PERSONAL DETAILS */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-black text-brand-700 dark:text-brand-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <UserPlus size={13} className="text-indigo-500" /> Personal Details
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">First Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editEmp.firstName}
+                      onChange={e => setEditEmp({ ...editEmp, firstName: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Last Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editEmp.lastName}
+                      onChange={e => setEditEmp({ ...editEmp, lastName: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Phone Number *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editEmp.phone}
+                      onChange={e => setEditEmp({ ...editEmp, phone: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Gender</label>
+                    <select
+                      value={editEmp.gender}
+                      onChange={e => setEditEmp({ ...editEmp, gender: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-bold"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Date of Birth</label>
+                    <input
+                      type="date"
+                      value={editEmp.dob}
+                      onChange={e => setEditEmp({ ...editEmp, dob: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Blood Group</label>
+                    <select
+                      value={editEmp.bloodGroup}
+                      onChange={e => setEditEmp({ ...editEmp, bloodGroup: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-bold"
+                    >
+                      {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(b => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">PAN Number</label>
+                    <input
+                      type="text"
+                      placeholder="ABCDE1234F"
+                      value={editEmp.panCard}
+                      onChange={e => setEditEmp({ ...editEmp, panCard: e.target.value.toUpperCase() })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white uppercase font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Aadhaar Number</label>
+                    <input
+                      type="text"
+                      placeholder="12-digit number"
+                      value={editEmp.aadharCard}
+                      onChange={e => setEditEmp({ ...editEmp, aadharCard: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. JOB & ORGANIZATION */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-black text-brand-700 dark:text-brand-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 size={13} className="text-indigo-500" /> Job & Organization
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Department *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editEmp.department}
+                      onChange={e => setEditEmp({ ...editEmp, department: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Designation *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editEmp.designation}
+                      onChange={e => setEditEmp({ ...editEmp, designation: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Date of Joining</label>
+                    <input
+                      type="date"
+                      value={editEmp.dateOfJoining}
+                      onChange={e => setEditEmp({ ...editEmp, dateOfJoining: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">ID Card Validity</label>
+                    <input
+                      type="date"
+                      value={editEmp.validity}
+                      onChange={e => setEditEmp({ ...editEmp, validity: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. ADDRESS & EMERGENCY CONTACT */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-black text-brand-700 dark:text-brand-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <MapPin size={13} className="text-indigo-500" /> Address & Emergency Details
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Current Address</label>
+                    <textarea
+                      rows={2}
+                      value={editEmp.currentAddress || ''}
+                      onChange={e => setEditEmp({ ...editEmp, currentAddress: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white resize-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Permanent Address</label>
+                    <textarea
+                      rows={2}
+                      value={editEmp.permanentAddress || ''}
+                      onChange={e => setEditEmp({ ...editEmp, permanentAddress: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white resize-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Emergency Contact Person</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Parent / Spouse"
+                      value={editEmp.emergencyName}
+                      onChange={e => setEditEmp({ ...editEmp, emergencyName: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Emergency Phone Number</label>
+                    <input
+                      type="text"
+                      value={editEmp.emergencyPhone}
+                      onChange={e => setEditEmp({ ...editEmp, emergencyPhone: e.target.value })}
+                      className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. COMPENSATION & SALARY STRUCTURE */}
+              {isSuperAdmin && (
+                <div className="space-y-3 bg-brand-50/40 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-2xl p-4">
+                  <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <DollarSign size={13} /> Compensation Structure (₹ Monthly)
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Basic Monthly (₹)</label>
+                      <input
+                        type="number"
+                        value={editEmp.basicSalary}
+                        onChange={e => setEditEmp({ ...editEmp, basicSalary: e.target.value })}
+                        className="w-full bg-white dark:bg-brand-900/70 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">HRA (₹)</label>
+                      <input
+                        type="number"
+                        value={editEmp.hra}
+                        onChange={e => setEditEmp({ ...editEmp, hra: e.target.value })}
+                        className="w-full bg-white dark:bg-brand-900/70 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Allowances (₹)</label>
+                      <input
+                        type="number"
+                        value={editEmp.allowance}
+                        onChange={e => setEditEmp({ ...editEmp, allowance: e.target.value })}
+                        className="w-full bg-white dark:bg-brand-900/70 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-brand-200 dark:border-brand-800 flex justify-end gap-3 sticky bottom-0 bg-white/90 dark:bg-brand-950/90 backdrop-blur-sm -mb-2 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 rounded-xl px-5 py-2.5 font-bold text-xs uppercase hover:bg-brand-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl px-6 py-2.5 font-bold text-xs uppercase shadow-md shadow-indigo-600/20 transition-all flex items-center gap-1.5"
+                >
+                  <Check size={14} /> Save Employee Changes
+                </button>
               </div>
             </form>
           </div>

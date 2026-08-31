@@ -18,7 +18,7 @@ router.use(protect);
 router.post('/', createTask);
 router.get('/my-tasks', getEmployeeTasks);
 router.get('/my-assigned', getAssignedTasks);
-router.get('/all', restrictTo('HR', 'SUPER_ADMIN'), getAllTasks);
+router.get('/all', getAllTasks);
 router.get('/stats', getTaskStats);
 
 // Parameterized routes AFTER static ones

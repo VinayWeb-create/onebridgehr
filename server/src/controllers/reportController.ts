@@ -191,10 +191,10 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
 
     // 1. Basic counters
     const [totalEmployees, todayAttendance, pendingLeaves, pendingTasks] = await Promise.all([
-      prisma.employee.count(),
-      prisma.attendance.findMany({ where: { date: today } }),
-      prisma.leave.count({ where: { status: { in: ['PENDING', 'MANAGER_APPROVED'] } } }),
-      prisma.task.count({ where: { status: { in: ['PENDING', 'IN_PROGRESS', 'REVIEW'] } } }),
+      prisma.employee.count({ where: { employeeId: { notIn: ['OBI0001', 'OBI1117'] } } }),
+      prisma.attendance.findMany({ where: { date: today, employeeId: { notIn: ['OBI0001', 'OBI1117'] } } }),
+      prisma.leave.count({ where: { status: { in: ['PENDING', 'MANAGER_APPROVED'] }, employeeId: { notIn: ['OBI0001', 'OBI1117'] } } }),
+      prisma.task.count({ where: { status: { in: ['PENDING', 'IN_PROGRESS', 'REVIEW'] }, employeeId: { notIn: ['OBI0001', 'OBI1117'] } } }),
     ]);
 
     const presentCount = todayAttendance.filter((a) => a.status === 'PRESENT').length;
@@ -209,7 +209,7 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
 
     // Payroll Budget
     const totalPayrollPaid = await prisma.payroll.aggregate({
-      where: { month: currentMonth },
+      where: { month: currentMonth, employeeId: { notIn: ['OBI0001', 'OBI1117'] } },
       _sum: { netSalary: true },
     });
 
@@ -222,6 +222,7 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
 
     // Department Data
     const employees = await prisma.employee.findMany({
+      where: { employeeId: { notIn: ['OBI0001', 'OBI1117'] } },
       select: {
         employeeId: true,
         firstName: true,
@@ -239,7 +240,10 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
     const departmentData = Object.entries(deptMap).map(([name, value]) => ({ name, value }));
 
     // Task Data
-    const tasks = await prisma.task.findMany({ select: { priority: true, status: true } });
+    const tasks = await prisma.task.findMany({
+      where: { employeeId: { notIn: ['OBI0001', 'OBI1117'] } },
+      select: { priority: true, status: true }
+    });
     const priorityMap = { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 };
     const taskStatusMap = { PENDING: 0, IN_PROGRESS: 0, REVIEW: 0, COMPLETED: 0, REJECTED: 0, OVERDUE: 0 };
     tasks.forEach((t) => {
@@ -284,12 +288,12 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
 
     // --- Today's Tasks Summary ---
     const todayTasksAssigned = await prisma.task.findMany({
-      where: { createdAt: { gte: today } },
+      where: { createdAt: { gte: today }, employeeId: { notIn: ['OBI0001', 'OBI1117'] } },
       include: { employee: { select: { firstName: true, lastName: true } } },
     });
 
     const todayTasksCompleted = await prisma.task.findMany({
-      where: { status: 'COMPLETED', updatedAt: { gte: today } },
+      where: { status: 'COMPLETED', updatedAt: { gte: today }, employeeId: { notIn: ['OBI0001', 'OBI1117'] } },
       include: { employee: { select: { firstName: true, lastName: true } } },
     });
 
@@ -308,7 +312,7 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
         dayEnd.setHours(23, 59, 59, 999);
 
         const dayTasks = await prisma.task.findMany({
-          where: { createdAt: { gte: dayStart, lte: dayEnd } },
+          where: { createdAt: { gte: dayStart, lte: dayEnd }, employeeId: { notIn: ['OBI0001', 'OBI1117'] } },
         });
         const dayCompleted = dayTasks.filter((t) => t.status === 'COMPLETED').length;
         const completionPct = dayTasks.length > 0 ? Math.round((dayCompleted / dayTasks.length) * 100) : 0;
@@ -329,8 +333,8 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
     lastWeekStart.setDate(lastWeekStart.getDate() - 13);
 
     const [thisWeekTasks, lastWeekTasks] = await Promise.all([
-      prisma.task.findMany({ where: { createdAt: { gte: thisWeekStart, lte: today } } }),
-      prisma.task.findMany({ where: { createdAt: { gte: lastWeekStart, lt: thisWeekStart } } }),
+      prisma.task.findMany({ where: { createdAt: { gte: thisWeekStart, lte: today }, employeeId: { notIn: ['OBI0001', 'OBI1117'] } } }),
+      prisma.task.findMany({ where: { createdAt: { gte: lastWeekStart, lt: thisWeekStart }, employeeId: { notIn: ['OBI0001', 'OBI1117'] } } }),
     ]);
 
     const thisWeekCompletion = thisWeekTasks.length > 0
@@ -347,7 +351,7 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
         const mDate = new Date(currentYear, currentMonth - 1 - (5 - i), 1);
         const mStart = new Date(mDate);
         const mEnd = new Date(currentYear, currentMonth - (5 - i), 0, 23, 59, 59, 999);
-        const mTasks = await prisma.task.findMany({ where: { createdAt: { gte: mStart, lte: mEnd } } });
+        const mTasks = await prisma.task.findMany({ where: { createdAt: { gte: mStart, lte: mEnd }, employeeId: { notIn: ['OBI0001', 'OBI1117'] } } });
         const mCompleted = mTasks.filter((t) => t.status === 'COMPLETED').length;
         return {
           month: mDate.toLocaleDateString('en-US', { month: 'short' }),
@@ -376,7 +380,7 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
 
     // Most active (most attendance check-ins this week)
     const thisWeekAttendance = await prisma.attendance.findMany({
-      where: { date: { gte: thisWeekStart } },
+      where: { date: { gte: thisWeekStart }, employeeId: { notIn: ['OBI0001', 'OBI1117'] } },
       select: { employeeId: true, status: true },
     });
     const activeCount: Record<string, number> = {};
@@ -393,7 +397,7 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
 
     // Fastest task completion (avg time from create to complete)
     const completedTasksWithTimes = await prisma.task.findMany({
-      where: { status: 'COMPLETED', updatedAt: { gte: thisWeekStart } },
+      where: { status: 'COMPLETED', updatedAt: { gte: thisWeekStart }, employeeId: { notIn: ['OBI0001', 'OBI1117'] } },
       select: { employeeId: true, createdAt: true, updatedAt: true, title: true },
     });
     if (completedTasksWithTimes.length > 0) {
@@ -421,7 +425,7 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
         const dStart = new Date(d);
         dStart.setHours(0, 0, 0, 0);
         const dayAttendance = await prisma.attendance.findMany({
-          where: { date: dStart },
+          where: { date: dStart, employeeId: { notIn: ['OBI0001', 'OBI1117'] } },
           select: { status: true },
         });
         return {
@@ -443,7 +447,7 @@ export const getHRDashboardStats = async (req: Request, res: Response, next: Nex
         const wEnd = new Date(wStart);
         wEnd.setDate(wEnd.getDate() + 6);
         const wTasks = await prisma.task.findMany({
-          where: { createdAt: { gte: wStart, lte: wEnd } },
+          where: { createdAt: { gte: wStart, lte: wEnd }, employeeId: { notIn: ['OBI0001', 'OBI1117'] } },
           select: { status: true },
         });
         return {
@@ -646,6 +650,8 @@ export const getEmployeeDashboardStats = async (req: Request, res: Response, nex
       where: { employeeId, date: today },
     });
 
+    const isSuperAdmin = ['OBI0001', 'OBI1117'].includes(employeeId) || req.user?.role === 'SUPER_ADMIN';
+
     // Tasks
     const employeeTasks = await prisma.task.findMany({
       where: { employeeId },
@@ -657,9 +663,9 @@ export const getEmployeeDashboardStats = async (req: Request, res: Response, nex
       inProgress: employeeTasks.filter((t) => t.status === 'IN_PROGRESS').length,
       review: employeeTasks.filter((t) => t.status === 'REVIEW').length,
       completed: employeeTasks.filter((t) => t.status === 'COMPLETED').length,
-      overdue: employeeTasks.filter((t) => t.status === 'OVERDUE').length,
-      critical: employeeTasks.filter((t) => t.priority === 'CRITICAL' && t.status !== 'COMPLETED').length,
-      high: employeeTasks.filter((t) => t.priority === 'HIGH' && t.status !== 'COMPLETED').length,
+      overdue: isSuperAdmin ? 0 : employeeTasks.filter((t) => t.status === 'OVERDUE').length,
+      critical: isSuperAdmin ? 0 : employeeTasks.filter((t) => t.priority === 'CRITICAL' && t.status !== 'COMPLETED').length,
+      high: isSuperAdmin ? 0 : employeeTasks.filter((t) => t.priority === 'HIGH' && t.status !== 'COMPLETED').length,
       total: employeeTasks.length,
     };
 
@@ -694,9 +700,11 @@ export const getEmployeeDashboardStats = async (req: Request, res: Response, nex
       .slice(0, 5);
 
     // Overdue tasks
-    const overdueTasks = employeeTasks
-      .filter((t) => t.status !== 'COMPLETED' && new Date(t.dueDate) < today)
-      .map((t) => ({ title: t.title, dueDate: t.dueDate, priority: t.priority, progress: t.progress }));
+    const overdueTasks = isSuperAdmin
+      ? []
+      : employeeTasks
+          .filter((t) => t.status !== 'COMPLETED' && new Date(t.dueDate) < today)
+          .map((t) => ({ title: t.title, dueDate: t.dueDate, priority: t.priority, progress: t.progress }));
 
     // Leave balances
     const approvedLeaves = await prisma.leave.findMany({
@@ -815,6 +823,96 @@ export const getEmployeeDashboardStats = async (req: Request, res: Response, nex
       needsOnboardingDocs = onboarding.documents.length < 3;
     }
 
+    // --- Team Lead Department Overview ---
+    let teamOverview: any = null;
+    if (req.user?.role === 'TEAM_LEAD') {
+      const leadEmployee = await prisma.employee.findUnique({
+        where: { employeeId },
+        select: { department: true },
+      });
+      const dept = leadEmployee?.department;
+      if (dept) {
+        const deptEmployees = await prisma.employee.findMany({
+          where: {
+            department: dept,
+            employeeId: { notIn: ['OBI0001', 'OBI1117'] },
+          },
+          select: {
+            employeeId: true,
+            firstName: true,
+            lastName: true,
+            designation: true,
+            profileImageUrl: true,
+            phone: true,
+            email: true,
+          },
+        });
+
+        const deptEmpIds = deptEmployees.map(e => e.employeeId);
+
+        const deptAttendanceToday = await prisma.attendance.findMany({
+          where: {
+            employeeId: { in: deptEmpIds },
+            date: today,
+          },
+        });
+
+        const attendanceMap: Record<string, string> = {};
+        deptAttendanceToday.forEach(a => {
+          attendanceMap[a.employeeId] = a.status;
+        });
+
+        const deptTasks = await prisma.task.findMany({
+          where: {
+            employeeId: { in: deptEmpIds },
+          },
+          include: {
+            employee: {
+              select: { firstName: true, lastName: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 15,
+        });
+
+        const deptPendingLeaves = await prisma.leave.findMany({
+          where: {
+            employeeId: { in: deptEmpIds },
+            status: 'PENDING',
+          },
+          include: {
+            employee: {
+              select: { firstName: true, lastName: true, designation: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        teamOverview = {
+          department: dept,
+          totalMembers: deptEmployees.length,
+          presentToday: deptAttendanceToday.filter(a => ['PRESENT', 'WORK_FROM_HOME', 'REMOTE'].includes(a.status)).length,
+          wfhToday: deptAttendanceToday.filter(a => ['WORK_FROM_HOME', 'REMOTE'].includes(a.status)).length,
+          onLeaveToday: deptAttendanceToday.filter(a => ['ON_LEAVE', 'HOLIDAY'].includes(a.status)).length,
+          absentToday: Math.max(0, deptEmployees.length - deptAttendanceToday.length),
+          members: deptEmployees.map(m => ({
+            ...m,
+            statusToday: attendanceMap[m.employeeId] || 'ABSENT',
+          })),
+          tasksCount: {
+            total: deptTasks.length,
+            pending: deptTasks.filter(t => t.status === 'PENDING').length,
+            inProgress: deptTasks.filter(t => t.status === 'IN_PROGRESS').length,
+            review: deptTasks.filter(t => t.status === 'REVIEW').length,
+            completed: deptTasks.filter(t => t.status === 'COMPLETED').length,
+            overdue: deptTasks.filter(t => t.status === 'OVERDUE' || (t.status !== 'COMPLETED' && new Date(t.dueDate) < today)).length,
+          },
+          recentTasks: deptTasks.slice(0, 8),
+          pendingLeaves: deptPendingLeaves,
+        };
+      }
+    }
+
     res.status(200).json({
       status: 'success',
       data: {
@@ -838,6 +936,7 @@ export const getEmployeeDashboardStats = async (req: Request, res: Response, nex
         rating,
         timelineEvents,
         needsOnboardingDocs,
+        teamOverview,
         charts: {
           taskTrend,
           last7Days,
@@ -859,6 +958,7 @@ export const globalSearch = async (req: Request, res: Response, next: NextFuncti
 
     const employees = await prisma.employee.findMany({
       where: {
+        employeeId: { notIn: ['OBI0001', 'OBI1117'] },
         OR: [
           { employeeId: { contains: query, mode: 'insensitive' } },
           { firstName: { contains: query, mode: 'insensitive' } },
@@ -870,13 +970,28 @@ export const globalSearch = async (req: Request, res: Response, next: NextFuncti
           { skills: { hasSome: [query] } },
         ],
       },
-      take: 15,
+      take: 25,
     });
+
+    const users = await prisma.user.findMany({
+      select: { employeeId: true, role: true, email: true },
+    });
+    const userMapByEmpId: Record<string, string> = {};
+    const userMapByEmail: Record<string, string> = {};
+    users.forEach(u => {
+      if (u.employeeId) userMapByEmpId[u.employeeId] = u.role;
+      if (u.email) userMapByEmail[u.email.toLowerCase().trim()] = u.role;
+    });
+
+    const enrichedEmployees = employees.map(emp => ({
+      ...emp,
+      role: userMapByEmpId[emp.employeeId] || userMapByEmail[emp.email?.toLowerCase()?.trim()] || 'EMPLOYEE',
+    }));
 
     res.status(200).json({
       status: 'success',
-      results: employees.length,
-      data: { employees },
+      results: enrichedEmployees.length,
+      data: { employees: enrichedEmployees },
     });
   } catch (error) {
     next(error);

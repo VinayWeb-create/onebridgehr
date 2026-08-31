@@ -11,7 +11,8 @@ const markOverdueTasks = async () => {
   await prisma.task.updateMany({
     where: {
       dueDate: { lt: now },
-      status: { notIn: ['COMPLETED', 'REJECTED', 'OVERDUE'] }
+      status: { notIn: ['COMPLETED', 'REJECTED', 'OVERDUE'] },
+      employeeId: { notIn: ['OBI0001', 'OBI1117'] },
     },
     data: { status: 'OVERDUE' }
   });
@@ -225,44 +226,63 @@ export const updateTask = async (req: Request, res: Response, next: NextFunction
     const isAssignee = task.employeeId === employeeId;
     const isCreator = task.assignedById === employeeId;
     const isHrOrAdmin = req.user?.role === 'HR' || req.user?.role === 'SUPER_ADMIN';
+    const isTeamLead = req.user?.role === 'TEAM_LEAD';
 
-    if (!isAssignee && !isCreator && !isHrOrAdmin) {
+    let isDeptLead = false;
+    if (isTeamLead) {
+      const leadEmp = await prisma.employee.findUnique({ where: { employeeId } });
+      const taskEmp = await prisma.employee.findUnique({ where: { employeeId: task.employeeId } });
+      if (leadEmp && taskEmp && leadEmp.department.toLowerCase().trim() === taskEmp.department.toLowerCase().trim()) {
+        isDeptLead = true;
+      }
+    }
+
+    if (!isAssignee && !isCreator && !isHrOrAdmin && !isDeptLead) {
       return next(new AppError('Not authorized to modify this task', 403));
     }
 
     const updateData: any = {};
 
-    if ((req.body as any).projectName !== undefined) {
-      updateData.projectName = (req.body as any).projectName;
+    if (parsed.title !== undefined && parsed.title.trim() !== '') {
+      updateData.title = parsed.title.trim();
+    }
+    if (parsed.description !== undefined) {
+      updateData.description = parsed.description.trim();
+    }
+    if (parsed.employeeId !== undefined && (isHrOrAdmin || isCreator || isDeptLead)) {
+      updateData.employeeId = parsed.employeeId;
+    }
+    if (parsed.projectName !== undefined) {
+      updateData.projectName = parsed.projectName;
     }
     if ((req.body as any).startDate !== undefined) {
       updateData.startDate = (req.body as any).startDate ? new Date((req.body as any).startDate) : null;
     }
-    if ((req.body as any).dueDate !== undefined) {
-      updateData.dueDate = new Date((req.body as any).dueDate);
+    if (parsed.dueDate !== undefined) {
+      updateData.dueDate = new Date(parsed.dueDate);
     }
-    if ((req.body as any).expectedHours !== undefined) {
-      updateData.expectedHours = (req.body as any).expectedHours;
+    if (parsed.expectedHours !== undefined) {
+      updateData.expectedHours = parsed.expectedHours;
     }
-    if ((req.body as any).riskLevel !== undefined) {
-      updateData.riskLevel = (req.body as any).riskLevel;
+    if (parsed.riskLevel !== undefined) {
+      updateData.riskLevel = parsed.riskLevel;
     }
-    if ((req.body as any).attachments !== undefined) {
-      updateData.attachments = (req.body as any).attachments;
-    }
-    if ((req.body as any).priority !== undefined) {
-      updateData.priority = (req.body as any).priority;
+    if (parsed.priority !== undefined) {
+      updateData.priority = parsed.priority;
     }
 
     if (parsed.status !== undefined) {
       updateData.status = parsed.status;
-      if (parsed.status === 'COMPLETED') {
+      if (parsed.status === 'COMPLETED' && parsed.progress === undefined) {
         updateData.progress = 100;
       }
     }
 
     if (parsed.progress !== undefined) {
       updateData.progress = parsed.progress;
+      if (parsed.progress >= 100 && parsed.status === undefined) {
+        updateData.status = 'COMPLETED';
+      }
     }
 
     if (parsed.subtasks !== undefined) {
@@ -351,7 +371,7 @@ export const getTaskDashboard = async (req: Request, res: Response, next: NextFu
     await markOverdueTasks();
 
     const isAdmin = role === 'HR' || role === 'SUPER_ADMIN';
-    const where: any = isAdmin ? {} : { employeeId };
+    const where: any = isAdmin ? { employeeId: { notIn: ['OBI0001', 'OBI1117'] } } : { employeeId };
 
     const tasks = await prisma.task.findMany({ where });
 
@@ -441,10 +461,8 @@ export const getTimelineCards = async (req: Request, res: Response, next: NextFu
     const where: any = {
       priority: { in: ['HIGH', 'CRITICAL'] },
       status: { notIn: ['COMPLETED', 'REJECTED'] },
+      employeeId: isAdmin ? { notIn: ['OBI0001', 'OBI1117'] } : employeeId,
     };
-    if (!isAdmin) {
-      where.employeeId = employeeId;
-    }
 
     const tasks = await prisma.task.findMany({
       where,
@@ -692,7 +710,48 @@ export const getAllTasks = async (req: Request, res: Response, next: NextFunctio
   try {
     await markOverdueTasks();
 
+    const isSuperAdmin = req.user?.role === 'SUPER_ADMIN';
+    const isHr = req.user?.role === 'HR';
+    const isTeamLead = req.user?.role === 'TEAM_LEAD';
+
+    let where: any = {};
+    if (isSuperAdmin) {
+      where = {};
+    } else if (isHr) {
+      where = { employeeId: { notIn: ['OBI0001', 'OBI1117'] } };
+    } else if (isTeamLead) {
+      const leadEmp = await prisma.employee.findUnique({
+        where: { employeeId: req.user?.employeeId },
+        select: { department: true },
+      });
+      if (leadEmp?.department) {
+        const deptEmployees = await prisma.employee.findMany({
+          where: { department: leadEmp.department },
+          select: { employeeId: true },
+        });
+        const deptEmpIds = deptEmployees.map(e => e.employeeId).filter(id => !['OBI0001', 'OBI1117'].includes(id));
+
+        where = {
+          OR: [
+            { employeeId: { in: deptEmpIds } },
+            { assignedById: req.user?.employeeId },
+            { employeeId: req.user?.employeeId },
+          ],
+        };
+      } else {
+        where = {
+          OR: [
+            { assignedById: req.user?.employeeId },
+            { employeeId: req.user?.employeeId },
+          ],
+        };
+      }
+    } else {
+      where = { employeeId: req.user?.employeeId };
+    }
+
     const tasks = await prisma.task.findMany({
+      where,
       include: {
         employee: {
           select: {
@@ -729,9 +788,15 @@ export const deleteTask = async (req: Request, res: Response, next: NextFunction
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) return next(new AppError('Task not found', 404));
 
-    await prisma.task.delete({ where: { id: taskId } });
+    const isCreator = task.assignedById === employeeId;
+    const isHrOrAdmin = req.user?.role === 'HR' || req.user?.role === 'SUPER_ADMIN';
 
-    await logActivity(employeeId, 'TASK_DELETE', `Deleted task "${task.title}" (${taskId})`, req);
+    if (!isCreator && !isHrOrAdmin) {
+      return next(new AppError('Not authorized to delete this task', 403));
+    }
+
+    await prisma.task.delete({ where: { id: taskId } });
+    await logActivity(employeeId, 'TASK_DELETE', `Deleted task ${task.title}`, req);
 
     res.status(200).json({
       status: 'success',
@@ -748,12 +813,50 @@ export const getTaskStats = async (req: Request, res: Response, next: NextFuncti
     const role = req.user?.role;
     if (!employeeId) return next(new AppError('Unauthorized', 401));
 
-    const isAdmin = role === 'HR' || role === 'SUPER_ADMIN';
-    const where = isAdmin ? {} : { employeeId };
+    const { scope } = req.query;
+    const isSuperAdmin = role === 'SUPER_ADMIN';
+    const isHrOrAdmin = role === 'HR' || role === 'SUPER_ADMIN';
+    const isTeamLead = role === 'TEAM_LEAD';
+
+    let where: any;
+    if (scope === 'admin' && isSuperAdmin) {
+      where = { employeeId: { in: ['OBI0001', 'OBI1117'] } };
+    } else if (isHrOrAdmin) {
+      where = { employeeId: { notIn: ['OBI0001', 'OBI1117'] } };
+    } else if (isTeamLead) {
+      const leadEmp = await prisma.employee.findUnique({
+        where: { employeeId },
+        select: { department: true },
+      });
+      if (leadEmp?.department) {
+        const deptEmployees = await prisma.employee.findMany({
+          where: { department: leadEmp.department },
+          select: { employeeId: true },
+        });
+        const deptEmpIds = deptEmployees.map(e => e.employeeId).filter(id => !['OBI0001', 'OBI1117'].includes(id));
+        where = {
+          OR: [
+            { employeeId: { in: deptEmpIds } },
+            { assignedById: employeeId },
+            { employeeId: employeeId },
+          ],
+        };
+      } else {
+        where = {
+          OR: [
+            { assignedById: employeeId },
+            { employeeId: employeeId },
+          ],
+        };
+      }
+    } else {
+      where = { employeeId };
+    }
 
     const tasks = await prisma.task.findMany({ where });
 
     const now = new Date();
+    const isScopeAdmin = scope === 'admin' && isSuperAdmin;
     const stats = {
       total: tasks.length,
       pending: tasks.filter(t => t.status === 'PENDING').length,
@@ -761,7 +864,9 @@ export const getTaskStats = async (req: Request, res: Response, next: NextFuncti
       review: tasks.filter(t => t.status === 'REVIEW').length,
       completed: tasks.filter(t => t.status === 'COMPLETED').length,
       rejected: tasks.filter(t => t.status === 'REJECTED').length,
-      overdue: tasks.filter(t => t.dueDate < now && !['COMPLETED', 'REJECTED'].includes(t.status)).length,
+      overdue: isScopeAdmin
+        ? 0
+        : tasks.filter(t => t.dueDate < now && !['COMPLETED', 'REJECTED'].includes(t.status) && !['OBI0001', 'OBI1117'].includes(t.employeeId)).length,
       totalTimeLogged: tasks.reduce((sum, t) => {
         const logs = (t.timeLogs as any[]) || [];
         return sum + logs.reduce((s: number, l: any) => s + (l.durationMinutes || 0), 0);

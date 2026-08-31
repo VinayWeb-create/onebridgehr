@@ -16,7 +16,7 @@ import {
   TrendingUp, TrendingDown, Award, Zap, Target, Crown, Medal, Trophy, Star,
   BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon, DollarSign,
   ShoppingBag, Wallet, PiggyBank, Briefcase, CalendarCheck, UserMinus, UserPlus,
-  Activity, PieChart as PieIcon, Gauge, Rocket, Flame, CheckSquare, Bell, Loader2, RefreshCw
+  Activity, PieChart as PieIcon, Gauge, Rocket, Flame, CheckSquare, Bell, Loader2, RefreshCw, Plus
 } from 'lucide-react';
 import GoogleDriveCard from '../components/GoogleDriveCard';
 
@@ -119,6 +119,7 @@ interface EmployeeStats {
   };
   period: string;
   needsOnboardingDocs?: boolean;
+  teamOverview?: any;
 }
 
 const formatCurrency = (val: number) =>
@@ -263,7 +264,7 @@ export const Dashboard: React.FC = () => {
   const fetchStats = async (showSkeleton = true) => {
     if (showSkeleton) setLoading(true);
     try {
-      if (user?.role === 'SUPER_ADMIN' || user?.role === 'HR' || user?.role === 'TEAM_LEAD') {
+      if (user?.role === 'SUPER_ADMIN' || user?.role === 'HR') {
         const res = await api.get('/reports/hr');
         setHrData(res.data.data);
       } else {
@@ -339,8 +340,8 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  // ========== HR / ADMIN INTERFACE ==========
-  if (user?.role === 'SUPER_ADMIN' || user?.role === 'HR' || user?.role === 'TEAM_LEAD') {
+  // ========== HR / ADMIN INTERFACE (SUPER ADMIN & HR ONLY) ==========
+  if (user?.role === 'SUPER_ADMIN' || user?.role === 'HR') {
     if (!hrData) return <p className="text-center py-12 text-brand-500">Failed to load administrative analytics.</p>;
     const c = hrData.counters;
     const t = hrData.todayTasks;
@@ -1348,6 +1349,162 @@ export const Dashboard: React.FC = () => {
           >
             Start Onboarding
           </button>
+        </div>
+      )}
+
+      {/* Team Lead Department Management Hub (Exclusive to Team Leads for their Department) */}
+      {empData.teamOverview && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-indigo-500/10 border border-amber-500/30 rounded-3xl p-6 shadow-xl">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <span className="px-3 py-1 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm">
+                    Team Lead Hub
+                  </span>
+                  <h2 className="font-extrabold text-lg text-brand-950 dark:text-white">
+                    {empData.teamOverview.department} Department Stream
+                  </h2>
+                </div>
+                <p className="text-xs text-brand-500 mt-1 font-semibold">
+                  Live team attendance, assigned tasks, and deliverable progress for your department
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/tasks')}
+                className="bg-amber-600 hover:bg-amber-700 text-white rounded-2xl px-5 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-amber-600/20"
+              >
+                <Plus size={14} />
+                <span>Assign Department Task</span>
+              </button>
+            </div>
+
+            {/* Department Metric Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+              <div className="p-4 bg-white/70 dark:bg-brand-900/70 backdrop-blur rounded-2xl border border-brand-200 dark:border-brand-800">
+                <p className="text-[10px] font-bold text-brand-500 uppercase">Team Size</p>
+                <p className="text-xl font-black text-brand-950 dark:text-white mt-1">
+                  {empData.teamOverview.totalMembers} <span className="text-xs font-bold text-brand-400">Members</span>
+                </p>
+              </div>
+              <div className="p-4 bg-white/70 dark:bg-brand-900/70 backdrop-blur rounded-2xl border border-brand-200 dark:border-brand-800">
+                <p className="text-[10px] font-bold text-emerald-600 uppercase">Present Today</p>
+                <p className="text-xl font-black text-emerald-600 mt-1">
+                  {empData.teamOverview.presentToday} <span className="text-xs font-bold text-emerald-500/80">Active</span>
+                </p>
+              </div>
+              <div className="p-4 bg-white/70 dark:bg-brand-900/70 backdrop-blur rounded-2xl border border-brand-200 dark:border-brand-800">
+                <p className="text-[10px] font-bold text-indigo-600 uppercase">Team Tasks</p>
+                <p className="text-xl font-black text-indigo-600 mt-1">
+                  {empData.teamOverview.tasksCount?.total || 0} <span className="text-xs font-bold text-brand-400">Total</span>
+                </p>
+              </div>
+              <div className="p-4 bg-white/70 dark:bg-brand-900/70 backdrop-blur rounded-2xl border border-brand-200 dark:border-brand-800">
+                <p className="text-[10px] font-bold text-rose-600 uppercase">Team Overdue</p>
+                <p className="text-xl font-black text-rose-600 mt-1">
+                  {empData.teamOverview.tasksCount?.overdue || 0} <span className="text-xs font-bold text-rose-400">Overdue</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Department Team Members Status Grid */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-black uppercase tracking-wider text-brand-700 dark:text-brand-300 flex items-center gap-2">
+                <Users size={14} className="text-amber-500" />
+                Department Team Members Status Today
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {empData.teamOverview.members?.map((m: any) => (
+                  <div
+                    key={m.employeeId}
+                    className="p-3 bg-white dark:bg-brand-900/80 rounded-2xl border border-brand-200 dark:border-brand-800 flex items-center justify-between shadow-sm"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center font-bold text-amber-700 text-xs overflow-hidden">
+                        {m.profileImageUrl ? (
+                          <img src={m.profileImageUrl} alt={m.firstName} className="w-full h-full object-cover" />
+                        ) : (
+                          <span>{m.firstName[0]}{m.lastName[0]}</span>
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-brand-950 dark:text-white leading-tight">
+                          {m.firstName} {m.lastName}
+                        </h4>
+                        <p className="text-[9px] text-brand-500 font-semibold">{m.designation}</p>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase border ${
+                      m.statusToday === 'PRESENT' ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' :
+                      m.statusToday === 'WORK_FROM_HOME' ? 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' :
+                      m.statusToday === 'ON_LEAVE' ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' :
+                      'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800'
+                    }`}>
+                      {m.statusToday}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Department Active Tasks List */}
+            {empData.teamOverview.recentTasks?.length > 0 && (
+              <div className="mt-6 space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-brand-700 dark:text-brand-300 flex items-center gap-2">
+                    <CheckSquare size={14} className="text-amber-500" />
+                    Department Deliverables & Tasks
+                  </h3>
+                  <button
+                    onClick={() => navigate('/tasks')}
+                    className="text-[10px] font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 flex items-center gap-1"
+                  >
+                    View All in Tasks →
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {empData.teamOverview.recentTasks.map((t: any) => (
+                    <div
+                      key={t.id}
+                      className="p-3.5 bg-white dark:bg-brand-900/80 rounded-2xl border border-brand-200 dark:border-brand-800 flex items-center justify-between gap-3 shadow-sm hover:border-amber-500/30 transition-all"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                            t.priority === 'CRITICAL' ? 'bg-rose-500 text-white' :
+                            t.priority === 'HIGH' ? 'bg-amber-500 text-white' :
+                            'bg-brand-200 text-brand-800 dark:bg-brand-800 dark:text-brand-200'
+                          }`}>
+                            {t.priority}
+                          </span>
+                          <h4 className="text-xs font-bold text-brand-950 dark:text-white truncate">{t.title}</h4>
+                        </div>
+                        <p className="text-[10px] text-brand-500 mt-1 font-semibold">
+                          Assigned to: <span className="text-indigo-600 font-bold">{t.employee ? `${t.employee.firstName} ${t.employee.lastName}` : t.employeeId}</span> • Due: {new Date(t.dueDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-3 shrink-0">
+                        <div className="text-right">
+                          <span className="text-[9px] font-bold text-brand-500">{t.progress || 0}%</span>
+                          <div className="w-16 h-1.5 bg-brand-100 dark:bg-brand-800 rounded-full overflow-hidden mt-0.5">
+                            <div className="h-full bg-amber-500 rounded-full" style={{ width: `${t.progress || 0}%` }} />
+                          </div>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase ${
+                          t.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400' :
+                          t.status === 'IN_PROGRESS' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400' :
+                          t.status === 'OVERDUE' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400' :
+                          'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400'
+                        }`}>
+                          {t.status.replace('_', ' ')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

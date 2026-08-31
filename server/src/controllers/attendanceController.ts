@@ -304,7 +304,10 @@ export const getOrganizationAttendance = async (req: Request, res: Response, nex
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const records = await prisma.attendance.findMany({
-      where: { date: today },
+      where: {
+        date: today,
+        employeeId: { notIn: ['OBI0001', 'OBI1117'] },
+      },
       include: {
         employee: {
           select: {
@@ -581,15 +584,25 @@ export const getAttendanceDashboard = async (req: Request, res: Response, next: 
 
     const [todayRecords, last30DaysRecords, holidaysLast30Days, totalEmployees] = await Promise.all([
       prisma.attendance.findMany({
-        where: { date: { gte: today, lt: tomorrow } },
+        where: {
+          date: { gte: today, lt: tomorrow },
+          employeeId: { notIn: ['OBI0001', 'OBI1117'] },
+        },
       }),
       prisma.attendance.findMany({
-        where: { date: { gte: thirtyDaysAgo, lt: tomorrow } },
+        where: {
+          date: { gte: thirtyDaysAgo, lt: tomorrow },
+          employeeId: { notIn: ['OBI0001', 'OBI1117'] },
+        },
       }),
       prisma.holiday.findMany({
         where: { date: { gte: thirtyDaysAgo, lt: tomorrow } },
       }),
-      prisma.employee.count(),
+      prisma.employee.count({
+        where: {
+          employeeId: { notIn: ['OBI0001', 'OBI1117'] },
+        },
+      }),
     ]);
 
     const presentToday = todayRecords.filter((r) =>
@@ -706,7 +719,10 @@ export const getAttendanceReport = async (req: Request, res: Response, next: Nex
     startDate.setHours(0, 0, 0, 0);
     endDate.setHours(23, 59, 59, 999);
 
-    const where: any = { date: { gte: startDate, lte: endDate } };
+    const where: any = {
+      date: { gte: startDate, lte: endDate },
+      employeeId: { notIn: ['OBI0001', 'OBI1117'] },
+    };
 
     if (role === 'EMPLOYEE' || role === 'TEAM_LEAD') {
       if (parsed.employeeId && parsed.employeeId !== requestingEmployeeId && role === 'EMPLOYEE') {

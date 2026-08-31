@@ -6,7 +6,8 @@ import {
   Plus, CheckSquare, Clock, MessageSquare, AlertCircle, Calendar, Send,
   X, Check, Eye, Trash2, Search, Filter, ListChecks, Timer,
   Zap, Target, TrendingUp, AlertTriangle, User, ChevronDown, ArrowUpDown,
-  ArrowUp, ArrowDown, LayoutList, Paperclip
+  ArrowUp, ArrowDown, LayoutList, Paperclip, RotateCcw, Sparkles, Building2, Flame,
+  Edit2, Sliders, CheckCircle2
 } from 'lucide-react';
 
 // ═══════════════════════════════════════
@@ -129,10 +130,17 @@ export const Tasks: React.FC = () => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const { confirm } = useDialog();
 
+  // Tabs for Super Admin
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const [taskViewTab, setTaskViewTab] = useState<'TEAM_PROGRESS' | 'ADMIN_TASKS'>('TEAM_PROGRESS');
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
+  const [departmentFilter, setDepartmentFilter] = useState<string>('ALL');
+  const [deadlineFilter, setDeadlineFilter] = useState<string>('ALL');
+  const [quickPreset, setQuickPreset] = useState<string>('ALL');
 
   // Sorting
   const [sortField, setSortField] = useState<SortField>('dueDate');
@@ -141,7 +149,8 @@ export const Tasks: React.FC = () => {
   // New Task form
   const [newTask, setNewTask] = useState({
     title: '', description: '', priority: 'MEDIUM' as Task['priority'],
-    dueDate: '', employeeId: '', subtasksInput: '',
+    dueDate: '', dueHour: '06', dueMinute: '00', duePeriod: 'PM' as 'AM' | 'PM',
+    employeeId: '', subtasks: [''] as string[],
   });
 
   // Task Update states
@@ -170,21 +179,161 @@ export const Tasks: React.FC = () => {
     }
   }, [user]);
 
+  // Edit Task State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [savingEditTask, setSavingEditTask] = useState(false);
+  const [editTask, setEditTask] = useState<{
+    id: string;
+    title: string;
+    description: string;
+    priority: Task['priority'];
+    status: Task['status'];
+    progress: number;
+    employeeId: string;
+    dueDate: string;
+    dueHour: string;
+    dueMinute: string;
+    duePeriod: 'AM' | 'PM';
+    expectedHours: number;
+    subtasks: { title: string; isCompleted: boolean }[];
+  } | null>(null);
+
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setSelectedTask(null);
         setShowAddModal(false);
+        setShowEditModal(false);
       }
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
 
+  const openEditModal = (task: Task) => {
+    const d = new Date(task.dueDate);
+    const dateStr = isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+    let hours = isNaN(d.getTime()) ? 18 : d.getHours();
+    const period: 'AM' | 'PM' = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    const hourStr = String(hours).padStart(2, '0');
+    const minStr = isNaN(d.getTime()) ? '00' : String(d.getMinutes()).padStart(2, '0');
+
+    const formattedSubtasks = (task.subtasks || []).map((s: any) =>
+      typeof s === 'string' ? { title: s, isCompleted: false } : { title: s.title || '', isCompleted: !!s.isCompleted }
+    );
+
+    setEditTask({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+      status: task.status,
+      progress: task.progress || 0,
+      employeeId: task.employeeId,
+      dueDate: dateStr,
+      dueHour: hourStr,
+      dueMinute: minStr,
+      duePeriod: period,
+      expectedHours: (task as any).expectedHours || 0,
+      subtasks: formattedSubtasks.length > 0 ? formattedSubtasks : [{ title: '', isCompleted: false }],
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditSubtaskChange = (index: number, value: string) => {
+    if (!editTask) return;
+    const updated = [...editTask.subtasks];
+    updated[index] = { ...updated[index], title: value };
+    setEditTask({ ...editTask, subtasks: updated });
+  };
+
+  const handleEditSubtaskToggle = (index: number) => {
+    if (!editTask) return;
+    const updated = [...editTask.subtasks];
+    updated[index] = { ...updated[index], isCompleted: !updated[index].isCompleted };
+    const completedCount = updated.filter(s => s.isCompleted).length;
+    const autoProgress = updated.length > 0 ? Math.round((completedCount / updated.length) * 100) : editTask.progress;
+    setEditTask({ ...editTask, subtasks: updated, progress: autoProgress });
+  };
+
+  const handleEditSubtaskRemove = (index: number) => {
+    if (!editTask) return;
+    const updated = editTask.subtasks.filter((_, i) => i !== index);
+    setEditTask({ ...editTask, subtasks: updated.length > 0 ? updated : [{ title: '', isCompleted: false }] });
+  };
+
+  const handleEditSubtaskAdd = () => {
+    if (!editTask) return;
+    const nextIdx = editTask.subtasks.length;
+    setEditTask({ ...editTask, subtasks: [...editTask.subtasks, { title: '', isCompleted: false }] });
+    setTimeout(() => {
+      document.getElementById(`edit-subtask-input-${nextIdx}`)?.focus();
+    }, 50);
+  };
+
+  const handleEditSubtaskKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!editTask) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleEditSubtaskAdd();
+    } else if (e.key === 'Backspace' && editTask.subtasks[index].title === '' && editTask.subtasks.length > 1) {
+      e.preventDefault();
+      handleEditSubtaskRemove(index);
+      setTimeout(() => {
+        document.getElementById(`edit-subtask-input-${Math.max(0, index - 1)}`)?.focus();
+      }, 50);
+    }
+  };
+
+  const handleSaveEditTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTask) return;
+    setSavingEditTask(true);
+    try {
+      let hour24 = parseInt(editTask.dueHour, 10);
+      if (editTask.duePeriod === 'PM' && hour24 < 12) hour24 += 12;
+      if (editTask.duePeriod === 'AM' && hour24 === 12) hour24 = 0;
+      const hourStr = hour24.toString().padStart(2, '0');
+      const minuteStr = editTask.dueMinute.padStart(2, '0');
+      const dueDateTimeStr = editTask.dueDate ? `${editTask.dueDate}T${hourStr}:${minuteStr}:00` : '';
+      const dueDateObj = new Date(dueDateTimeStr);
+
+      const validSubtasks = editTask.subtasks.filter(s => s.title && s.title.trim() !== '');
+
+      const payload = {
+        title: editTask.title,
+        description: editTask.description,
+        priority: editTask.priority,
+        status: editTask.status,
+        progress: Number(editTask.progress),
+        employeeId: editTask.employeeId,
+        dueDate: isNaN(dueDateObj.getTime()) ? new Date(editTask.dueDate) : dueDateObj,
+        expectedHours: Number(editTask.expectedHours) || undefined,
+        subtasks: validSubtasks,
+      };
+
+      const res = await api.put(`/tasks/${editTask.id}`, payload);
+      setShowEditModal(false);
+      setEditTask(null);
+      if (selectedTask?.id === editTask.id) {
+        setSelectedTask(res.data.data);
+      }
+      fetchTasks();
+      fetchStats();
+      showToast('success', 'Task updated successfully!');
+    } catch (err: any) {
+      showToast('error', err.response?.data?.message || 'Failed to update task');
+    } finally {
+      setSavingEditTask(false);
+    }
+  };
+
   const fetchEmployees = async () => {
     try {
       const res = await api.get('/employees');
-      setEmployees(res.data.data);
+      const filtered = (res.data.data || []).filter((e: any) => !['OBI0001', 'OBI1117'].includes(e.employeeId));
+      setEmployees(filtered);
     } catch (err) { console.error('Failed to load employee list:', err); }
   };
 
@@ -198,24 +347,90 @@ export const Tasks: React.FC = () => {
   const fetchTasks = async () => {
     setLoading(true);
     try {
-      const url = (user?.role === 'HR' || user?.role === 'SUPER_ADMIN') ? '/tasks/all' : '/tasks/my-tasks';
+      const url = (user?.role === 'HR' || user?.role === 'SUPER_ADMIN' || user?.role === 'TEAM_LEAD') ? '/tasks/all' : '/tasks/my-tasks';
       const res = await api.get(url);
       setTasks(res.data.data);
     } catch (err) { console.error('Failed to load tasks:', err); }
     finally { setLoading(false); }
   };
 
+  const handleSubtaskChange = (index: number, value: string) => {
+    setNewTask(prev => {
+      const updated = [...prev.subtasks];
+      updated[index] = value;
+      return { ...prev, subtasks: updated };
+    });
+  };
+
+  const handleSubtaskKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setNewTask(prev => ({
+        ...prev,
+        subtasks: [...prev.subtasks, ''],
+      }));
+      setTimeout(() => {
+        const nextInput = document.getElementById(`subtask-input-${index + 1}`);
+        nextInput?.focus();
+      }, 50);
+    } else if (e.key === 'Backspace' && newTask.subtasks[index] === '' && newTask.subtasks.length > 1) {
+      e.preventDefault();
+      setNewTask(prev => ({
+        ...prev,
+        subtasks: prev.subtasks.filter((_, i) => i !== index),
+      }));
+      setTimeout(() => {
+        const prevInput = document.getElementById(`subtask-input-${Math.max(0, index - 1)}`);
+        prevInput?.focus();
+      }, 50);
+    }
+  };
+
+  const addSubtaskField = () => {
+    const nextIdx = newTask.subtasks.length;
+    setNewTask(prev => ({
+      ...prev,
+      subtasks: [...prev.subtasks, ''],
+    }));
+    setTimeout(() => {
+      const nextInput = document.getElementById(`subtask-input-${nextIdx}`);
+      nextInput?.focus();
+    }, 50);
+  };
+
+  const removeSubtaskField = (index: number) => {
+    setNewTask(prev => ({
+      ...prev,
+      subtasks: prev.subtasks.length > 1 ? prev.subtasks.filter((_, i) => i !== index) : [''],
+    }));
+  };
+
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const subtasks = newTask.subtasksInput.split('\n').filter(t => t.trim() !== '').map(title => ({ title: title.trim(), isCompleted: false }));
+      const subtasks = newTask.subtasks
+        .filter(t => t.trim() !== '')
+        .map(title => ({ title: title.trim(), isCompleted: false }));
+
+      let hour24 = parseInt(newTask.dueHour, 10);
+      if (newTask.duePeriod === 'PM' && hour24 < 12) hour24 += 12;
+      if (newTask.duePeriod === 'AM' && hour24 === 12) hour24 = 0;
+      const hourStr = hour24.toString().padStart(2, '0');
+      const minuteStr = newTask.dueMinute.padStart(2, '0');
+      const dueDateTimeStr = newTask.dueDate ? `${newTask.dueDate}T${hourStr}:${minuteStr}:00` : '';
+      const dueDateObj = new Date(dueDateTimeStr);
+
       await api.post('/tasks', {
         title: newTask.title, description: newTask.description,
-        priority: newTask.priority, dueDate: new Date(newTask.dueDate),
+        priority: newTask.priority, dueDate: isNaN(dueDateObj.getTime()) ? new Date(newTask.dueDate) : dueDateObj,
         employeeId: newTask.employeeId, subtasks,
       });
       setShowAddModal(false);
-      setNewTask({ title: '', description: '', priority: 'MEDIUM', dueDate: '', employeeId: '', subtasksInput: '' });
+      setNewTask({
+        title: '', description: '', priority: 'MEDIUM',
+        dueDate: '', dueHour: '06', dueMinute: '00', duePeriod: 'PM',
+        employeeId: '', subtasks: [''],
+      });
       fetchTasks(); fetchStats();
       showToast('success', 'Task assigned successfully!');
     } catch (err: any) { showToast('error', err.response?.data?.message || 'Failed to create task'); }
@@ -294,9 +509,25 @@ export const Tasks: React.FC = () => {
   };
 
   const getRelativeDueDate = (dueDate: string) => {
-    const diffDays = Math.ceil((new Date(dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return { label: `${Math.abs(diffDays)}d overdue`, isOverdue: true };
-    if (diffDays === 0) return { label: 'Due today', isOverdue: false };
+    const dueTime = new Date(dueDate).getTime();
+    const diffMs = dueTime - Date.now();
+    const diffHours = Math.round(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMs < 0) {
+      const absHours = Math.abs(diffHours);
+      if (absHours < 24 && absHours > 0) return { label: `${absHours}h overdue`, isOverdue: true };
+      if (absHours === 0) return { label: 'Overdue', isOverdue: true };
+      return { label: `${Math.abs(diffDays)}d overdue`, isOverdue: true };
+    }
+
+    if (diffHours < 24 && diffHours > 0) {
+      return { label: `${diffHours}h left`, isOverdue: false };
+    }
+    if (diffHours === 0) {
+      const diffMin = Math.max(1, Math.round(diffMs / (1000 * 60)));
+      return { label: `${diffMin}m left`, isOverdue: false };
+    }
     if (diffDays === 1) return { label: 'Tomorrow', isOverdue: false };
     return { label: `${diffDays}d left`, isOverdue: false };
   };
@@ -314,12 +545,109 @@ export const Tasks: React.FC = () => {
   const getStatusLabel = (s: string) => STATUS_COLUMNS.find(c => c.value === s)?.label || s;
 
   // ─── Filtering & Sorting ───
-  const filteredTasks = tasks
+  const teamEmployeeTasks = tasks.filter(t => !['OBI0001', 'OBI1117'].includes(t.employeeId));
+  const superAdminTasks = tasks.filter(t => ['OBI0001', 'OBI1117'].includes(t.employeeId));
+
+  const scopedTasks = isSuperAdmin
+    ? (taskViewTab === 'ADMIN_TASKS' ? superAdminTasks : teamEmployeeTasks)
+    : tasks;
+
+  const now = new Date();
+
+  // Unique departments for filter
+  const departments = Array.from(
+    new Set(teamEmployeeTasks.map(t => t.employee?.department).filter(Boolean))
+  ) as string[];
+
+  // Team Stats (Exclusively employee tasks, 0 superadmin tasks)
+  const teamStats = {
+    total: teamEmployeeTasks.length,
+    pending: teamEmployeeTasks.filter(t => t.status === 'PENDING').length,
+    inProgress: teamEmployeeTasks.filter(t => t.status === 'IN_PROGRESS').length,
+    review: teamEmployeeTasks.filter(t => t.status === 'REVIEW').length,
+    overdue: teamEmployeeTasks.filter(t => new Date(t.dueDate) < now && !['COMPLETED', 'REJECTED'].includes(t.status)).length,
+    completed: teamEmployeeTasks.filter(t => t.status === 'COMPLETED').length,
+  };
+
+  // Super Admin Stats (Displayed inside the Super Admin tab view)
+  const adminStats = {
+    total: superAdminTasks.length,
+    pending: superAdminTasks.filter(t => t.status === 'PENDING').length,
+    inProgress: superAdminTasks.filter(t => t.status === 'IN_PROGRESS').length,
+    review: superAdminTasks.filter(t => t.status === 'REVIEW').length,
+    overdue: superAdminTasks.filter(t => new Date(t.dueDate) < now && !['COMPLETED', 'REJECTED'].includes(t.status)).length,
+    completed: superAdminTasks.filter(t => t.status === 'COMPLETED').length,
+  };
+
+  const activeStats = taskViewTab === 'ADMIN_TASKS' ? adminStats : teamStats;
+
+  // Preset quick counts for chips
+  const presetCounts = {
+    all: scopedTasks.length,
+    today: scopedTasks.filter(t => new Date(t.dueDate).toDateString() === now.toDateString()).length,
+    overdue: scopedTasks.filter(t => new Date(t.dueDate) < now && !['COMPLETED', 'REJECTED'].includes(t.status)).length,
+    inProgress: scopedTasks.filter(t => t.status === 'IN_PROGRESS').length,
+    pending: scopedTasks.filter(t => t.status === 'PENDING').length,
+    review: scopedTasks.filter(t => t.status === 'REVIEW').length,
+    completed: scopedTasks.filter(t => t.status === 'COMPLETED').length,
+    critical: scopedTasks.filter(t => t.priority === 'CRITICAL' && !['COMPLETED', 'REJECTED'].includes(t.status)).length,
+  };
+
+  const resetAllFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('ALL');
+    setPriorityFilter('ALL');
+    setDepartmentFilter('ALL');
+    setDeadlineFilter('ALL');
+    setQuickPreset('ALL');
+  };
+
+  const hasActiveFilters = searchQuery !== '' || statusFilter !== 'ALL' || priorityFilter !== 'ALL' || departmentFilter !== 'ALL' || deadlineFilter !== 'ALL' || quickPreset !== 'ALL';
+
+  const filteredTasks = scopedTasks
     .filter(t => {
-      const matchSearch = searchQuery === '' || t.title.toLowerCase().includes(searchQuery.toLowerCase()) || t.description.toLowerCase().includes(searchQuery.toLowerCase()) || getEmployeeName(t).toLowerCase().includes(searchQuery.toLowerCase());
+      const q = searchQuery.toLowerCase().trim();
+      const matchSearch = q === '' ||
+        t.title.toLowerCase().includes(q) ||
+        t.description.toLowerCase().includes(q) ||
+        getEmployeeName(t).toLowerCase().includes(q) ||
+        (t.employee?.department && t.employee.department.toLowerCase().includes(q)) ||
+        (t.employeeId && t.employeeId.toLowerCase().includes(q));
+
+      const isOverdue = new Date(t.dueDate) < now && !['COMPLETED', 'REJECTED'].includes(t.status);
+      const isToday = new Date(t.dueDate).toDateString() === now.toDateString();
+
+      // Quick preset filter
+      let matchPreset = true;
+      if (quickPreset === 'TODAY') matchPreset = isToday;
+      else if (quickPreset === 'OVERDUE') matchPreset = isOverdue;
+      else if (quickPreset === 'CRITICAL') matchPreset = t.priority === 'CRITICAL';
+      else if (quickPreset !== 'ALL') matchPreset = t.status === quickPreset;
+
+      // Status dropdown filter
       const matchStatus = statusFilter === 'ALL' || t.status === statusFilter;
+
+      // Priority dropdown filter
       const matchPriority = priorityFilter === 'ALL' || t.priority === priorityFilter;
-      return matchSearch && matchStatus && matchPriority;
+
+      // Department filter
+      const matchDept = departmentFilter === 'ALL' || (t.employee?.department === departmentFilter);
+
+      // Deadline filter
+      let matchDeadline = true;
+      if (deadlineFilter === 'TODAY') matchDeadline = isToday;
+      else if (deadlineFilter === 'OVERDUE') matchDeadline = isOverdue;
+      else if (deadlineFilter === 'TOMORROW') {
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        matchDeadline = new Date(t.dueDate).toDateString() === tomorrow.toDateString();
+      } else if (deadlineFilter === 'THIS_WEEK') {
+        const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const dueMs = new Date(t.dueDate).getTime();
+        matchDeadline = dueMs >= now.getTime() && dueMs <= weekEnd.getTime();
+      }
+
+      return matchSearch && matchPreset && matchStatus && matchPriority && matchDept && matchDeadline;
     })
     .sort((a, b) => {
       let cmp = 0;
@@ -358,71 +686,204 @@ export const Tasks: React.FC = () => {
         <div>
           <h1 className="font-extrabold text-2xl tracking-tight text-white flex items-center gap-2">
             <Target className="text-indigo-400" size={24} />
-            Task Management
+            {isSuperAdmin && taskViewTab === 'ADMIN_TASKS' ? 'Super Admin Tasks' : 'Team Tasks Progress'}
           </h1>
-          <p className="text-xs text-brand-300 mt-1 font-medium">Track deliverables, manage workflow progress, and audit time logs</p>
+          <p className="text-xs text-brand-300 mt-1 font-medium">
+            {isSuperAdmin && taskViewTab === 'ADMIN_TASKS'
+              ? 'Personal administrative tasks & reminders (Separate from employee metrics & progress tracking)'
+              : 'Track employee deliverables, manage workflow progress, and audit time logs'}
+          </p>
         </div>
-        {user?.role && (
-          <button
-            onClick={() => {
-              setNewTask(prev => ({
-                ...prev,
-                employeeId: isPrivileged ? '' : (user.employeeId || '')
-              }));
-              setShowAddModal(true);
-            }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 shrink-0"
-          >
-            <Plus size={16} />
-            <span>Create Task</span>
-          </button>
-        )}
+        <div className="flex items-center gap-3 flex-wrap">
+          {isSuperAdmin && (
+            <div className="flex bg-brand-800/80 p-1 rounded-xl border border-brand-700">
+              <button
+                onClick={() => setTaskViewTab('TEAM_PROGRESS')}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  taskViewTab === 'TEAM_PROGRESS'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-brand-300 hover:text-white'
+                }`}
+              >
+                Team Progress ({teamEmployeeTasks.length})
+              </button>
+              <button
+                onClick={() => setTaskViewTab('ADMIN_TASKS')}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  taskViewTab === 'ADMIN_TASKS'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-brand-300 hover:text-white'
+                }`}
+              >
+                Super Admin Tasks ({superAdminTasks.length})
+              </button>
+            </div>
+          )}
+          {user?.role && (
+            <button
+              onClick={() => {
+                setNewTask(prev => ({
+                  ...prev,
+                  employeeId: isSuperAdmin && taskViewTab === 'ADMIN_TASKS' ? (user.employeeId || '') : (isPrivileged ? '' : (user.employeeId || ''))
+                }));
+                setShowAddModal(true);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 shrink-0"
+            >
+              <Plus size={16} />
+              <span>{isSuperAdmin && taskViewTab === 'ADMIN_TASKS' ? 'New Admin Task' : 'Create Task'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* ─── Compact Stats Row ─── */}
-      {stats && (
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
-          {[
-            { label: 'Total', value: stats.total, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-100 dark:border-indigo-900/40', icon: <LayoutList size={13} /> },
-            { label: 'Pending', value: stats.pending, color: 'text-brand-600 dark:text-brand-400', bg: 'bg-brand-50 dark:bg-brand-900/40 border-brand-200 dark:border-brand-800/40', icon: <Clock size={13} /> },
-            { label: 'In Progress', value: stats.inProgress, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40 border-amber-100 dark:border-amber-900/40', icon: <Zap size={13} /> },
-            { label: 'Review', value: stats.review, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/40 border-violet-100 dark:border-violet-900/40', icon: <Eye size={13} /> },
-            { label: 'Overdue', value: stats.overdue, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/40', icon: <AlertTriangle size={13} /> },
-            { label: 'Completed', value: stats.completed, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900/40', icon: <TrendingUp size={13} /> },
-          ].map((s, i) => (
-            <div key={s.label} className={`${s.bg} border rounded-xl px-3 py-2.5 animate-fade-in-up flex items-center gap-2.5`} style={{ animationDelay: `${i * 0.05}s` }}>
-              <span className={`${s.color} opacity-50`}>{s.icon}</span>
-              <div className="min-w-0">
+      {/* ─── Compact Stats Row (Interactive Click to Filter) ─── */}
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
+        {[
+          { key: 'ALL', label: 'Total', value: activeStats.total, color: taskViewTab === 'ADMIN_TASKS' ? 'text-purple-600 dark:text-purple-400' : 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-100 dark:border-indigo-900/40', icon: <LayoutList size={13} /> },
+          { key: 'PENDING', label: 'Pending', value: activeStats.pending, color: 'text-brand-600 dark:text-brand-400', bg: 'bg-brand-50 dark:bg-brand-900/40 border-brand-200 dark:border-brand-800/40', icon: <Clock size={13} /> },
+          { key: 'IN_PROGRESS', label: 'In Progress', value: activeStats.inProgress, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40 border-amber-100 dark:border-amber-900/40', icon: <Zap size={13} /> },
+          { key: 'REVIEW', label: 'Review', value: activeStats.review, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/40 border-violet-100 dark:border-violet-900/40', icon: <Eye size={13} /> },
+          { key: 'OVERDUE', label: 'Overdue', value: activeStats.overdue, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/40', icon: <AlertTriangle size={13} /> },
+          { key: 'COMPLETED', label: 'Completed', value: activeStats.completed, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900/40', icon: <TrendingUp size={13} /> },
+        ].map((s, i) => {
+          const isSelected = quickPreset === s.key;
+          return (
+            <div
+              key={s.label}
+              onClick={() => setQuickPreset(prev => prev === s.key ? 'ALL' : s.key)}
+              className={`${s.bg} border rounded-2xl px-3.5 py-3 animate-fade-in-up flex items-center gap-3 cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
+                isSelected ? 'ring-2 ring-indigo-500 shadow-md' : 'hover:shadow-sm'
+              }`}
+              style={{ animationDelay: `${i * 0.04}s` }}
+              title={`Click to filter by ${s.label}`}
+            >
+              <span className={`${s.color} opacity-70 shrink-0`}>{s.icon}</span>
+              <div className="min-w-0 flex-1">
                 <p className="text-[9px] font-bold text-brand-400 uppercase tracking-wider truncate">{s.label}</p>
-                <p className={`text-lg font-extrabold leading-tight ${s.color}`}>{s.value}</p>
+                <p className={`text-lg font-black leading-tight ${s.color}`}>{s.value}</p>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
-      {/* ─── Search & Filters ─── */}
-      <div className="glass rounded-2xl border border-brand-200 dark:border-brand-800 p-3 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-        <div className="relative flex-1 max-w-sm">
+      {/* ─── Quick Filter Chips (Pills) ─── */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        {[
+          { key: 'ALL', label: 'All Tasks', count: presetCounts.all, icon: <Sparkles size={11} /> },
+          { key: 'TODAY', label: 'Due Today', count: presetCounts.today, icon: <Flame size={11} className="text-amber-500" /> },
+          { key: 'OVERDUE', label: 'Overdue', count: presetCounts.overdue, icon: <AlertTriangle size={11} className="text-rose-500" /> },
+          { key: 'IN_PROGRESS', label: 'In Progress', count: presetCounts.inProgress, icon: <Zap size={11} className="text-amber-500" /> },
+          { key: 'PENDING', label: 'Pending', count: presetCounts.pending, icon: <Clock size={11} className="text-brand-400" /> },
+          { key: 'REVIEW', label: 'Review', count: presetCounts.review, icon: <Eye size={11} className="text-violet-500" /> },
+          { key: 'COMPLETED', label: 'Completed', count: presetCounts.completed, icon: <CheckSquare size={11} className="text-emerald-500" /> },
+          { key: 'CRITICAL', label: 'Critical', count: presetCounts.critical, icon: <AlertCircle size={11} className="text-rose-500" /> },
+        ].map((chip) => {
+          const isActive = quickPreset === chip.key;
+          return (
+            <button
+              key={chip.key}
+              onClick={() => setQuickPreset(chip.key)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                isActive
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                  : 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-800 border border-brand-200 dark:border-brand-800/60'
+              }`}
+            >
+              {chip.icon}
+              <span>{chip.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold ${
+                isActive ? 'bg-white/20 text-white' : 'bg-brand-200/60 dark:bg-brand-800 text-brand-500 dark:text-brand-400'
+              }`}>
+                {chip.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ─── Search & Advanced Dropdown Filters ─── */}
+      <div className="glass rounded-2xl border border-brand-200 dark:border-brand-800 p-3.5 flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[220px]">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-400" />
-          <input type="text" placeholder="Search tasks, employees..."
-            value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl text-xs font-semibold text-brand-950 dark:text-white placeholder:text-brand-400 outline-none focus:border-indigo-500 transition-all" />
+          <input
+            type="text"
+            placeholder="Search by title, assignee, department, or description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-8 pr-8 py-2 bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl text-xs font-semibold text-brand-950 dark:text-white placeholder:text-brand-400 outline-none focus:border-indigo-500 transition-all"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-brand-400 hover:text-brand-600">
+              <X size={12} />
+            </button>
+          )}
         </div>
 
+        {/* Filters Group */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[9px] font-bold text-brand-400 uppercase">Status:</span>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-            className="bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-lg px-2.5 py-1.5 text-[10px] font-bold text-brand-800 dark:text-brand-200 outline-none focus:border-indigo-500">
-            {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s === 'ALL' ? 'All Status' : getStatusLabel(s)}</option>)}
-          </select>
-          <span className="text-[9px] font-bold text-brand-400 uppercase ml-1">Priority:</span>
-          <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)}
-            className="bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-lg px-2.5 py-1.5 text-[10px] font-bold text-brand-800 dark:text-brand-200 outline-none focus:border-indigo-500">
-            {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p === 'ALL' ? 'All Priority' : p}</option>)}
-          </select>
-          <span className="text-[10px] font-bold text-brand-400 ml-auto sm:ml-2">
-            Showing <span className="text-indigo-600 font-extrabold">{filteredTasks.length}</span> of <span className="font-extrabold text-brand-700 dark:text-brand-300">{tasks.length}</span>
+          {/* Department Filter (Only for Team Progress tab) */}
+          {taskViewTab === 'TEAM_PROGRESS' && departments.length > 0 && (
+            <div className="flex items-center gap-1 bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl px-2.5 py-1.5">
+              <Building2 size={11} className="text-brand-400 shrink-0" />
+              <select
+                value={departmentFilter}
+                onChange={e => setDepartmentFilter(e.target.value)}
+                className="bg-transparent text-[11px] font-bold text-brand-800 dark:text-brand-200 outline-none cursor-pointer"
+              >
+                <option value="ALL" className="dark:bg-brand-900">All Depts</option>
+                {departments.map(d => (
+                  <option key={d} value={d} className="dark:bg-brand-900">{d}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Priority Filter */}
+          <div className="flex items-center gap-1 bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl px-2.5 py-1.5">
+            <span className="text-[9px] font-bold text-brand-400 uppercase">Priority:</span>
+            <select
+              value={priorityFilter}
+              onChange={e => setPriorityFilter(e.target.value)}
+              className="bg-transparent text-[11px] font-bold text-brand-800 dark:text-brand-200 outline-none cursor-pointer"
+            >
+              {PRIORITY_OPTIONS.map(p => (
+                <option key={p} value={p} className="dark:bg-brand-900">{p === 'ALL' ? 'All Priority' : p}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Deadline Preset */}
+          <div className="flex items-center gap-1 bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl px-2.5 py-1.5">
+            <Calendar size={11} className="text-brand-400 shrink-0" />
+            <select
+              value={deadlineFilter}
+              onChange={e => setDeadlineFilter(e.target.value)}
+              className="bg-transparent text-[11px] font-bold text-brand-800 dark:text-brand-200 outline-none cursor-pointer"
+            >
+              <option value="ALL" className="dark:bg-brand-900">All Deadlines</option>
+              <option value="TODAY" className="dark:bg-brand-900">📅 Due Today</option>
+              <option value="TOMORROW" className="dark:bg-brand-900">⏰ Tomorrow</option>
+              <option value="THIS_WEEK" className="dark:bg-brand-900">📆 Next 7 Days</option>
+              <option value="OVERDUE" className="dark:bg-brand-900">⚠️ Overdue</option>
+            </select>
+          </div>
+
+          {/* Reset Filters */}
+          {hasActiveFilters && (
+            <button
+              onClick={resetAllFilters}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 transition-all shadow-sm"
+              title="Reset all filters"
+            >
+              <RotateCcw size={11} /> Reset
+            </button>
+          )}
+
+          <span className="text-[10px] font-bold text-brand-400 ml-auto pl-2">
+            Showing <span className="text-indigo-600 font-extrabold">{filteredTasks.length}</span> of <span className="font-extrabold text-brand-700 dark:text-brand-300">{scopedTasks.length}</span>
           </span>
         </div>
       </div>
@@ -440,13 +901,13 @@ export const Tasks: React.FC = () => {
                 <tr className="border-b border-brand-200 dark:border-brand-800 bg-brand-50/60 dark:bg-brand-900/40">
                   {[
                     { label: 'Task', field: 'title' as SortField, width: 'min-w-[260px]' },
-                    { label: 'Assignee', field: null, width: 'min-w-[140px]' },
+                    ...(taskViewTab === 'TEAM_PROGRESS' ? [{ label: 'Assignee', field: null, width: 'min-w-[140px]' }] : []),
                     { label: 'Priority', field: 'priority' as SortField, width: 'min-w-[90px]' },
                     { label: 'Status', field: 'status' as SortField, width: 'min-w-[110px]' },
-                    { label: 'Progress', field: 'progress' as SortField, width: 'min-w-[120px]' },
+                    ...(taskViewTab === 'TEAM_PROGRESS' ? [{ label: 'Progress', field: 'progress' as SortField, width: 'min-w-[120px]' }] : []),
                     { label: 'Due Date', field: 'dueDate' as SortField, width: 'min-w-[110px]' },
                     { label: 'Time', field: null, width: 'min-w-[60px]' },
-                    ...(isAdmin ? [{ label: 'Actions', field: null, width: 'w-20 text-right' }] : []),
+                    { label: 'Actions', field: null, width: 'w-24 text-right' },
                   ].map(col => (
                     <th key={col.label}
                       className={`px-4 py-3 text-[9px] font-extrabold text-brand-500 uppercase tracking-wider ${col.width} ${col.field ? 'cursor-pointer hover:text-indigo-600 select-none' : ''}`}
@@ -462,19 +923,24 @@ export const Tasks: React.FC = () => {
               <tbody>
                 {filteredTasks.length === 0 ? (
                   <tr>
-                    <td colSpan={isAdmin ? 8 : 7} className="text-center py-16">
+                    <td colSpan={taskViewTab === 'TEAM_PROGRESS' ? 8 : 7} className="text-center py-16">
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-10 h-10 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center">
                           <CheckSquare size={18} className="text-brand-400" />
                         </div>
-                        <p className="text-xs font-bold text-brand-400">No tasks match your filters</p>
+                        <p className="text-xs font-bold text-brand-400">
+                          {isSuperAdmin && taskViewTab === 'ADMIN_TASKS'
+                            ? 'No Super Admin tasks found. Click "New Admin Task" to add your administrative notes.'
+                            : 'No tasks match your filters'}
+                        </p>
                       </div>
                     </td>
                   </tr>
                 ) : (
                   filteredTasks.map((task, idx) => {
+                    const isSuperAdminTask = ['OBI0001', 'OBI1117'].includes(task.employeeId);
                     const dueInfo = getRelativeDueDate(task.dueDate);
-                    const isOverdue = dueInfo.isOverdue && !['COMPLETED', 'REJECTED'].includes(task.status);
+                    const isOverdue = !isSuperAdminTask && dueInfo.isOverdue && !['COMPLETED', 'REJECTED'].includes(task.status);
                     const priorityConfig = getPriorityConfig(task.priority);
                     const statusConfig = getStatusConfig(task.status);
 
@@ -497,18 +963,22 @@ export const Tasks: React.FC = () => {
                           </div>
                         </td>
 
-                        {/* Assignee */}
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <AvatarInitials name={getEmployeeName(task)} size="w-6 h-6" />
-                            <div className="min-w-0">
-                              <p className="text-[11px] font-bold text-brand-800 dark:text-brand-200 truncate">{getEmployeeName(task)}</p>
-                              {task.employee?.department && (
-                                <p className="text-[9px] text-brand-400 font-medium truncate">{task.employee.department}</p>
-                              )}
+                        {/* Assignee (Only for Team Progress view) */}
+                        {taskViewTab === 'TEAM_PROGRESS' && (
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <AvatarInitials name={getEmployeeName(task)} size="w-6 h-6" />
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-bold text-brand-800 dark:text-brand-200 truncate flex items-center gap-1.5">
+                                  {getEmployeeName(task)}
+                                </p>
+                                {task.employee?.department && (
+                                  <p className="text-[9px] text-brand-400 font-medium truncate">{task.employee.department}</p>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </td>
+                          </td>
+                        )}
 
                         {/* Priority */}
                         <td className="px-4 py-3.5">
@@ -526,30 +996,35 @@ export const Tasks: React.FC = () => {
                           </span>
                         </td>
 
-                        {/* Progress Bar */}
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-brand-100 dark:bg-brand-800 rounded-full overflow-hidden max-w-[70px]">
-                              <div className={`h-full rounded-full transition-all duration-500 ${
-                                task.progress >= 100 ? 'bg-emerald-500' : task.progress >= 60 ? 'bg-indigo-500' : 'bg-brand-400'
-                              }`} style={{ width: `${task.progress}%` }} />
+                        {/* Progress Bar (Only for Team Progress view) */}
+                        {taskViewTab === 'TEAM_PROGRESS' && (
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-1.5 bg-brand-100 dark:bg-brand-800 rounded-full overflow-hidden max-w-[70px]">
+                                <div className={`h-full rounded-full transition-all duration-500 ${
+                                  task.progress >= 100 ? 'bg-emerald-500' : task.progress >= 60 ? 'bg-indigo-500' : 'bg-brand-400'
+                                }`} style={{ width: `${task.progress}%` }} />
+                              </div>
+                              <span className="text-[10px] font-extrabold text-brand-600 dark:text-brand-400 w-8">{task.progress}%</span>
                             </div>
-                            <span className="text-[10px] font-extrabold text-brand-600 dark:text-brand-400 w-8">{task.progress}%</span>
-                          </div>
-                          {task.subtasks.length > 0 && (
-                            <p className="text-[8px] text-brand-400 font-bold mt-0.5">
-                              {task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length} subtasks
-                            </p>
-                          )}
-                        </td>
+                            {task.subtasks.length > 0 && (
+                              <p className="text-[8px] text-brand-400 font-bold mt-0.5">
+                                {task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length} subtasks
+                              </p>
+                            )}
+                          </td>
+                        )}
 
-                        {/* Due Date */}
+                        {/* Due Date & Time */}
                         <td className="px-4 py-3.5">
                           <div>
-                            <p className="text-[10px] font-bold text-brand-700 dark:text-brand-300">
-                              {new Date(task.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                            <p className="text-[10px] font-bold text-brand-700 dark:text-brand-300 flex items-center gap-1">
+                              <span>{new Date(task.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                              <span className="text-[9px] font-semibold text-brand-400">
+                                {new Date(task.dueDate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                              </span>
                             </p>
-                            <p className={`text-[9px] font-bold mt-0.5 ${isOverdue ? 'text-rose-500' : 'text-brand-400'}`}>
+                            <p className={`text-[9px] font-bold mt-0.5 ${dueInfo.isOverdue && !['COMPLETED', 'REJECTED'].includes(task.status) ? 'text-rose-500' : 'text-brand-400'}`}>
                               {dueInfo.label}
                             </p>
                           </div>
@@ -567,29 +1042,44 @@ export const Tasks: React.FC = () => {
                           </div>
                         </td>
 
-                        {/* Direct Delete for Admin/HR */}
-                        {isAdmin && (
-                          <td className="px-4 py-3.5 text-right">
+                        {/* Actions (Edit for ongoing/progress/overdue/pending + Delete for Admin/HR) */}
+                        <td className="px-4 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {/* Edit Button */}
                             <button
-                              onClick={async (e) => {
+                              onClick={(e) => {
                                 e.stopPropagation();
-                                if (await confirm({ title: 'Delete Task', message: `Are you sure you want to delete task "${task.title}"?`, variant: 'danger', confirmText: 'Delete' })) {
-                                  try {
-                                    await api.delete(`/tasks/${task.id}`);
-                                    fetchTasks(); fetchStats();
-                                    showToast('success', 'Task deleted successfully!');
-                                  } catch (err: any) {
-                                    showToast('error', err.response?.data?.message || 'Failed to delete task');
-                                  }
-                                }
+                                openEditModal(task);
                               }}
-                              title="Delete Task"
-                              className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 hover:text-rose-600 transition-colors inline-flex items-center justify-center"
+                              title="Edit Task Details"
+                              className="p-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-indigo-600 hover:text-indigo-700 transition-colors inline-flex items-center justify-center"
                             >
-                              <Trash2 size={13} />
+                              <Edit2 size={13} />
                             </button>
-                          </td>
-                        )}
+
+                            {/* Direct Delete for Admin/HR */}
+                            {isAdmin && (
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (await confirm({ title: 'Delete Task', message: `Are you sure you want to delete task "${task.title}"?`, variant: 'danger', confirmText: 'Delete' })) {
+                                    try {
+                                      await api.delete(`/tasks/${task.id}`);
+                                      fetchTasks(); fetchStats();
+                                      showToast('success', 'Task deleted successfully!');
+                                    } catch (err: any) {
+                                      showToast('error', err.response?.data?.message || 'Failed to delete task');
+                                    }
+                                  }
+                                }}
+                                title="Delete Task"
+                                className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 hover:text-rose-600 transition-colors inline-flex items-center justify-center"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })
@@ -623,9 +1113,21 @@ export const Tasks: React.FC = () => {
                   </div>
                   <h3 className="font-extrabold text-base md:text-lg text-brand-950 dark:text-white leading-snug">{selectedTask.title}</h3>
                 </div>
-                <button onClick={() => setSelectedTask(null)} className="p-2 rounded-xl hover:bg-brand-100 dark:hover:bg-brand-900 transition-colors shrink-0">
-                  <X size={18} className="text-brand-500" />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      const t = selectedTask;
+                      openEditModal(t);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 text-xs font-bold transition-all shadow-sm"
+                  >
+                    <Edit2 size={13} />
+                    <span>Edit Task</span>
+                  </button>
+                  <button onClick={() => setSelectedTask(null)} className="p-2 rounded-xl hover:bg-brand-100 dark:hover:bg-brand-900 transition-colors">
+                    <X size={18} className="text-brand-500" />
+                  </button>
+                </div>
               </div>
 
               {/* People info */}
@@ -663,10 +1165,12 @@ export const Tasks: React.FC = () => {
                   {/* Quick Stats Row */}
                   <div className="grid grid-cols-3 gap-2">
                     <div className="bg-brand-50 dark:bg-brand-900/40 rounded-xl p-2.5 text-center border border-brand-100 dark:border-brand-800/40">
-                      <p className="text-[8px] font-bold text-brand-400 uppercase">Due Date</p>
+                      <p className="text-[8px] font-bold text-brand-400 uppercase">Deadline</p>
                       <p className={`text-[11px] font-extrabold mt-0.5 ${
                         getRelativeDueDate(selectedTask.dueDate).isOverdue && !['COMPLETED','REJECTED'].includes(selectedTask.status) ? 'text-rose-600' : 'text-brand-950 dark:text-white'
-                      }`}>{new Date(selectedTask.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                      }`}>
+                        {new Date(selectedTask.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} • {new Date(selectedTask.dueDate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                      </p>
                     </div>
                     <div className="bg-brand-50 dark:bg-brand-900/40 rounded-xl p-2.5 text-center border border-brand-100 dark:border-brand-800/40">
                       <p className="text-[8px] font-bold text-brand-400 uppercase">Time Logged</p>
@@ -806,20 +1310,20 @@ export const Tasks: React.FC = () => {
       {/* ─── CREATE TASK MODAL ─── */}
       {/* ═══════════════════════════════════════ */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-brand-950/50 backdrop-blur-sm flex items-center justify-center p-4 md:p-6"
+        <div className="fixed inset-0 z-50 bg-brand-950/60 backdrop-blur-md flex items-center justify-center p-4 md:p-6"
           onClick={(e) => { if (e.target === e.currentTarget) setShowAddModal(false); }}>
-          <div className="w-full max-w-md animate-slide-in-scale glass rounded-3xl border border-brand-200 dark:border-brand-800 shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-brand-200 dark:border-brand-800 flex justify-between items-center">
+          <div className="w-full max-w-2xl md:max-w-3xl animate-slide-in-scale glass rounded-3xl border border-brand-200 dark:border-brand-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-brand-200 dark:border-brand-800 flex justify-between items-center bg-brand-50/50 dark:bg-brand-900/30">
               <div>
-                <h3 className="font-extrabold text-sm text-brand-950 dark:text-white flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center"><Plus size={12} className="text-white" /></div>
+                <h3 className="font-extrabold text-base text-brand-950 dark:text-white flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-md shadow-indigo-500/20"><Plus size={14} className="text-white" /></div>
                   Create New Task
                 </h3>
-                <p className="text-[10px] text-brand-500 font-medium mt-1">Assign a deliverable to a team member</p>
+                <p className="text-xs text-brand-500 font-medium mt-1">Assign deliverables, define timeline checkpoints, and structure subtasks</p>
               </div>
               <button onClick={() => setShowAddModal(false)} className="p-2 rounded-xl hover:bg-brand-100 dark:hover:bg-brand-900 transition-colors"><X size={18} className="text-brand-500" /></button>
             </div>
-            <form onSubmit={handleCreateTask} className="p-5 space-y-4 text-left text-xs font-semibold max-h-[65vh] overflow-y-auto">
+            <form onSubmit={handleCreateTask} className="p-6 space-y-5 text-left text-xs font-semibold overflow-y-auto flex-1">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Task Title *</label>
                 <input type="text" required placeholder="e.g. Build user authentication module"
@@ -832,18 +1336,50 @@ export const Tasks: React.FC = () => {
                   value={newTask.description} onChange={e => setNewTask({ ...newTask, description: e.target.value })}
                   className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white resize-none transition-all" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Priority</label>
                   <select value={newTask.priority} onChange={e => setNewTask({ ...newTask, priority: e.target.value as Task['priority'] })}
-                    className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all">
+                    className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all text-xs">
                     <option value="LOW">🟢 Low</option><option value="MEDIUM">🟡 Medium</option><option value="HIGH">🟠 High</option><option value="CRITICAL">🔴 Critical</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Due Date *</label>
+                  <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1 flex items-center gap-1"><Calendar size={10} /> Due Date *</label>
                   <input type="date" required value={newTask.dueDate} onChange={e => setNewTask({ ...newTask, dueDate: e.target.value })}
-                    className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all" />
+                    className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1 flex items-center gap-1"><Clock size={10} /> End Time (12h) *</label>
+                  <div className="flex items-center gap-1 bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl p-1">
+                    <select
+                      value={newTask.dueHour}
+                      onChange={e => setNewTask({ ...newTask, dueHour: e.target.value })}
+                      className="bg-transparent text-xs font-bold text-brand-950 dark:text-white outline-none cursor-pointer px-1 py-1.5"
+                    >
+                      {['01','02','03','04','05','06','07','08','09','10','11','12'].map(h => (
+                        <option key={h} value={h} className="dark:bg-brand-900">{h}</option>
+                      ))}
+                    </select>
+                    <span className="text-brand-400 font-bold text-xs">:</span>
+                    <select
+                      value={newTask.dueMinute}
+                      onChange={e => setNewTask({ ...newTask, dueMinute: e.target.value })}
+                      className="bg-transparent text-xs font-bold text-brand-950 dark:text-white outline-none cursor-pointer px-1 py-1.5"
+                    >
+                      {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => (
+                        <option key={m} value={m} className="dark:bg-brand-900">{m}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={newTask.duePeriod}
+                      onChange={e => setNewTask({ ...newTask, duePeriod: e.target.value as 'AM' | 'PM' })}
+                      className="bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 rounded-lg px-2 py-1 text-xs font-extrabold outline-none cursor-pointer ml-auto border border-indigo-200 dark:border-indigo-800"
+                    >
+                      <option value="AM" className="dark:bg-brand-900">AM</option>
+                      <option value="PM" className="dark:bg-brand-900">PM</option>
+                    </select>
+                  </div>
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -852,7 +1388,12 @@ export const Tasks: React.FC = () => {
                   className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all disabled:opacity-75">
                   {isPrivileged ? (
                     <>
-                      <option value="">— Select Employee —</option>
+                      <option value="">— Select Assignee —</option>
+                      {user?.role === 'SUPER_ADMIN' && user?.employeeId && (
+                        <option value={user.employeeId} className="font-bold text-indigo-600">
+                          ★ Assign to Myself ({user.firstName || 'Super Admin'} {user.lastName || ''} - {user.employeeId})
+                        </option>
+                      )}
                       {employees.map(emp => (
                         <option key={emp.employeeId} value={emp.employeeId}>{emp.firstName} {emp.lastName} ({emp.employeeId}) — {emp.designation}</option>
                       ))}
@@ -864,11 +1405,50 @@ export const Tasks: React.FC = () => {
                   )}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1 flex items-center gap-1"><ListChecks size={10} /> Subtasks (one per line)</label>
-                <textarea rows={3} placeholder={"Research requirements\nDesign wireframes\nImplement core logic"}
-                  value={newTask.subtasksInput} onChange={e => setNewTask({ ...newTask, subtasksInput: e.target.value })}
-                  className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white resize-none transition-all font-mono text-[10px]" />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between pl-1">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider flex items-center gap-1">
+                    <ListChecks size={10} /> Subtasks Checklist
+                  </label>
+                  <span className="text-[9px] text-brand-400 font-medium">Press <kbd className="px-1.5 py-0.5 rounded bg-brand-200 dark:bg-brand-800 text-[8px] font-bold text-brand-700 dark:text-brand-300">Enter ↵</kbd> for next box</span>
+                </div>
+
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {newTask.subtasks.map((st, idx) => (
+                    <div key={idx} className="flex items-center gap-2 p-1.5 bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl focus-within:border-indigo-500 transition-all">
+                      <span className="w-5 h-5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-[9px] font-extrabold flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-900/50">
+                        {idx + 1}
+                      </span>
+                      <input
+                        id={`subtask-input-${idx}`}
+                        type="text"
+                        placeholder={`Subtask ${idx + 1} item...`}
+                        value={st}
+                        onChange={e => handleSubtaskChange(idx, e.target.value)}
+                        onKeyDown={e => handleSubtaskKeyDown(idx, e)}
+                        className="flex-1 bg-transparent text-xs text-brand-950 dark:text-white placeholder:text-brand-400 outline-none font-medium"
+                      />
+                      {newTask.subtasks.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeSubtaskField(idx)}
+                          className="p-1 rounded-lg text-brand-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                          title="Remove subtask"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addSubtaskField}
+                  className="w-full py-2 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl text-[10px] font-bold border border-dashed border-indigo-200 dark:border-indigo-800/60 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Plus size={12} /> Add Another Subtask Box
+                </button>
               </div>
               <div className="pt-3 border-t border-brand-200 dark:border-brand-800 flex justify-end gap-2.5">
                 <button type="button" onClick={() => setShowAddModal(false)}
@@ -876,6 +1456,309 @@ export const Tasks: React.FC = () => {
                 <button type="submit"
                   className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl px-6 py-2.5 font-bold text-[10px] uppercase shadow-md transition-all flex items-center gap-1.5">
                   <Send size={12} /> Assign Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* ═══════════════════════════════════════ */}
+      {/* ─── EDIT TASK MODAL ─── */}
+      {/* ═══════════════════════════════════════ */}
+      {showEditModal && editTask && (
+        <div className="fixed inset-0 z-50 bg-brand-950/60 backdrop-blur-md flex items-center justify-center p-4 md:p-6"
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowEditModal(false); setEditTask(null); } }}>
+          <div className="w-full max-w-2xl md:max-w-3xl animate-slide-in-scale glass rounded-3xl border border-brand-200 dark:border-brand-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Header */}
+            <div className="p-6 border-b border-brand-200 dark:border-brand-800 flex justify-between items-center bg-brand-50/50 dark:bg-brand-900/30">
+              <div>
+                <h3 className="font-extrabold text-base text-brand-950 dark:text-white flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-md shadow-indigo-500/20">
+                    <Edit2 size={14} className="text-white" />
+                  </div>
+                  <span>Edit Task Deliverable</span>
+                </h3>
+                <p className="text-xs text-brand-500 font-medium mt-1">Modify task scope, status, progress, deadline, and checklist items</p>
+              </div>
+              <button onClick={() => { setShowEditModal(false); setEditTask(null); }} className="p-2 rounded-xl hover:bg-brand-100 dark:hover:bg-brand-900 transition-colors">
+                <X size={18} className="text-brand-500" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveEditTask} className="p-6 space-y-5 text-left text-xs font-semibold overflow-y-auto flex-1">
+              {/* Title */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Task Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Task title..."
+                  value={editTask.title}
+                  onChange={e => setEditTask({ ...editTask, title: e.target.value })}
+                  className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all"
+                />
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Description</label>
+                <textarea
+                  rows={3}
+                  placeholder="Describe scope, objectives and deliverables..."
+                  value={editTask.description}
+                  onChange={e => setEditTask({ ...editTask, description: e.target.value })}
+                  className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white resize-none transition-all"
+                />
+              </div>
+
+              {/* 3-Column Attributes Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Priority */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Priority</label>
+                  <select
+                    value={editTask.priority}
+                    onChange={e => setEditTask({ ...editTask, priority: e.target.value as Task['priority'] })}
+                    className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all text-xs"
+                  >
+                    <option value="LOW">🟢 Low</option>
+                    <option value="MEDIUM">🟡 Medium</option>
+                    <option value="HIGH">🟠 High</option>
+                    <option value="CRITICAL">🔴 Critical</option>
+                  </select>
+                </div>
+
+                {/* Status */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Status</label>
+                  <select
+                    value={editTask.status}
+                    onChange={e => {
+                      const newStat = e.target.value as Task['status'];
+                      const newProg = newStat === 'COMPLETED' ? 100 : editTask.progress;
+                      setEditTask({ ...editTask, status: newStat, progress: newProg });
+                    }}
+                    className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all text-xs"
+                  >
+                    <option value="PENDING">⏳ Pending / Not Started</option>
+                    <option value="IN_PROGRESS">⚡ In Progress / Ongoing</option>
+                    <option value="REVIEW">🔍 In Review</option>
+                    <option value="OVERDUE">⚠️ Overdue</option>
+                    <option value="COMPLETED">✅ Completed</option>
+                  </select>
+                </div>
+
+                {/* Expected Hours */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1 flex items-center gap-1">
+                    <Timer size={10} /> Expected Hours
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    placeholder="e.g. 8"
+                    value={editTask.expectedHours || ''}
+                    onChange={e => setEditTask({ ...editTask, expectedHours: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Progress Slider */}
+              <div className="space-y-2 bg-brand-50 dark:bg-brand-900/40 p-3.5 rounded-2xl border border-brand-200 dark:border-brand-800/60">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider flex items-center gap-1">
+                    <Sliders size={11} /> Task Completion Progress
+                  </label>
+                  <span className={`text-xs font-extrabold px-2 py-0.5 rounded-md ${
+                    editTask.progress >= 100 ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600' : 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600'
+                  }`}>
+                    {editTask.progress}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={editTask.progress}
+                  onChange={e => {
+                    const val = parseInt(e.target.value, 10);
+                    const newStat = val >= 100 ? 'COMPLETED' : (val > 0 && editTask.status === 'PENDING' ? 'IN_PROGRESS' : editTask.status);
+                    setEditTask({ ...editTask, progress: val, status: newStat });
+                  }}
+                  className="w-full h-2 bg-brand-200 dark:bg-brand-700 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                />
+              </div>
+
+              {/* Deadline (Due Date & Time) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1 flex items-center gap-1">
+                    <Calendar size={10} /> Due Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editTask.dueDate}
+                    onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })}
+                    className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1 flex items-center gap-1">
+                    <Clock size={10} /> Due Time (12h) *
+                  </label>
+                  <div className="flex items-center gap-1 bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl p-1">
+                    <select
+                      value={editTask.dueHour}
+                      onChange={e => setEditTask({ ...editTask, dueHour: e.target.value })}
+                      className="bg-transparent text-xs font-bold text-brand-950 dark:text-white outline-none cursor-pointer px-1 py-1.5"
+                    >
+                      {['01','02','03','04','05','06','07','08','09','10','11','12'].map(h => (
+                        <option key={h} value={h} className="dark:bg-brand-900">{h}</option>
+                      ))}
+                    </select>
+                    <span className="text-brand-400 font-bold text-xs">:</span>
+                    <select
+                      value={editTask.dueMinute}
+                      onChange={e => setEditTask({ ...editTask, dueMinute: e.target.value })}
+                      className="bg-transparent text-xs font-bold text-brand-950 dark:text-white outline-none cursor-pointer px-1 py-1.5"
+                    >
+                      {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => (
+                        <option key={m} value={m} className="dark:bg-brand-900">{m}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={editTask.duePeriod}
+                      onChange={e => setEditTask({ ...editTask, duePeriod: e.target.value as 'AM' | 'PM' })}
+                      className="bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 rounded-lg px-2 py-1 text-xs font-extrabold outline-none cursor-pointer ml-auto border border-indigo-200 dark:border-indigo-800"
+                    >
+                      <option value="AM" className="dark:bg-brand-900">AM</option>
+                      <option value="PM" className="dark:bg-brand-900">PM</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Assignee (Editable for Privileged roles) */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1 flex items-center gap-1">
+                  <User size={10} /> Assignee
+                </label>
+                <select
+                  required
+                  value={editTask.employeeId}
+                  disabled={!isPrivileged}
+                  onChange={e => setEditTask({ ...editTask, employeeId: e.target.value })}
+                  className="w-full bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl py-2.5 px-3 outline-none focus:border-indigo-500 text-brand-950 dark:text-white transition-all disabled:opacity-75"
+                >
+                  {isPrivileged ? (
+                    <>
+                      <option value="">— Select Assignee —</option>
+                      {user?.role === 'SUPER_ADMIN' && user?.employeeId && (
+                        <option value={user.employeeId} className="font-bold text-indigo-600">
+                          ★ Assign to Myself ({user.firstName || 'Super Admin'} {user.lastName || ''} - {user.employeeId})
+                        </option>
+                      )}
+                      {employees.map(emp => (
+                        <option key={emp.employeeId} value={emp.employeeId}>
+                          {emp.firstName} {emp.lastName} ({emp.employeeId}) — {emp.designation} {emp.department ? `[${emp.department}]` : ''}
+                        </option>
+                      ))}
+                    </>
+                  ) : (
+                    <option value={editTask.employeeId}>
+                      {editTask.employeeId}
+                    </option>
+                  )}
+                </select>
+              </div>
+
+              {/* Subtasks Checklist */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between pl-1">
+                  <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider flex items-center gap-1">
+                    <ListChecks size={10} /> Subtasks Checklist
+                  </label>
+                  <span className="text-[9px] text-brand-400 font-medium">
+                    Press <kbd className="px-1.5 py-0.5 rounded bg-brand-200 dark:bg-brand-800 text-[8px] font-bold text-brand-700 dark:text-brand-300">Enter ↵</kbd> for next box
+                  </span>
+                </div>
+
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {editTask.subtasks.map((st, idx) => (
+                    <div key={idx} className="flex items-center gap-2 p-1.5 bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl focus-within:border-indigo-500 transition-all">
+                      <button
+                        type="button"
+                        onClick={() => handleEditSubtaskToggle(idx)}
+                        className={`w-5 h-5 rounded-lg flex items-center justify-center shrink-0 border transition-all ${
+                          st.isCompleted
+                            ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
+                            : 'bg-brand-100 dark:bg-brand-800 border-brand-300 dark:border-brand-700 text-transparent hover:text-brand-400'
+                        }`}
+                        title={st.isCompleted ? 'Mark pending' : 'Mark completed'}
+                      >
+                        <Check size={11} className={st.isCompleted ? 'opacity-100' : 'opacity-0 hover:opacity-50'} />
+                      </button>
+                      <input
+                        id={`edit-subtask-input-${idx}`}
+                        type="text"
+                        placeholder={`Subtask ${idx + 1} item...`}
+                        value={st.title}
+                        onChange={e => handleEditSubtaskChange(idx, e.target.value)}
+                        onKeyDown={e => handleEditSubtaskKeyDown(idx, e)}
+                        className={`flex-1 bg-transparent text-xs outline-none font-medium ${
+                          st.isCompleted ? 'line-through text-brand-400 dark:text-brand-500' : 'text-brand-950 dark:text-white'
+                        }`}
+                      />
+                      {editTask.subtasks.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleEditSubtaskRemove(idx)}
+                          className="p-1 rounded-lg text-brand-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                          title="Remove subtask"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleEditSubtaskAdd}
+                  className="w-full py-2 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl text-[10px] font-bold border border-dashed border-indigo-200 dark:border-indigo-800/60 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Plus size={12} /> Add Another Subtask Box
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-brand-200 dark:border-brand-800 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => { setShowEditModal(false); setEditTask(null); }}
+                  className="bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 rounded-xl px-5 py-2.5 font-bold text-[10px] uppercase hover:bg-brand-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEditTask}
+                  className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl px-6 py-2.5 font-bold text-[10px] uppercase shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {savingEditTask ? (
+                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <CheckCircle2 size={13} />
+                  )}
+                  <span>Save Changes</span>
                 </button>
               </div>
             </form>

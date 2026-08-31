@@ -185,25 +185,49 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
   try {
     const { employeeId } = req.params;
     
-    // RBAC: Employees can only edit their own profile, TLs/HRs can update others
+    // Strict Guardrail: Employee ID is permanent and immutable for all users including Super Admins
+    if (req.body.employeeId && req.body.employeeId !== employeeId) {
+      return next(new AppError('Employee ID is permanent and cannot be modified', 400));
+    }
+
+    // RBAC: Employees can only edit their own profile, TLs/HRs/Super Admins can update others
     if (req.user?.role === 'EMPLOYEE' && req.user.employeeId !== employeeId) {
       return next(new AppError('You are not authorized to update another employee\'s profile', 403));
     }
 
-    // Protect root super admins from being edited by others
-    if (['OBI0001', 'OBI1117'].includes(employeeId) && req.user?.employeeId !== employeeId) {
+    // Team Leads can only edit employees in their own department, and cannot edit Super Admins or HRs
+    if (req.user?.role === 'TEAM_LEAD' && req.user.employeeId !== employeeId) {
+      const leadEmp = await prisma.employee.findUnique({
+        where: { employeeId: req.user.employeeId }
+      });
+      const targetEmp = await prisma.employee.findUnique({
+        where: { employeeId }
+      });
+      if (targetEmp && leadEmp && targetEmp.department.toLowerCase().trim() !== leadEmp.department.toLowerCase().trim()) {
+        return next(new AppError(`Team Leads can only manage employees within their own department (${leadEmp.department})`, 403));
+      }
+      const targetUser = await prisma.user.findUnique({ where: { employeeId } });
+      if (targetUser && ['SUPER_ADMIN', 'HR'].includes(targetUser.role)) {
+        return next(new AppError('Team Leads cannot modify HR or Super Admin accounts', 403));
+      }
+    }
+
+    // Protect root super admins from being edited by non-superadmins
+    if (['OBI0001', 'OBI1117'].includes(employeeId) && req.user?.role !== 'SUPER_ADMIN') {
       return next(new AppError('You are not permitted to modify root Super Admin accounts', 403));
     }
 
     const parsed = updateEmployeeSchema.parse(req.body);
+    const isSuperAdmin = req.user?.role === 'SUPER_ADMIN';
+    const isHr = req.user?.role === 'HR';
 
     let employee = await prisma.employee.findUnique({
       where: { employeeId },
     });
 
     if (!employee) {
-      if (req.user?.role === 'SUPER_ADMIN') {
-        const email = req.user.email;
+      if (isSuperAdmin || isHr) {
+        const email = parsed.email || req.user?.email || `user-${employeeId.toLowerCase()}@onebridge.com`;
         const existingEmployeeByEmail = await prisma.employee.findFirst({
           where: { email },
         });
@@ -211,15 +235,15 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
         employee = await prisma.employee.create({
           data: {
             employeeId,
-            firstName: parsed.firstName || 'Super',
-            lastName: parsed.lastName || 'Admin',
-            email: existingEmployeeByEmail ? `admin-${employeeId.toLowerCase()}@onebridge.com` : email,
+            firstName: parsed.firstName || 'New',
+            lastName: parsed.lastName || 'Employee',
+            email: existingEmployeeByEmail ? `emp-${employeeId.toLowerCase()}@onebridge.com` : email,
             phone: parsed.phone || 'N/A',
-            department: parsed.department || 'Administration',
-            designation: parsed.designation || 'Super Administrator',
+            department: parsed.department || 'General',
+            designation: parsed.designation || 'Staff',
             bloodGroup: parsed.bloodGroup || 'N/A',
-            validity: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 5),
-            skills: parsed.skills || ['SYSTEM SECURITY', 'DATABASE MANAGEMENT', 'USER ROLES & PERMISSIONS'],
+            validity: parsed.validity || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 5),
+            skills: parsed.skills || [],
           }
         });
       } else {
@@ -239,11 +263,70 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
         }
       }
 
+      // Handle email/username update
+      if (parsed.email && parsed.email !== employee.email) {
+        const existingEmailUser = await prisma.user.findFirst({
+          where: { email: parsed.email, employeeId: { not: employeeId } },
+        });
+        if (existingEmailUser) {
+          return next(new AppError('Email/username is already in use by another account', 400));
+        }
+        await prisma.user.updateMany({
+          where: { employeeId },
+          data: { email: parsed.email },
+        });
+      }
+
+      // Handle password update
+      if (parsed.password && parsed.password.trim() !== '') {
+        const passwordHash = await bcrypt.hash(parsed.password, 10);
+        await prisma.user.updateMany({
+          where: { employeeId },
+          data: { passwordHash },
+        });
+      }
+
+      // Handle Role update
+      if (parsed.role) {
+        let targetUser = await prisma.user.findFirst({
+          where: { employeeId },
+        });
+
+        if (!targetUser && employee.email) {
+          targetUser = await prisma.user.findFirst({
+            where: {
+              email: { equals: employee.email, mode: 'insensitive' },
+            },
+          });
+        }
+
+        if (targetUser) {
+          await prisma.user.update({
+            where: { id: targetUser.id },
+            data: {
+              role: parsed.role,
+              employeeId: employeeId,
+            },
+          });
+        } else {
+          const defaultPasswordHash = await bcrypt.hash('OneBridge@123', 10);
+          await prisma.user.create({
+            data: {
+              employeeId,
+              email: employee.email,
+              role: parsed.role,
+              passwordHash: defaultPasswordHash,
+            },
+          });
+        }
+      }
+
       employee = await prisma.employee.update({
         where: { employeeId },
         data: {
           firstName: parsed.firstName !== undefined ? parsed.firstName : undefined,
           lastName: parsed.lastName !== undefined ? parsed.lastName : undefined,
+          email: parsed.email !== undefined ? parsed.email : undefined,
           phone: parsed.phone !== undefined ? parsed.phone : undefined,
           department: parsed.department !== undefined ? parsed.department : undefined,
           designation: parsed.designation !== undefined ? parsed.designation : undefined,
@@ -251,8 +334,11 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
           validity: parsed.validity !== undefined ? parsed.validity : undefined,
           currentAddress: parsed.currentAddress !== undefined ? parsed.currentAddress : undefined,
           permanentAddress: parsed.permanentAddress !== undefined ? parsed.permanentAddress : undefined,
+          profileImageUrl: parsed.profileImageUrl !== undefined ? parsed.profileImageUrl : undefined,
+          signatureUrl: parsed.signatureUrl !== undefined ? parsed.signatureUrl : undefined,
           personalInfo: parsed.personalInfo !== undefined ? { ...employee.personalInfo, ...parsed.personalInfo } as any : undefined,
           professionalInfo: parsed.professionalInfo !== undefined ? { ...employee.professionalInfo, ...parsed.professionalInfo } as any : undefined,
+          salaryStructure: (isSuperAdmin || isHr) && parsed.salaryStructure !== undefined ? { ...employee.salaryStructure, ...parsed.salaryStructure } as any : undefined,
           emergencyContact: parsed.emergencyContact !== undefined ? parsed.emergencyContact : undefined,
           education: parsed.education !== undefined ? parsed.education : undefined,
           experience: parsed.experience !== undefined ? parsed.experience : undefined,
@@ -264,11 +350,24 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
       });
     }
 
-    await logActivity(req.user?.employeeId || 'SYSTEM', 'EMPLOYEE_UPDATE', `Updated details for ${employeeId}`, req);
+    await logActivity(req.user?.employeeId || 'SYSTEM', 'EMPLOYEE_UPDATE', `Updated full details for ${employeeId}`, req);
+
+    const userAccount = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { employeeId },
+          { email: employee.email }
+        ]
+      },
+      select: { role: true, email: true },
+    });
 
     res.status(200).json({
       status: 'success',
-      data: employee,
+      data: {
+        ...employee,
+        role: userAccount?.role || 'EMPLOYEE',
+      },
     });
   } catch (error) {
     next(error);
@@ -290,12 +389,23 @@ export const getEmployee = async (req: Request, res: Response, next: NextFunctio
       return next(new AppError('Employee not found', 404));
     }
 
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { employeeId },
+          { email: employee.email }
+        ]
+      },
+      select: { role: true, email: true },
+    });
+
     const rating = await calculateEmployeeRating(employeeId);
 
     res.status(200).json({
       status: 'success',
       data: {
         ...employee,
+        role: user?.role || 'EMPLOYEE',
         rating,
       },
     });
@@ -307,13 +417,31 @@ export const getEmployee = async (req: Request, res: Response, next: NextFunctio
 export const getEmployeesList = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const employees = await prisma.employee.findMany({
+      where: {
+        employeeId: { notIn: ['OBI0001', 'OBI1117'] },
+      },
       orderBy: { employeeId: 'asc' },
     });
 
+    const users = await prisma.user.findMany({
+      select: { employeeId: true, role: true, email: true },
+    });
+    const userMapByEmpId: Record<string, string> = {};
+    const userMapByEmail: Record<string, string> = {};
+    users.forEach(u => {
+      if (u.employeeId) userMapByEmpId[u.employeeId] = u.role;
+      if (u.email) userMapByEmail[u.email.toLowerCase().trim()] = u.role;
+    });
+
+    const enrichedEmployees = employees.map(emp => ({
+      ...emp,
+      role: userMapByEmpId[emp.employeeId] || userMapByEmail[emp.email?.toLowerCase()?.trim()] || 'EMPLOYEE',
+    }));
+
     res.status(200).json({
       status: 'success',
-      results: employees.length,
-      data: employees,
+      results: enrichedEmployees.length,
+      data: enrichedEmployees,
     });
   } catch (error) {
     next(error);

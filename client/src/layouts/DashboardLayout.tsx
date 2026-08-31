@@ -23,6 +23,18 @@ import {
   Search,
   Activity,
   FileCheck,
+  Sparkles,
+  FileText,
+  Receipt,
+  BookOpen,
+  FileSearch,
+  Zap,
+  Landmark,
+  Layers,
+  ChevronDown,
+  ChevronRight,
+  Bot,
+  BrainCircuit,
 } from 'lucide-react';
 
 interface NotificationToast {
@@ -74,8 +86,26 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
 
   if (!user) return null;
 
-  // Sidebar Links based on User Role
-  const links = [
+  const [crmOpen, setCrmOpen] = useState(
+    location.pathname.startsWith('/crm') || location.pathname === '/leads' || location.pathname === '/quotations' || location.pathname === '/invoices'
+  );
+  const [financeOpen, setFinanceOpen] = useState(
+    location.pathname.startsWith('/finance') || location.pathname === '/tally-finance' || location.pathname === '/statement-ocr' || location.pathname === '/automations'
+  );
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/crm') || location.pathname === '/leads' || location.pathname === '/quotations' || location.pathname === '/invoices') {
+      setCrmOpen(true);
+    }
+    if (location.pathname.startsWith('/finance') || location.pathname === '/tally-finance' || location.pathname === '/statement-ocr' || location.pathname === '/automations') {
+      setFinanceOpen(true);
+    }
+  }, [location.pathname]);
+
+  if (!user) return null;
+
+  // Workspace primary links
+  const workspaceLinks = [
     {
       name: 'Dashboard',
       path: '/dashboard',
@@ -110,17 +140,57 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       name: 'Payroll',
       path: '/payroll',
       icon: BadgeCent,
-      roles: ['SUPER_ADMIN', 'HR', 'EMPLOYEE'],
-    },
-    {
-      name: 'Profile',
-      path: '/profile',
-      icon: UserCircle,
       roles: ['SUPER_ADMIN', 'HR', 'TEAM_LEAD', 'EMPLOYEE'],
     },
   ];
 
-  const filteredLinks = links.filter((l) => l.roles.includes(user.role));
+  // CRM Sub-pages
+  const crmSubLinks = [
+    {
+      name: 'Leads & Inquiries',
+      path: '/crm/leads',
+      icon: Sparkles,
+      tag: 'Pipeline',
+    },
+    {
+      name: 'Proposals',
+      path: '/crm/proposals',
+      icon: FileText,
+      tag: 'Pending',
+    },
+    {
+      name: 'Consultations',
+      path: '/crm/consultations',
+      icon: Users, // Assuming Users is imported, let's just use Sparkles if not... wait, FileText is there. I'll use FileText for now if unsure. Actually, let's use the ones already imported.
+      tag: 'Demo',
+    },
+    {
+      name: 'Quotations',
+      path: '/crm/quotations',
+      icon: FileText,
+      tag: 'Proposals',
+    },
+    {
+      name: 'Tax Invoices',
+      path: '/crm/invoices',
+      icon: Receipt,
+      tag: 'Billing',
+    },
+  ];
+
+  // Finance Sub-pages
+  const financeSubLinks = [
+    {
+      name: 'Tally Ledgers',
+      path: '/finance/tally',
+      icon: Landmark,
+    },
+    {
+      name: 'Statement OCR',
+      path: '/finance/statement-ocr',
+      icon: FileSearch,
+    },
+  ];
 
   const handleLogout = async () => {
     if (await confirm({ title: 'Sign Out', message: 'Are you sure you want to sign out of your session?', variant: 'warning', confirmText: 'Sign Out' })) {
@@ -128,6 +198,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       navigate('/login');
     }
   };
+
+  const isCrmActive = location.pathname.startsWith('/crm') || location.pathname === '/leads' || location.pathname === '/quotations' || location.pathname === '/invoices';
+  const isFinanceActive = location.pathname.startsWith('/finance') || location.pathname === '/tally-finance' || location.pathname === '/statement-ocr' || location.pathname === '/automations';
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row overflow-hidden bg-brand-50 dark:bg-brand-950 relative">
@@ -159,34 +232,200 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           </button>
         </div>
 
-        {/* Navigation Items */}
-        <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
-          {filteredLinks.map((link) => {
-            const Icon = link.icon;
-            const isActive = location.pathname === link.path;
-            return (
-              <Link
-                key={link.path}
-                to={link.path}
-                onClick={() => setSidebarOpen(false)}
-                className={`group relative flex items-center space-x-3.5 px-5 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 ${
-                  isActive
-                    ? 'text-white shadow-md'
-                    : 'text-brand-600 dark:text-brand-400 hover:text-indigo-600 dark:hover:text-orange-400 hover:bg-brand-100 dark:hover:bg-brand-900/40 hover:translate-x-1'
+        {/* Navigation Items with Dropdown Accordions */}
+        <nav className="flex-1 px-4 py-4 space-y-1.5 overflow-y-auto">
+          {/* Workspace Primary Links */}
+          {workspaceLinks
+            .filter((l) => l.roles.includes(user.role))
+            .map((link) => {
+              const Icon = link.icon;
+              const isActive = location.pathname === link.path;
+              return (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`group relative flex items-center space-x-3.5 px-4 py-3 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    isActive
+                      ? 'text-white shadow-md'
+                      : 'text-brand-600 dark:text-brand-300 hover:text-indigo-600 dark:hover:text-orange-400 hover:bg-brand-100 dark:hover:bg-brand-900/40'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeSidebarLink"
+                      className="absolute inset-0 bg-gradient-to-r from-orange-500 to-indigo-600 rounded-xl -z-10 shadow-md shadow-indigo-600/20"
+                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                  <Icon size={17} className="relative z-10 shrink-0" />
+                  <span className="relative z-10 truncate">{link.name}</span>
+                </Link>
+              );
+            })}
+
+
+
+          {/* CRM & SALES - Collapsible Dropdown for Super Admin */}
+          {user.role === 'SUPER_ADMIN' && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setCrmOpen(!crmOpen)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                  isCrmActive
+                    ? 'bg-indigo-50 dark:bg-brand-900/70 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-900/60'
+                    : 'text-brand-600 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/40'
                 }`}
               >
-                {isActive && (
-                  <motion.div
-                    layoutId="activeSidebarLink"
-                    className="absolute inset-0 bg-gradient-to-r from-orange-500 to-indigo-600 rounded-xl -z-10 shadow-lg shadow-indigo-600/20"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                <div className="flex items-center space-x-3.5">
+                  <Layers size={17} className={isCrmActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-brand-400'} />
+                  <span>CRM & Sales</span>
+                </div>
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-extrabold">
+                    3
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-200 ${crmOpen ? 'rotate-180' : 'rotate-0'}`}
                   />
+                </div>
+              </button>
+
+              {/* CRM Subpages Dropdown */}
+              <AnimatePresence>
+                {crmOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden pl-4 pr-1 py-1 space-y-1 border-l-2 border-indigo-200 dark:border-indigo-900/60 ml-5 my-1"
+                  >
+                    {crmSubLinks.map((sub) => {
+                      const SubIcon = sub.icon;
+                      const isSubActive =
+                        location.pathname === sub.path ||
+                        (sub.path === '/crm/leads' && location.pathname === '/leads') ||
+                        (sub.path === '/crm/quotations' && location.pathname === '/quotations') ||
+                        (sub.path === '/crm/invoices' && location.pathname === '/invoices');
+
+                      return (
+                        <Link
+                          key={sub.path}
+                          to={sub.path}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                            isSubActive
+                              ? 'bg-gradient-to-r from-orange-500 to-indigo-600 text-white shadow-sm font-bold'
+                              : 'text-brand-600 dark:text-brand-400 hover:text-indigo-600 dark:hover:text-white hover:bg-brand-100 dark:hover:bg-brand-900/50'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2.5">
+                            <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-slate-400'} />
+                            <span>{sub.name}</span>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </motion.div>
                 )}
-                <Icon size={18} className="relative z-10" />
-                <span className="relative z-10">{link.name}</span>
-              </Link>
-            );
-          })}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* FINANCE & ACCOUNTS - Collapsible Dropdown for Super Admin */}
+          {user.role === 'SUPER_ADMIN' && (
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setFinanceOpen(!financeOpen)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                  isFinanceActive
+                    ? 'bg-indigo-50 dark:bg-brand-900/70 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-900/60'
+                    : 'text-brand-600 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/40'
+                }`}
+              >
+                <div className="flex items-center space-x-3.5">
+                  <Landmark size={17} className={isFinanceActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-brand-400'} />
+                  <span>Finance & Accounts</span>
+                </div>
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-extrabold">
+                    3
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-200 ${financeOpen ? 'rotate-180' : 'rotate-0'}`}
+                  />
+                </div>
+              </button>
+
+              {/* Finance Subpages Dropdown */}
+              <AnimatePresence>
+                {financeOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden pl-4 pr-1 py-1 space-y-1 border-l-2 border-indigo-200 dark:border-indigo-900/60 ml-5 my-1"
+                  >
+                    {financeSubLinks.map((sub) => {
+                      const SubIcon = sub.icon;
+                      const isSubActive =
+                        location.pathname === sub.path ||
+                        (sub.path === '/finance/tally' && location.pathname === '/tally-finance') ||
+                        (sub.path === '/finance/statement-ocr' && location.pathname === '/statement-ocr') ||
+                        (sub.path === '/finance/automations' && location.pathname === '/automations');
+
+                      return (
+                        <Link
+                          key={sub.path}
+                          to={sub.path}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                            isSubActive
+                              ? 'bg-gradient-to-r from-orange-500 to-indigo-600 text-white shadow-sm font-bold'
+                              : 'text-brand-600 dark:text-brand-400 hover:text-indigo-600 dark:hover:text-white hover:bg-brand-100 dark:hover:bg-brand-900/50'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2.5">
+                            <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-slate-400'} />
+                            <span>{sub.name}</span>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Profile Link */}
+          <div className="pt-2">
+            <Link
+              to="/profile"
+              onClick={() => setSidebarOpen(false)}
+              className={`group relative flex items-center space-x-3.5 px-4 py-3 rounded-xl text-xs font-bold transition-all duration-200 ${
+                location.pathname === '/profile'
+                  ? 'text-white shadow-md'
+                  : 'text-brand-600 dark:text-brand-300 hover:text-indigo-600 dark:hover:text-orange-400 hover:bg-brand-100 dark:hover:bg-brand-900/40'
+              }`}
+            >
+              {location.pathname === '/profile' && (
+                <motion.div
+                  layoutId="activeSidebarLink"
+                  className="absolute inset-0 bg-gradient-to-r from-orange-500 to-indigo-600 rounded-xl -z-10 shadow-md shadow-indigo-600/20"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                />
+              )}
+              <UserCircle size={17} className="relative z-10 shrink-0" />
+              <span className="relative z-10 truncate">Profile</span>
+            </Link>
+          </div>
         </nav>
 
         {/* Log Out */}

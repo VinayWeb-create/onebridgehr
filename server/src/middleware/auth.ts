@@ -72,9 +72,11 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
   }
 };
 
-export const restrictTo = (...roles: Array<'SUPER_ADMIN' | 'HR' | 'TEAM_LEAD' | 'EMPLOYEE'>) => {
+export const restrictTo = (...roles: Array<'SUPER_ADMIN' | 'HR' | 'TEAM_LEAD' | 'EMPLOYEE' | string>) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    const userRole = (req.user?.role || '').trim().toUpperCase();
+    const normalizedRoles = roles.map(r => r.trim().toUpperCase());
+    if (!req.user || !normalizedRoles.includes(userRole)) {
       return next(
         new AppError('You do not have permission to perform this action', 403)
       );
