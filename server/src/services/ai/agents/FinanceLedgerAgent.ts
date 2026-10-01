@@ -1,7 +1,7 @@
 import { prisma } from '../../../config/db';
 import { aiEventBus, AiEventPayload } from '../aiEventBus';
 import { BillingPdfService } from '../../billingPdfService';
-import { CommunicationService } from '../../communicationService';
+import { BillingDocumentService } from '../../billingDocumentService';
 
 export class FinanceLedgerAgent {
   public static readonly ROLE = 'FINANCE_OFFICER';
@@ -30,44 +30,16 @@ export class FinanceLedgerAgent {
       });
       if (!quotation) return;
 
-      const count = await prisma.invoice.count();
-      const invoiceNumber = `INV-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
-      const dueDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
-
-      const invoice = await prisma.invoice.create({
-        data: {
-          invoiceNumber,
-          quotationId: quotation.id,
-          clientName: quotation.clientName,
-          clientCompany: quotation.clientCompany,
-          clientEmail: quotation.clientEmail,
-          clientPhone: quotation.clientPhone,
-          clientGst: quotation.clientGst,
-          billingAddress: quotation.clientAddress,
-          items: (quotation.items as any) || [],
-          subTotal: quotation.subTotal,
-          taxPercent: quotation.taxPercent,
-          taxAmount: quotation.taxAmount,
-          discountAmount: quotation.discountAmount,
-          totalAmount: quotation.totalAmount,
-          amountPaid: 0,
-          balanceDue: quotation.totalAmount,
-          dueDate,
-          paymentStatus: 'UNPAID',
-          notes: `Official Tax Invoice issued autonomously by AI Finance Officer Fiona for ${quotation.clientName}.`,
-          termsAndConditions: '1. Net 15 payment terms.\n2. Please mention invoice number in remittance advice.\n3. Interest @ 18% p.a. on overdue amounts.',
-          sentViaEmail: true,
-        },
-      });
-
+      // Shared conversion is idempotent: if the quotation already has an invoice, nothing new is created or sent.
+      const { invoice, created } = await BillingDocumentService.convertQuotationToInvoice(quotation.id);
+      if (!created) return;
+      const invoiceNumber = invoice.invoiceNumber;
       const pdfUrl = await BillingPdfService.generateInvoicePdf(invoice);
-      await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { pdfUrl },
-      });
 
       if (invoice.clientEmail) {
-        await CommunicationService.sendInvoiceEmail(invoice, pdfUrl);
+        const { record, company, totals } = await BillingDocumentService.load('invoice', invoice.id);
+        const draft = BillingDocumentService.emailDraft('invoice', record, company, totals.totalAmount);
+        await BillingDocumentService.sendEmail('invoice', invoice.id, { ...draft, attachPdf: true, includeLink: true });
       }
 
       const executionTimeMs = Date.now() - startTime;

@@ -279,3 +279,243 @@ export const financeTransactionUpdateSchema = z.object({
   department: z.string().optional(),
   employeeId: z.string().optional(),
 });
+
+// ==========================================
+// Billing (companies & clients for quotations/invoices)
+// ==========================================
+const optionalText = (max = 500) =>
+  z.string().trim().max(max).optional().nullable().transform((v) => (v ? v : null));
+
+// PNG/JPEG as a data URL, max ~500 KB of image data
+const imageDataUrl = z
+  .string()
+  .regex(/^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/, 'Image must be a PNG or JPEG')
+  .max(700_000, 'Image must be smaller than 500 KB')
+  .optional()
+  .nullable();
+
+const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+
+const gstin = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .optional()
+  .nullable()
+  .refine((v) => !v || GSTIN_REGEX.test(v), 'Invalid GSTIN format')
+  .transform((v) => (v ? v : null));
+
+const emailList = z
+  .string()
+  .trim()
+  .optional()
+  .nullable()
+  .refine(
+    (v) => !v || v.split(',').every((e) => z.string().email().safeParse(e.trim()).success),
+    'Enter valid email addresses separated by commas'
+  )
+  .transform((v) => (v ? v : null));
+
+const ifscCode = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .optional()
+  .nullable()
+  .refine((v) => !v || /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v), 'Invalid IFSC code')
+  .transform((v) => (v ? v : null));
+
+export const bankAccountSchema = z.object({
+  id: z.string().max(64).optional().nullable(),
+  label: optionalText(60),
+  accountName: optionalText(200),
+  bankName: optionalText(200),
+  accountNumber: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .refine((v) => !v || /^[0-9A-Za-z]{6,34}$/.test(v), 'Account number should be 6–34 letters/digits without spaces')
+    .transform((v) => (v ? v : null)),
+  ifsc: ifscCode,
+  branch: optionalText(200),
+  swift: optionalText(20),
+  isDefault: z.boolean().optional().default(false),
+});
+
+export const billingCompanySchema = z.object({
+  name: z.string().trim().min(2, 'Company name is required').max(200),
+  gstin,
+  pan: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .optional()
+    .nullable()
+    .refine((v) => !v || /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v), 'Invalid PAN format')
+    .transform((v) => (v ? v : null)),
+  email: z.string().trim().email('Invalid email').optional().nullable().or(z.literal('')).transform((v) => (v ? v : null)),
+  phone: optionalText(30),
+  website: optionalText(200),
+  addressLine1: optionalText(),
+  addressLine2: optionalText(),
+  city: optionalText(100),
+  state: optionalText(100),
+  stateCode: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .refine((v) => !v || /^[0-9]{2}$/.test(v), 'State code must be 2 digits')
+    .transform((v) => (v ? v : null)),
+  pincode: optionalText(10),
+  country: z.string().trim().max(100).optional().default('India'),
+  logoDataUrl: imageDataUrl,
+  signatureDataUrl: imageDataUrl,
+  stampDataUrl: imageDataUrl,
+  bankAccountName: optionalText(200),
+  bankName: optionalText(200),
+  bankAccountNumber: optionalText(40),
+  bankIfsc: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .optional()
+    .nullable()
+    .refine((v) => !v || /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v), 'Invalid IFSC code')
+    .transform((v) => (v ? v : null)),
+  bankBranch: optionalText(200),
+  bankSwift: optionalText(20),
+  upiId: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .refine((v) => !v || /^[a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,}$/.test(v), 'Invalid UPI ID')
+    .transform((v) => (v ? v : null)),
+  bankAccounts: z
+    .array(bankAccountSchema)
+    .max(10, 'At most 10 bank accounts')
+    .nullish()
+    .transform((v) => v ?? undefined), // null = company saved before multi-account support
+  quotationTerms: optionalText(5000),
+  invoiceTerms: optionalText(5000),
+  defaultNotes: optionalText(5000),
+  emailCc: emailList,
+  isActive: z.boolean().optional(),
+});
+
+export const billingClientSchema = z.object({
+  name: z.string().trim().min(1, 'Client name is required').max(200),
+  company: optionalText(200),
+  email: z.string().trim().email('Invalid email').optional().nullable().or(z.literal('')).transform((v) => (v ? v : null)),
+  phone: optionalText(30),
+  gstin,
+  billingAddress: optionalText(1000),
+  state: optionalText(100),
+  stateCode: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .refine((v) => !v || /^[0-9]{2}$/.test(v), 'State code must be 2 digits')
+    .transform((v) => (v ? v : null)),
+  leadId: z.string().regex(/^[a-f0-9]{24}$/i).optional().nullable(),
+});
+
+// ==========================================
+// Quotation / Invoice documents
+// ==========================================
+const money = z.coerce.number().finite().min(0, 'Must be 0 or more');
+const optionalObjectId = z
+  .string()
+  .optional()
+  .nullable()
+  .transform((v) => (v && /^[a-f0-9]{24}$/i.test(v) ? v : null));
+const optionalDate = z
+  .union([z.string(), z.date()])
+  .optional()
+  .nullable()
+  .transform((v, ctx) => {
+    if (!v) return null;
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid date' });
+      return z.NEVER;
+    }
+    return d;
+  });
+
+export const billingLineItemSchema = z.object({
+  description: z.string().trim().min(1, 'Item name is required').max(500),
+  details: optionalText(2000),
+  hsnSac: z.string().trim().max(20).optional().nullable().transform((v) => v || undefined),
+  quantity: z.coerce.number().finite().min(0).default(1),
+  unit: z.string().trim().max(20).optional().nullable().transform((v) => v || undefined),
+  unitPrice: money,
+  taxPercent: z.coerce.number().finite().min(0).max(100).optional().nullable(),
+});
+
+const billingDocumentBase = {
+  companyId: optionalObjectId,
+  clientId: optionalObjectId,
+  poNumber: optionalText(60),
+  bankAccountId: z.string().trim().max(64).optional().nullable().transform((v) => v || null),
+  clientName: z.string().trim().min(1, 'Client name is required').max(200),
+  clientCompany: optionalText(200),
+  clientEmail: z.string().trim().email('Enter a valid client email'),
+  clientPhone: optionalText(30),
+  // Documents accept older free-text GSTIN values so they stay editable; companies/clients validate strictly.
+  clientGst: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .max(30)
+    .optional()
+    .nullable()
+    .transform((v) => (v ? v : null)),
+  items: z.array(billingLineItemSchema).min(1, 'Add at least one item').max(200),
+  taxPercent: z.coerce.number().finite().min(0).max(100).optional().default(18),
+  discountAmount: money.optional().default(0),
+  additionalCharges: money.optional().default(0),
+  additionalChargesLabel: optionalText(100),
+  placeOfSupplyCode: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .refine((v) => !v || /^[0-9]{2}$/.test(v), 'Invalid place of supply')
+    .transform((v) => v || null),
+  termsAndConditions: optionalText(10000),
+  notes: optionalText(10000),
+};
+
+export const quotationDocumentSchema = z.object({
+  ...billingDocumentBase,
+  leadId: optionalObjectId,
+  title: optionalText(200),
+  clientAddress: optionalText(1000),
+  validUntil: optionalDate,
+  status: z.enum(['DRAFT', 'SENT', 'VIEWED', 'ACCEPTED', 'DECLINED', 'EXPIRED']).optional(),
+});
+
+export const invoiceDocumentSchema = z.object({
+  ...billingDocumentBase,
+  quotationId: optionalObjectId,
+  billingAddress: optionalText(1000),
+  issueDate: optionalDate,
+  dueDate: optionalDate,
+  isDraft: z.boolean().optional().default(false),
+  // Only used on create: an advance already received
+  amountPaid: money.optional().default(0),
+  paymentMethod: optionalText(40),
+  paymentReference: optionalText(100),
+});
+
+export const recordPaymentSchema = z.object({
+  paymentAmount: z.coerce.number().finite().gt(0, 'Payment amount must be more than 0'),
+  paymentMethod: z.string().trim().max(40).optional().default('BANK_TRANSFER'),
+  paymentReference: optionalText(100),
+  paymentDate: optionalDate,
+  notes: optionalText(500),
+});

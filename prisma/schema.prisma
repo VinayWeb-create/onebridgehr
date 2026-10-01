@@ -645,7 +645,9 @@ enum LeadStatus {
 enum QuotationStatus {
   DRAFT
   SENT
+  VIEWED
   ACCEPTED
+  CONVERTED
   DECLINED
   EXPIRED
 }
@@ -704,6 +706,27 @@ model Quotation {
   quotationNumber   String          @unique // e.g. QUO-2026-0001
   leadId            String?         @db.ObjectId
   lead              Lead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  companyId         String?         @db.ObjectId // Issuing company; falls back to the default BillingCompany
+  company           BillingCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  clientId          String?         @db.ObjectId
+  client            BillingClient?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  poNumber          String?
+  bankAccountId     String? // Which company bank account to print; "NONE" hides bank details
+  title             String? // Heading printed on the quotation, e.g. "Website Development Proposal"
+  placeOfSupply     String? // State name used for GST (defaults from client GSTIN)
+  placeOfSupplyCode String? // 2-digit GST state code
+  taxType           String? // CGST_SGST or IGST
+  cgstAmount        Float           @default(0)
+  sgstAmount        Float           @default(0)
+  igstAmount        Float           @default(0)
+  additionalCharges Float           @default(0)
+  additionalChargesLabel String?
+  amountInWords     String?
+  shareToken        String? // Random token for the client's public view link
+  viewedAt          DateTime?
+  viewCount         Int             @default(0)
+  acceptedAt        DateTime?
+  acceptedBy        String? // Name typed by the client (or admin) when accepting
   clientName        String
   clientCompany     String?
   clientEmail       String
@@ -730,6 +753,7 @@ model Quotation {
   updatedAt         DateTime        @updatedAt
 
   @@index([status, clientEmail])
+  @@index([shareToken])
 }
 
 model Invoice {
@@ -737,6 +761,26 @@ model Invoice {
   invoiceNumber      String               @unique // e.g. INV-2026-0001
   quotationId        String?              @db.ObjectId
   quotation          Quotation?           @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  companyId          String?              @db.ObjectId // Issuing company; falls back to the default BillingCompany
+  company            BillingCompany?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  clientId           String?              @db.ObjectId
+  client             BillingClient?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  poNumber           String?
+  bankAccountId      String? // Which company bank account to print; "NONE" hides bank details
+  placeOfSupply     String? // State name used for GST (defaults from client GSTIN)
+  placeOfSupplyCode String? // 2-digit GST state code
+  taxType           String? // CGST_SGST or IGST
+  cgstAmount        Float                @default(0)
+  sgstAmount        Float                @default(0)
+  igstAmount        Float                @default(0)
+  additionalCharges Float                @default(0)
+  additionalChargesLabel String?
+  amountInWords     String?
+  shareToken        String? // Random token for the client's public view link
+  viewedAt          DateTime?
+  viewCount         Int                  @default(0)
+  isDraft            Boolean              @default(false)
+  payments           Json? // Array of { amount, method, reference, date, notes, recordedAt }
   clientName         String
   clientCompany      String?
   clientEmail        String
@@ -768,6 +812,75 @@ model Invoice {
   updatedAt          DateTime             @updatedAt
 
   @@index([paymentStatus, clientEmail, issueDate])
+  @@index([shareToken])
+}
+
+// Company that issues quotations/invoices ("Billed By"). One is marked default.
+model BillingCompany {
+  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  name              String      // Legal name printed on documents
+  gstin             String?
+  pan               String?
+  email             String?
+  phone             String?
+  website           String?
+  addressLine1      String?
+  addressLine2      String?
+  city              String?
+  state             String?     // Used to decide CGST+SGST vs IGST
+  stateCode         String?     // GST state code, e.g. "36" for Telangana
+  pincode           String?
+  country           String      @default("India")
+  logoDataUrl       String?     // Images stored inline (data URL) so they survive redeploys
+  signatureDataUrl  String?
+  stampDataUrl      String?
+  bankAccountName   String?
+  bankName          String?
+  bankAccountNumber String?
+  bankIfsc          String?
+  bankBranch        String?
+  bankSwift         String?
+  upiId             String?
+  // Array of { id, label, accountName, bankName, accountNumber, ifsc, branch, swift, isDefault }.
+  // The flat bank* fields above mirror the default account (used as a fallback).
+  bankAccounts      Json?
+  quotationTerms    String?
+  invoiceTerms      String?
+  defaultNotes      String?
+  emailCc           String?     // Comma-separated, CC'd on every document email
+  isDefault         Boolean     @default(false)
+  isActive          Boolean     @default(true)
+  quotations        Quotation[]
+  invoices          Invoice[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
+
+// Saved customer for the "Billed To" picker.
+model BillingClient {
+  id             String      @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  company        String?
+  email          String?
+  phone          String?
+  gstin          String?
+  billingAddress String?
+  state          String?
+  stateCode      String?
+  leadId         String?     @db.ObjectId
+  quotations     Quotation[]
+  invoices       Invoice[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([name])
+}
+
+// Atomic sequence per document type and year, e.g. key "INV-2026".
+model DocumentCounter {
+  id  String @id @default(auto()) @map("_id") @db.ObjectId
+  key String @unique
+  seq Int    @default(0)
 }
 
 model FinanceLedger {
