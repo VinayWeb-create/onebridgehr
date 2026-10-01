@@ -43,6 +43,7 @@ import {
   updateBillingCompany,
   setDefaultBillingCompany,
   deleteBillingCompany,
+  getBankHistory,
   getBillingClients,
   createBillingClient,
   updateBillingClient,
@@ -113,6 +114,7 @@ router.post('/billing/companies', createBillingCompany);
 router.put('/billing/companies/:id', updateBillingCompany);
 router.post('/billing/companies/:id/set-default', setDefaultBillingCompany);
 router.delete('/billing/companies/:id', deleteBillingCompany);
+router.get('/billing/companies/:id/bank-history', getBankHistory);
 
 router.get('/billing/clients', getBillingClients);
 router.post('/billing/clients', createBillingClient);

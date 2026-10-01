@@ -11,6 +11,8 @@ import {
   X,
   AlertTriangle,
   Power,
+  History,
+  Loader2,
 } from 'lucide-react';
 import { crmService, companyBankAccounts, type BankAccount, type BillingCompany } from '../../services/crmService';
 import { useDialog } from '../../context/DialogContext';
@@ -192,6 +194,21 @@ export const BillingSettingsPage: React.FC = () => {
   const [form, setForm] = useState<CompanyForm>(EMPTY_FORM);
   const [prefilledFromPdf, setPrefilledFromPdf] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [history, setHistory] = useState<{
+    company: BillingCompany;
+    rows: Awaited<ReturnType<typeof crmService.getBankHistory>> | null;
+  } | null>(null);
+
+  const openHistory = async (company: BillingCompany) => {
+    setHistory({ company, rows: null });
+    try {
+      const rows = await crmService.getBankHistory(company.id);
+      setHistory({ company, rows });
+    } catch (err) {
+      setHistory(null);
+      await alert({ title: 'Could not load history', message: errorMessage(err), variant: 'error' });
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -437,6 +454,13 @@ export const BillingSettingsPage: React.FC = () => {
                       <Power className="w-3.5 h-3.5" /> {c.isActive ? 'Deactivate' : 'Activate'}
                     </button>
                   )}
+                  <button
+                    onClick={() => openHistory(c)}
+                    className="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-brand-800 flex items-center gap-1"
+                    title="Who changed the bank / UPI details and when"
+                  >
+                    <History className="w-3.5 h-3.5" /> Bank history
+                  </button>
                   <button
                     onClick={() => openEdit(c)}
                     className="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-brand-800 flex items-center gap-1"
@@ -691,6 +715,51 @@ export const BillingSettingsPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {history && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-brand-900 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+              <div>
+                <h3 className="font-bold">Bank & UPI change history</h3>
+                <p className="text-xs text-slate-400">{history.company.name}</p>
+              </div>
+              <button onClick={() => setHistory(null)} className="text-slate-400 hover:text-white p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 max-h-[70vh] overflow-y-auto">
+              {!history.rows ? (
+                <div className="py-8 flex justify-center text-slate-400">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </div>
+              ) : history.rows.length === 0 ? (
+                <p className="text-sm text-slate-500 text-center py-6">No bank or UPI changes recorded yet.</p>
+              ) : (
+                <ol className="space-y-4">
+                  {history.rows.map((row) => (
+                    <li key={row.id} className="border-l-2 border-amber-400 pl-3">
+                      <div className="text-xs text-slate-500">
+                        {new Date(row.at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} · {row.changedBy}
+                        {row.ipAddress ? ` · ${row.ipAddress}` : ''}
+                      </div>
+                      <ul className="mt-1 space-y-0.5">
+                        {row.changes.map((c, i) => (
+                          <li key={i} className="text-sm text-slate-800 dark:text-slate-200">
+                            {c}
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <p className="text-[11px] text-slate-400 mt-4">
+                Account numbers are shown masked. Every change also emails all super admins.
+              </p>
+            </div>
           </div>
         </div>
       )}

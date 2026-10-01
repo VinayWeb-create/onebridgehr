@@ -3,6 +3,7 @@ import { prisma } from '../config/db';
 import { AppError } from '../middleware/errorHandler';
 import { billingCompanySchema, billingClientSchema } from '../models/validators';
 import { BillingCompanyService, normalizeBankAccounts } from '../services/billingCompanyService';
+import { diffBankDetails, getBankChangeHistory, recordBankChanges } from '../services/bankChangeAuditService';
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
@@ -37,6 +38,7 @@ export const createBillingCompany = async (req: Request, res: Response, next: Ne
     if (!existingDefault || req.body.isDefault === true) {
       company = await BillingCompanyService.setDefault(company.id);
     }
+    await recordBankChanges(req, company.id, company.name, diffBankDetails(null, company));
 
     res.status(201).json({ status: 'success', data: company });
   } catch (error) {
@@ -58,6 +60,7 @@ export const updateBillingCompany = async (req: Request, res: Response, next: Ne
     }
 
     const company = await prisma.billingCompany.update({ where: { id }, data });
+    await recordBankChanges(req, company.id, company.name, diffBankDetails(existing, company));
     res.status(200).json({ status: 'success', data: company });
   } catch (error) {
     next(error);
@@ -103,6 +106,7 @@ export const deleteBillingCompany = async (req: Request, res: Response, next: Ne
     }
 
     await prisma.billingCompany.delete({ where: { id } });
+    await recordBankChanges(req, existing.id, existing.name, diffBankDetails(existing, null));
     res.status(200).json({ status: 'success', message: 'Company deleted' });
   } catch (error) {
     next(error);
@@ -170,6 +174,16 @@ export const deleteBillingClient = async (req: Request, res: Response, next: Nex
     // Documents keep their own copy of the client details, so only the link is removed.
     await prisma.billingClient.delete({ where: { id } });
     res.status(200).json({ status: 'success', message: 'Client deleted' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getBankHistory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    assertId(id, 'Company');
+    res.status(200).json({ status: 'success', data: await getBankChangeHistory(id) });
   } catch (error) {
     next(error);
   }

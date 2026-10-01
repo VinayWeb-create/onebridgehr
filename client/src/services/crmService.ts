@@ -369,6 +369,10 @@ export const crmService = {
     const res = await api.post(`/crm/billing/companies/${id}/set-default`);
     return res.data.data as BillingCompany;
   },
+  getBankHistory: async (id: string) => {
+    const res = await api.get(`/crm/billing/companies/${id}/bank-history`);
+    return res.data.data as { id: string; at: string; changedBy: string; changes: string[]; ipAddress?: string | null }[];
+  },
   deleteBillingCompany: async (id: string) => {
     const res = await api.delete(`/crm/billing/companies/${id}`);
     return res.data as { status: string; message: string };
