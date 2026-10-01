@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
 import { prisma } from '../config/db';
 import { AppError } from '../middleware/errorHandler';
 import { BillingDocumentService, kindFromParam, normalizeWhatsAppNumber } from '../services/billingDocumentService';
@@ -33,6 +34,18 @@ const whatsappSchema = z.object({
   phone: z.string().trim().max(20).optional(),
   message: z.string().trim().max(4000).optional(),
 });
+
+/** True when the request carries a valid staff login (e.g. an admin checking a link before sending it). */
+const isStaffPreview = (req: Request): boolean => {
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Bearer ')) return false;
+  try {
+    jwt.verify(header.slice(7), process.env.JWT_SECRET || 'onebridge_secret_key_123456_super_secure');
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 // ------------------------------------------------------------------ admin (SUPER_ADMIN)
 
@@ -181,7 +194,7 @@ export const adminAcceptQuotation = async (req: Request, res: Response, next: Ne
 export const getPublicDocument = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { kind, record, company, totals } = await BillingDocumentService.loadByToken(req.params.token);
-    await BillingDocumentService.recordView(kind, record);
+    if (!isStaffPreview(req)) await BillingDocumentService.recordView(kind, record);
     res.status(200).json({ status: 'success', data: await BillingDocumentService.publicView(kind, record, company, totals) });
   } catch (error) {
     next(error);

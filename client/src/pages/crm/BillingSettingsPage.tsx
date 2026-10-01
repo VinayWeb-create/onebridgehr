@@ -18,6 +18,7 @@ import { crmService, companyBankAccounts, type BankAccount, type BillingCompany 
 import { useDialog } from '../../context/DialogContext';
 import { CrmNavTabs } from '../../components/CrmNavTabs';
 import { INDIAN_STATES, stateCodeFor } from '../../utils/indianStates';
+import { errorMessage } from '../../utils/documentActions';
 
 type CompanyForm = Omit<BillingCompany, 'id' | 'isDefault' | 'isActive' | '_count'>;
 
@@ -110,11 +111,6 @@ const CURRENT_PDF_DETAILS: CompanyForm = {
 
 const MAX_IMAGE_BYTES = 500 * 1024;
 
-const errorMessage = (err: any): string => {
-  const data = err?.response?.data;
-  if (data?.errors?.length) return data.errors.map((e: any) => `${e.field}: ${e.message}`).join('\n');
-  return data?.message || err?.message || 'Something went wrong';
-};
 
 const inputClass =
   'w-full px-3 py-2 bg-slate-50 dark:bg-brand-950 border border-slate-200 dark:border-brand-800 rounded-lg text-sm';

@@ -393,7 +393,11 @@ export const billingCompanySchema = z.object({
     .nullable()
     .refine((v) => !v || /^[a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,}$/.test(v), 'Invalid UPI ID')
     .transform((v) => (v ? v : null)),
-  bankAccounts: z.array(bankAccountSchema).max(10, 'At most 10 bank accounts').optional(),
+  bankAccounts: z
+    .array(bankAccountSchema)
+    .max(10, 'At most 10 bank accounts')
+    .nullish()
+    .transform((v) => v ?? undefined), // null = company saved before multi-account support
   quotationTerms: optionalText(5000),
   invoiceTerms: optionalText(5000),
   defaultNotes: optionalText(5000),
@@ -461,7 +465,15 @@ const billingDocumentBase = {
   clientCompany: optionalText(200),
   clientEmail: z.string().trim().email('Enter a valid client email'),
   clientPhone: optionalText(30),
-  clientGst: gstin,
+  // Documents accept older free-text GSTIN values so they stay editable; companies/clients validate strictly.
+  clientGst: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .max(30)
+    .optional()
+    .nullable()
+    .transform((v) => (v ? v : null)),
   items: z.array(billingLineItemSchema).min(1, 'Add at least one item').max(200),
   taxPercent: z.coerce.number().finite().min(0).max(100).optional().default(18),
   discountAmount: money.optional().default(0),

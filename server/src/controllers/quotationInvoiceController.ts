@@ -23,14 +23,14 @@ type PaymentStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELL
 
 export const computePaymentStatus = (total: number, paid: number, dueDate: Date | null, isDraft: boolean): PaymentStatus => {
   const balance = round2(total - paid);
-  if (total > 0 && balance <= 0) return 'PAID';
+  if (balance <= 0) return 'PAID'; // includes ₹0 invoices
   if (!isDraft && dueDate && dueDate < startOfToday()) return 'OVERDUE';
   return paid > 0 ? 'PARTIALLY_PAID' : 'UNPAID';
 };
 
 /** Totals + GST fields shared by quotation and invoice saves. */
-const buildAmounts = async (body: any) => {
-  const companyId = await BillingCompanyService.resolveCompanyId(body.companyId);
+const buildAmounts = async (body: any, currentCompanyId?: string | null) => {
+  const companyId = await BillingCompanyService.resolveCompanyId(body.companyId, currentCompanyId);
   const company = await BillingCompanyService.getForDocument(companyId);
   const totals = calculateBilling({
     items: body.items,
@@ -168,7 +168,7 @@ export const updateQuotation = async (req: Request, res: Response, next: NextFun
     }
 
     const body = quotationDocumentSchema.parse(req.body);
-    const { data } = await buildAmounts(body);
+    const { data } = await buildAmounts(body, existing.companyId);
 
     const quotation = await prisma.quotation.update({
       where: { id: existing.id },
@@ -222,9 +222,21 @@ export const getInvoices = async (req: Request, res: Response, next: NextFunctio
     else if (status && status !== 'ALL') where.paymentStatus = status;
 
     // Keep OVERDUE up to date without a scheduler.
-    await prisma.invoice.updateMany({
-      where: { paymentStatus: { in: ['UNPAID', 'PARTIALLY_PAID'] }, isDraft: false, dueDate: { lt: startOfToday() } },
-      data: { paymentStatus: 'OVERDUE' },
+    // Raw command because Prisma filters skip documents where `isDraft` is missing (invoices created
+    // before the field existed); `$ne: true` matches both false and missing.
+    await prisma.$runCommandRaw({
+      update: 'Invoice',
+      updates: [
+        {
+          q: {
+            paymentStatus: { $in: ['UNPAID', 'PARTIALLY_PAID'] },
+            isDraft: { $ne: true },
+            dueDate: { $lt: { $date: startOfToday().toISOString() } },
+          },
+          u: { $set: { paymentStatus: 'OVERDUE', updatedAt: { $date: new Date().toISOString() } } },
+          multi: true,
+        },
+      ],
     });
 
     const invoices = await prisma.invoice.findMany({
@@ -309,7 +321,7 @@ export const updateInvoice = async (req: Request, res: Response, next: NextFunct
     if (!existing) throw new AppError('Invoice not found', 404);
 
     const body = invoiceDocumentSchema.parse(req.body);
-    const { data } = await buildAmounts(body);
+    const { data } = await buildAmounts(body, existing.companyId);
     const paid = Number(existing.amountPaid || 0);
     if (data.totalAmount + 0.005 < paid) {
       throw new AppError(`The new total is less than the ${paid.toLocaleString('en-IN')} already received.`, 400);

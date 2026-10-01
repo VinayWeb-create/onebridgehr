@@ -135,10 +135,11 @@ export class BillingCompanyService {
    * otherwise the default. Returns null when no company has been set up yet,
    * so documents keep working before Billing Settings are filled in.
    */
-  public static async resolveCompanyId(requestedId?: string | null): Promise<string | null> {
+  public static async resolveCompanyId(requestedId?: string | null, currentCompanyId?: string | null): Promise<string | null> {
     if (requestedId) {
       const company = await prisma.billingCompany.findUnique({ where: { id: requestedId } }).catch(() => null);
-      if (!company || !company.isActive) {
+      // A deactivated company may stay on documents it already issued, but can't be picked for new ones.
+      if (!company || (!company.isActive && company.id !== currentCompanyId)) {
         throw new AppError('Selected company was not found or is inactive', 400);
       }
       return company.id;

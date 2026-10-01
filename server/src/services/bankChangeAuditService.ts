@@ -3,6 +3,7 @@ import { prisma } from '../config/db';
 import { logActivity } from '../middleware/auditLogger';
 import { emailService } from './emailService';
 import { BankAccount, CompanyProfile, listBankAccounts } from './billingCompanyService';
+import { escapeHtml } from './billingFormat';
 
 export const BANK_AUDIT_ACTION = 'BILLING_BANK_DETAILS_CHANGED';
 
@@ -51,7 +52,6 @@ export const diffBankDetails = (before: CompanyProfile | null, after: CompanyPro
   return changes;
 };
 
-const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /**
  * Write an audit entry and email every super admin. Never throws: a failed alert must not block the save,
@@ -73,6 +73,11 @@ export const recordBankChanges = async (req: Request, companyId: string, company
     console.error('[Billing] Could not write bank-change audit entry:', err);
   }
 
+  // Alerts are sent in the background so a slow or blocked mail server never delays the save.
+  void sendBankChangeAlerts(req, companyName, changes, actor, at);
+};
+
+const sendBankChangeAlerts = async (req: Request, companyName: string, changes: string[], actor: string, at: Date) => {
   try {
     const admins = await prisma.user.findMany({ where: { role: 'SUPER_ADMIN' }, select: { email: true } });
     const recipients = [...new Set([...admins.map((a) => a.email), process.env.ADMIN_NOTIFY_EMAIL].filter(Boolean) as string[])];

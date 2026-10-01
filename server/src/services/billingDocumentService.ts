@@ -7,6 +7,7 @@ import { BillingPdfService, BillingDocKind, companyAddressLines, documentTotals,
 import { BillingCompanyService, CompanyProfile, resolveBankAccount } from './billingCompanyService';
 import { calculateBilling } from './billingCalc';
 import { DocumentNumberService } from './documentNumberService';
+import { escapeHtml, fmtDate, inr } from './billingFormat';
 
 export type { BillingDocKind };
 
@@ -18,12 +19,6 @@ export const kindFromParam = (param: string): BillingDocKind => {
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
-const inr = (n: number) =>
-  '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtDate = (d?: Date | string | null) =>
-  d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
-const escapeHtml = (s: string) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export const frontendUrl = () =>
   (process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
@@ -419,6 +414,11 @@ export class BillingDocumentService {
     if (claim.count === 0) {
       const again = await prisma.invoice.findFirst({ where: { quotationId } });
       if (again) return { invoice: again, created: false };
+      // Another request claimed it a moment ago and is still creating the invoice.
+      if (quotation.status !== 'CONVERTED') {
+        throw new AppError('This quotation is already being converted. Refresh in a moment to see the invoice.', 409);
+      }
+      // Otherwise it was marked converted earlier but its invoice no longer exists: create it again.
     }
 
     try {
@@ -493,7 +493,8 @@ export class BillingDocumentService {
     }
     const to = process.env.ADMIN_NOTIFY_EMAIL || company.email;
     if (to) {
-      await emailService
+      // Not awaited: a slow mail server must not keep the client's Accept click waiting.
+      void emailService
         .sendMail(to, `Quotation ${record.quotationNumber} accepted`, `<p>${escapeHtml(message)}</p><p>Open the CRM to convert it into an invoice.</p>`, [], {
           fromName: company.name,
         })

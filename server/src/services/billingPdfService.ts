@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import path from 'path';
 import QRCode from 'qrcode';
 import { calculateBilling, BillingTotals, GST_STATES } from './billingCalc';
+import { fmtDate, inr } from './billingFormat';
 import { BankAccount, BillingCompanyService, CompanyProfile, resolveBankAccount } from './billingCompanyService';
 
 export type BillingDocKind = 'quotation' | 'invoice';
@@ -26,11 +27,6 @@ const COLOR = {
   overdue: '#e11d48',
 };
 
-const inr = (n: number) =>
-  '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const fmtDate = (d?: Date | string | null) =>
-  d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 
 const dataUrlToBuffer = (dataUrl?: string | null): Buffer | null => {
   const match = /^data:image\/(png|jpe?g);base64,(.+)$/.exec(dataUrl || '');
