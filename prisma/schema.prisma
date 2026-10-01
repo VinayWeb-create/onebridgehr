@@ -168,6 +168,8 @@ model Employee {
   hrDocuments     HRDocument[]
   sessionLogs     SessionLog[]
   performanceReviews PerformanceReview[]
+  goals              Goal[]         @relation("GoalOwner")
+  assignedGoals      Goal[]         @relation("GoalAssigner")
 }
 
 type PersonalInfo {
@@ -627,6 +629,141 @@ model PerformanceReview {
   updatedAt      DateTime @updatedAt
 
   @@index([employeeId, reviewPeriod])
+}
+
+enum GoalStatus {
+  NOT_STARTED
+  ON_TRACK
+  BEHIND
+  AT_RISK
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+enum GoalPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+/// Embedded OKR item on a Goal
+type GoalKeyResult {
+  id         String
+  title      String
+  current    Float    @default(0)
+  target     Float
+  unit       String?
+  progress   Int      @default(0)
+  confidence Int?
+}
+
+type GoalCheckIn {
+  id             String
+  authorId       String?
+  authorName     String
+  weekLabel      String
+  progress       Int
+  problems       String?
+  wins           String?
+  nextActions    String?
+  attachments    String[]
+  managerComment String?
+  status         String?
+  createdAt      DateTime @default(now())
+}
+
+type GoalComment {
+  id          String
+  authorId    String?
+  authorName  String
+  content     String
+  isManager   Boolean  @default(false)
+  attachments String[]
+  timestamp   DateTime @default(now())
+}
+
+type GoalActivity {
+  id        String
+  actorId   String?
+  actorName String
+  type      String
+  message   String
+  metadata  Json?
+  timestamp DateTime @default(now())
+}
+
+/// Enterprise Goals / OKR engine feeding reviews, promotions & compensation
+model Goal {
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  title             String
+  description       String
+  goalType          String         @default("INDIVIDUAL") // COMPANY, DEPARTMENT, TEAM, INDIVIDUAL, LEARNING, INNOVATION, REVENUE, CUSTOMER_SUCCESS, QUALITY, PROJECT, LEADERSHIP, STRETCH
+  ownerId           String
+  owner             Employee       @relation("GoalOwner", fields: [ownerId], references: [employeeId], onDelete: Cascade)
+  assignedById      String?
+  assignedBy        Employee?      @relation("GoalAssigner", fields: [assignedById], references: [employeeId], onDelete: SetNull)
+  managerName       String?
+  managerId         String?
+  department        String
+  priority          GoalPriority   @default(MEDIUM)
+  weight            Float          @default(1)
+  progress          Int            @default(0)
+  status            GoalStatus     @default(NOT_STARTED)
+  confidence        Int?
+  startDate         DateTime       @default(now())
+  endDate           DateTime?
+  dueDate           DateTime?
+  businessObjective String?
+  businessImpact    String?
+  successMetrics    String[]
+  kpiName           String?
+  kpiCurrent        Float?
+  kpiTarget         Float?
+  kpiUnit           String?
+  departmentKpi     String?        // SALES, MARKETING, ENGINEERING, FINANCE, HR, OPERATIONS
+  linkedProject     String?
+  linkedKpiIds      String[]
+  skills            String[]
+  contributors      String[]
+  attachments       String[]
+  keyResults        GoalKeyResult[]
+  checkIns          GoalCheckIn[]
+  comments          GoalComment[]
+  activities        GoalActivity[]
+  dependencies      String[]
+  parentGoalId      String?
+  isCompanyGoal     Boolean        @default(false)
+  visibility        String         @default("TEAM") // PRIVATE, TEAM, DEPARTMENT, COMPANY
+  approvalStatus    String         @default("APPROVED") // DRAFT, PENDING_APPROVAL, APPROVED, REJECTED
+  approvalNote      String?
+  points            Int            @default(0)
+  aiNotes           Json?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([ownerId, status])
+  @@index([department, status])
+  @@index([status, dueDate])
+}
+
+/// Reusable goal templates for the Admin Panel
+model GoalTemplate {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  goalType       String
+  description    String
+  keyResults     Json
+  successMetrics Json
+  skills         String[]
+  aiConfig       Json?
+  isActive       Boolean  @default(true)
+  usageCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([goalType, isActive])
 }
 
 enum LeadStatus {

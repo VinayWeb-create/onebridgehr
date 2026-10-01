@@ -581,10 +581,51 @@ export const Tasks: React.FC = () => {
 
   const activeStats = taskViewTab === 'ADMIN_TASKS' ? adminStats : teamStats;
 
-  // Preset quick counts for chips
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1;
+  const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+  const yesterdayEnd = todayStart - 1;
+  const last7DaysStart = todayStart - 7 * 24 * 60 * 60 * 1000;
+  const last30DaysStart = todayStart - 30 * 24 * 60 * 60 * 1000;
+
+  const isTaskMatchingDate = (t: Task, filterKey: string) => {
+    if (filterKey === 'ALL') return true;
+    const dueMs = t.dueDate ? new Date(t.dueDate).getTime() : 0;
+    const createdMs = t.createdAt ? new Date(t.createdAt).getTime() : dueMs;
+
+    if (filterKey === 'TODAY') {
+      return (dueMs >= todayStart && dueMs <= todayEnd) || (createdMs >= todayStart && createdMs <= todayEnd);
+    }
+    if (filterKey === 'YESTERDAY') {
+      return (dueMs >= yesterdayStart && dueMs <= yesterdayEnd) || (createdMs >= yesterdayStart && createdMs <= yesterdayEnd);
+    }
+    if (filterKey === 'LAST_7_DAYS') {
+      return (dueMs >= last7DaysStart && dueMs <= todayEnd) || (createdMs >= last7DaysStart && createdMs <= todayEnd);
+    }
+    if (filterKey === 'LAST_30_DAYS') {
+      return (dueMs >= last30DaysStart && dueMs <= todayEnd) || (createdMs >= last30DaysStart && createdMs <= todayEnd);
+    }
+    if (filterKey === 'OVERDUE') {
+      return dueMs < todayStart && !['COMPLETED', 'REJECTED'].includes(t.status);
+    }
+    if (filterKey === 'TOMORROW') {
+      const tomStart = todayStart + 24 * 60 * 60 * 1000;
+      const tomEnd = tomStart + 24 * 60 * 60 * 1000 - 1;
+      return dueMs >= tomStart && dueMs <= tomEnd;
+    }
+    if (filterKey === 'THIS_WEEK') {
+      const weekEnd = todayStart + 7 * 24 * 60 * 60 * 1000;
+      return dueMs >= todayStart && dueMs <= weekEnd;
+    }
+    return true;
+  };
+
   const presetCounts = {
     all: scopedTasks.length,
-    today: scopedTasks.filter(t => new Date(t.dueDate).toDateString() === now.toDateString()).length,
+    today: scopedTasks.filter(t => isTaskMatchingDate(t, 'TODAY')).length,
+    yesterday: scopedTasks.filter(t => isTaskMatchingDate(t, 'YESTERDAY')).length,
+    last7Days: scopedTasks.filter(t => isTaskMatchingDate(t, 'LAST_7_DAYS')).length,
+    last30Days: scopedTasks.filter(t => isTaskMatchingDate(t, 'LAST_30_DAYS')).length,
     overdue: scopedTasks.filter(t => new Date(t.dueDate) < now && !['COMPLETED', 'REJECTED'].includes(t.status)).length,
     inProgress: scopedTasks.filter(t => t.status === 'IN_PROGRESS').length,
     pending: scopedTasks.filter(t => t.status === 'PENDING').length,
@@ -615,12 +656,12 @@ export const Tasks: React.FC = () => {
         (t.employeeId && t.employeeId.toLowerCase().includes(q));
 
       const isOverdue = new Date(t.dueDate) < now && !['COMPLETED', 'REJECTED'].includes(t.status);
-      const isToday = new Date(t.dueDate).toDateString() === now.toDateString();
 
       // Quick preset filter
       let matchPreset = true;
-      if (quickPreset === 'TODAY') matchPreset = isToday;
-      else if (quickPreset === 'OVERDUE') matchPreset = isOverdue;
+      if (['TODAY', 'YESTERDAY', 'LAST_7_DAYS', 'LAST_30_DAYS'].includes(quickPreset)) {
+        matchPreset = isTaskMatchingDate(t, quickPreset);
+      } else if (quickPreset === 'OVERDUE') matchPreset = isOverdue;
       else if (quickPreset === 'CRITICAL') matchPreset = t.priority === 'CRITICAL';
       else if (quickPreset !== 'ALL') matchPreset = t.status === quickPreset;
 
@@ -633,19 +674,8 @@ export const Tasks: React.FC = () => {
       // Department filter
       const matchDept = departmentFilter === 'ALL' || (t.employee?.department === departmentFilter);
 
-      // Deadline filter
-      let matchDeadline = true;
-      if (deadlineFilter === 'TODAY') matchDeadline = isToday;
-      else if (deadlineFilter === 'OVERDUE') matchDeadline = isOverdue;
-      else if (deadlineFilter === 'TOMORROW') {
-        const tomorrow = new Date(now);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        matchDeadline = new Date(t.dueDate).toDateString() === tomorrow.toDateString();
-      } else if (deadlineFilter === 'THIS_WEEK') {
-        const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        const dueMs = new Date(t.dueDate).getTime();
-        matchDeadline = dueMs >= now.getTime() && dueMs <= weekEnd.getTime();
-      }
+      // Date / Deadline filter
+      const matchDeadline = isTaskMatchingDate(t, deadlineFilter);
 
       return matchSearch && matchPreset && matchStatus && matchPriority && matchDept && matchDeadline;
     })
@@ -662,13 +692,19 @@ export const Tasks: React.FC = () => {
     });
 
   const handleSort = (field: SortField) => {
-    if (sortField === field) setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
-    else { setSortField(field); setSortDir('asc'); }
+    if (sortField === field) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
   };
 
-  const SortIcon: React.FC<{ field: SortField }> = ({ field }) => {
-    if (sortField !== field) return <ArrowUpDown size={10} className="opacity-30" />;
-    return sortDir === 'asc' ? <ArrowUp size={10} className="text-indigo-600" /> : <ArrowDown size={10} className="text-indigo-600" />;
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown size={11} className="text-brand-300 dark:text-brand-700" />;
+    return sortDir === 'asc'
+      ? <ArrowUp size={11} className="text-indigo-600 dark:text-indigo-400 font-bold" />
+      : <ArrowDown size={11} className="text-indigo-600 dark:text-indigo-400 font-bold" />;
   };
 
   const isAdmin = user?.role === 'HR' || user?.role === 'SUPER_ADMIN';
@@ -678,7 +714,7 @@ export const Tasks: React.FC = () => {
   // RENDER
   // ═══════════════════════════════════════
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 animate-fade-in pb-16">
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* Header Banner */}
@@ -768,11 +804,14 @@ export const Tasks: React.FC = () => {
         })}
       </div>
 
-      {/* ─── Quick Filter Chips (Pills) ─── */}
+      {/* ─── Quick Date & Status Filter Chips (Pills) ─── */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
         {[
           { key: 'ALL', label: 'All Tasks', count: presetCounts.all, icon: <Sparkles size={11} /> },
-          { key: 'TODAY', label: 'Due Today', count: presetCounts.today, icon: <Flame size={11} className="text-amber-500" /> },
+          { key: 'TODAY', label: 'Today', count: presetCounts.today, icon: <Flame size={11} className="text-amber-500" /> },
+          { key: 'YESTERDAY', label: 'Yesterday', count: presetCounts.yesterday, icon: <Clock size={11} className="text-indigo-400" /> },
+          { key: 'LAST_7_DAYS', label: 'Last 7 Days', count: presetCounts.last7Days, icon: <Calendar size={11} className="text-emerald-400" /> },
+          { key: 'LAST_30_DAYS', label: 'Last 30 Days', count: presetCounts.last30Days, icon: <Calendar size={11} className="text-cyan-400" /> },
           { key: 'OVERDUE', label: 'Overdue', count: presetCounts.overdue, icon: <AlertTriangle size={11} className="text-rose-500" /> },
           { key: 'IN_PROGRESS', label: 'In Progress', count: presetCounts.inProgress, icon: <Zap size={11} className="text-amber-500" /> },
           { key: 'PENDING', label: 'Pending', count: presetCounts.pending, icon: <Clock size={11} className="text-brand-400" /> },
@@ -785,7 +824,7 @@ export const Tasks: React.FC = () => {
             <button
               key={chip.key}
               onClick={() => setQuickPreset(chip.key)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 isActive
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                   : 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-800 border border-brand-200 dark:border-brand-800/60'
@@ -855,7 +894,7 @@ export const Tasks: React.FC = () => {
             </select>
           </div>
 
-          {/* Deadline Preset */}
+          {/* Date / Timeframe Filter */}
           <div className="flex items-center gap-1 bg-brand-50 dark:bg-brand-900/50 border border-brand-200 dark:border-brand-800 rounded-xl px-2.5 py-1.5">
             <Calendar size={11} className="text-brand-400 shrink-0" />
             <select
@@ -863,10 +902,13 @@ export const Tasks: React.FC = () => {
               onChange={e => setDeadlineFilter(e.target.value)}
               className="bg-transparent text-[11px] font-bold text-brand-800 dark:text-brand-200 outline-none cursor-pointer"
             >
-              <option value="ALL" className="dark:bg-brand-900">All Deadlines</option>
-              <option value="TODAY" className="dark:bg-brand-900">📅 Due Today</option>
-              <option value="TOMORROW" className="dark:bg-brand-900">⏰ Tomorrow</option>
-              <option value="THIS_WEEK" className="dark:bg-brand-900">📆 Next 7 Days</option>
+              <option value="ALL" className="dark:bg-brand-900">All Dates</option>
+              <option value="TODAY" className="dark:bg-brand-900">📅 Today</option>
+              <option value="YESTERDAY" className="dark:bg-brand-900">⏳ Yesterday</option>
+              <option value="LAST_7_DAYS" className="dark:bg-brand-900">🗓️ Last 7 Days</option>
+              <option value="LAST_30_DAYS" className="dark:bg-brand-900">📆 Last 30 Days</option>
+              <option value="TOMORROW" className="dark:bg-brand-900">⏰ Due Tomorrow</option>
+              <option value="THIS_WEEK" className="dark:bg-brand-900">🚀 Next 7 Days</option>
               <option value="OVERDUE" className="dark:bg-brand-900">⚠️ Overdue</option>
             </select>
           </div>
@@ -875,7 +917,7 @@ export const Tasks: React.FC = () => {
           {hasActiveFilters && (
             <button
               onClick={resetAllFilters}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 transition-all shadow-sm"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 transition-all shadow-sm cursor-pointer"
               title="Reset all filters"
             >
               <RotateCcw size={11} /> Reset

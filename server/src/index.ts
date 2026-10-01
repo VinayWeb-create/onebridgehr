@@ -32,6 +32,7 @@ import caFinanceRoutes from './routes/caFinanceRoutes';
 import ocrRoutes from './routes/ocrRoutes';
 import automationRoutes from './routes/automationRoutes';
 import aiAgentRoutes from './routes/aiAgentRoutes';
+import goalRoutes from './routes/goalRoutes';
 import { googleOAuth } from './services/googleOAuth';
 import { AiAgentOrchestrator } from './services/ai/aiAgentOrchestrator';
 
@@ -136,6 +137,7 @@ app.use('/api/ca-finance', caFinanceRoutes);
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/automations', automationRoutes);
 app.use('/api/ai', aiAgentRoutes);
+app.use('/api/goals', goalRoutes);
 
 // Fallback Route
 app.use('*', (req, res) => {

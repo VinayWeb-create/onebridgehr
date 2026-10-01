@@ -36,6 +36,14 @@ import {
   Bot,
   BrainCircuit,
   Building2,
+  Target,
+  Rocket,
+  BarChart3,
+  UserCheck,
+  GraduationCap,
+  History,
+  Trophy,
+  LayoutTemplate,
 } from 'lucide-react';
 
 interface NotificationToast {
@@ -93,6 +101,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const [financeOpen, setFinanceOpen] = useState(
     location.pathname.startsWith('/finance') || location.pathname === '/tally-finance' || location.pathname === '/statement-ocr' || location.pathname === '/automations'
   );
+  const [performanceOpen, setPerformanceOpen] = useState(location.pathname.startsWith('/goals'));
 
   useEffect(() => {
     if (location.pathname.startsWith('/crm') || location.pathname === '/leads' || location.pathname === '/quotations' || location.pathname === '/invoices') {
@@ -100,6 +109,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     }
     if (location.pathname.startsWith('/finance') || location.pathname === '/tally-finance' || location.pathname === '/statement-ocr' || location.pathname === '/automations') {
       setFinanceOpen(true);
+    }
+    if (location.pathname.startsWith('/goals')) {
+      setPerformanceOpen(true);
     }
   }, [location.pathname]);
 
@@ -111,6 +123,12 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       name: 'Dashboard',
       path: '/dashboard',
       icon: LayoutDashboard,
+      roles: ['SUPER_ADMIN', 'HR', 'TEAM_LEAD', 'EMPLOYEE'],
+    },
+    {
+      name: 'Goals & OKRs',
+      path: '/goals',
+      icon: Target,
       roles: ['SUPER_ADMIN', 'HR', 'TEAM_LEAD', 'EMPLOYEE'],
     },
     {
@@ -199,6 +217,50 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     },
   ];
 
+  // Performance & Goals Sub-pages (all roles)
+  const performanceSubLinks = [
+    {
+      name: 'Goals & OKRs',
+      path: '/goals',
+      icon: Target,
+    },
+    {
+      name: 'Create Goal',
+      path: '/goals/new',
+      icon: Rocket,
+    },
+    {
+      name: 'Analytics',
+      path: '/goals/analytics',
+      icon: BarChart3,
+    },
+    {
+      name: 'Manager Review',
+      path: '/goals/manager-review',
+      icon: UserCheck,
+    },
+    {
+      name: 'Career Growth',
+      path: '/goals/career',
+      icon: GraduationCap,
+    },
+    {
+      name: 'Timeline',
+      path: '/goals/timeline',
+      icon: History,
+    },
+    {
+      name: 'Recognition',
+      path: '/goals/recognition',
+      icon: Trophy,
+    },
+    {
+      name: 'Templates',
+      path: '/goals/templates',
+      icon: LayoutTemplate,
+    },
+  ];
+
   const handleLogout = async () => {
     if (await confirm({ title: 'Sign Out', message: 'Are you sure you want to sign out of your session?', variant: 'warning', confirmText: 'Sign Out' })) {
       await logout();
@@ -208,6 +270,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
 
   const isCrmActive = location.pathname.startsWith('/crm') || location.pathname === '/leads' || location.pathname === '/quotations' || location.pathname === '/invoices';
   const isFinanceActive = location.pathname.startsWith('/finance') || location.pathname === '/tally-finance' || location.pathname === '/statement-ocr' || location.pathname === '/automations';
+  const isPerformanceActive = location.pathname.startsWith('/goals');
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row overflow-hidden bg-brand-50 dark:bg-brand-950 relative">
@@ -246,7 +309,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             .filter((l) => l.roles.includes(user.role))
             .map((link) => {
               const Icon = link.icon;
-              const isActive = location.pathname === link.path;
+              const isActive =
+                location.pathname === link.path ||
+                (link.path === '/goals' && location.pathname.startsWith('/goals'));
               return (
                 <Link
                   key={link.path}
@@ -289,10 +354,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                   <Layers size={17} className={isCrmActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-brand-400'} />
                   <span>CRM & Sales</span>
                 </div>
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-extrabold">
-                    3
-                  </span>
+                <div className="flex items-center">
                   <ChevronDown
                     size={14}
                     className={`transition-transform duration-200 ${crmOpen ? 'rotate-180' : 'rotate-0'}`}
@@ -358,10 +420,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                   <Landmark size={17} className={isFinanceActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-brand-400'} />
                   <span>Finance & Accounts</span>
                 </div>
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-extrabold">
-                    3
-                  </span>
+                <div className="flex items-center">
                   <ChevronDown
                     size={14}
                     className={`transition-transform duration-200 ${financeOpen ? 'rotate-180' : 'rotate-0'}`}
@@ -410,6 +469,66 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
               </AnimatePresence>
             </div>
           )}
+
+          {/* PERFORMANCE & GOALS - Collapsible Dropdown (all roles) */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => setPerformanceOpen(!performanceOpen)}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                isPerformanceActive
+                  ? 'bg-indigo-50 dark:bg-brand-900/70 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-900/60'
+                  : 'text-brand-600 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/40'
+              }`}
+            >
+              <div className="flex items-center space-x-3.5">
+                <Target size={17} className={isPerformanceActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-brand-400'} />
+                <span>Performance & Goals</span>
+              </div>
+              <div className="flex items-center">
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-200 ${performanceOpen ? 'rotate-180' : 'rotate-0'}`}
+                />
+              </div>
+            </button>
+
+            {/* Performance Subpages Dropdown */}
+            <AnimatePresence>
+              {performanceOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden pl-4 pr-1 py-1 space-y-1 border-l-2 border-indigo-200 dark:border-indigo-900/60 ml-5 my-1"
+                >
+                  {performanceSubLinks.map((sub) => {
+                    const SubIcon = sub.icon;
+                    const isSubActive = location.pathname === sub.path || (sub.path === '/goals' && location.pathname === '/goals/my');
+
+                    return (
+                      <Link
+                        key={sub.path}
+                        to={sub.path}
+                        onClick={() => setSidebarOpen(false)}
+                        className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                          isSubActive
+                            ? 'bg-gradient-to-r from-orange-500 to-indigo-600 text-white shadow-sm font-bold'
+                            : 'text-brand-600 dark:text-brand-400 hover:text-indigo-600 dark:hover:text-white hover:bg-brand-100 dark:hover:bg-brand-900/50'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-slate-400'} />
+                          <span>{sub.name}</span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Profile Link */}
           <div className="pt-2">

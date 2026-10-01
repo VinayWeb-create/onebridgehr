@@ -2,21 +2,28 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function clean() {
-  console.log('Cleaning CRM and Finance data...');
+  console.log('Cleaning CRM, Finance, and Accounts data...');
   
   try {
-    // Finance
-    await prisma.financeVoucher.deleteMany({});
-    await prisma.financeTransaction.deleteMany({});
-    console.log('- Finance data deleted.');
+    // 1. CRM - Autonomous AI / Followup / Logs
+    await prisma.autonomousFollowupTask.deleteMany({});
+    await prisma.aiDiscoveryDocument.deleteMany({});
+    await prisma.aiNegotiationLog.deleteMany({});
+    await prisma.aiDecisionLog.deleteMany({});
+    await prisma.communicationLog.deleteMany({});
 
-    // CRM
+    // 2. CRM - Core
     await prisma.invoice.deleteMany({});
     await prisma.quotation.deleteMany({});
     await prisma.lead.deleteMany({});
-    console.log('- CRM data deleted.');
 
-    console.log('Cleanup completed successfully.');
+    // 3. Finance & Accounts
+    await prisma.financeVoucher.deleteMany({});
+    await prisma.financeTransaction.deleteMany({});
+    await prisma.parsedStatementLog.deleteMany({});
+    await prisma.financeLedger.deleteMany({});
+
+    console.log('Cleanup completed successfully. All CRM, Finance, and Accounts data removed.');
   } catch (error) {
     console.error('Error cleaning data:', error);
   } finally {
@@ -25,3 +32,4 @@ async function clean() {
 }
 
 clean();
+

@@ -39,6 +39,17 @@ import StatementOcrPage from './pages/finance/StatementOcrPage';
 import AutomationSettingsPage from './pages/automations/AutomationSettingsPage';
 import AiCommandCenterPage from './pages/ai/AiCommandCenterPage';
 
+// Goals & OKRs (Performance module)
+import GoalsDashboard from './pages/goals/GoalsDashboard';
+import GoalWizard from './pages/goals/GoalWizard';
+import GoalDetail from './pages/goals/GoalDetail';
+import GoalsAnalyticsPage from './pages/goals/GoalsAnalyticsPage';
+import ManagerReviewPage from './pages/goals/ManagerReviewPage';
+import GoalsTimelinePage from './pages/goals/GoalsTimelinePage';
+import RecognitionPage from './pages/goals/RecognitionPage';
+import TemplatesAdminPage from './pages/goals/TemplatesAdminPage';
+import CareerPage from './pages/goals/CareerPage';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -221,6 +232,18 @@ export const App: React.FC = () => {
                   }
                 />
                 <Route path="/ai" element={<Navigate to="/ai/command-center" replace />} />
+
+                {/* Goals & OKRs — Performance Module (all roles) */}
+                <Route path="/goals" element={<ProtectedRoute><GoalsDashboard /></ProtectedRoute>} />
+                <Route path="/goals/my" element={<ProtectedRoute><GoalsDashboard /></ProtectedRoute>} />
+                <Route path="/goals/new" element={<ProtectedRoute><GoalWizard /></ProtectedRoute>} />
+                <Route path="/goals/analytics" element={<ProtectedRoute><GoalsAnalyticsPage /></ProtectedRoute>} />
+                <Route path="/goals/manager-review" element={<ProtectedRoute><ManagerReviewPage /></ProtectedRoute>} />
+                <Route path="/goals/career" element={<ProtectedRoute><CareerPage /></ProtectedRoute>} />
+                <Route path="/goals/timeline" element={<ProtectedRoute><GoalsTimelinePage /></ProtectedRoute>} />
+                <Route path="/goals/recognition" element={<ProtectedRoute><RecognitionPage /></ProtectedRoute>} />
+                <Route path="/goals/templates" element={<ProtectedRoute><TemplatesAdminPage /></ProtectedRoute>} />
+                <Route path="/goals/:id" element={<ProtectedRoute><GoalDetail /></ProtectedRoute>} />
 
                 {/* Direct & Legacy Quick Navigation Redirects */}
                 <Route path="/leads" element={<Navigate to="/crm/leads" replace />} />

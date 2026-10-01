@@ -519,3 +519,123 @@ export const recordPaymentSchema = z.object({
   paymentDate: optionalDate,
   notes: optionalText(500),
 });
+
+// ==========================================
+// Goals & OKRs
+// ==========================================
+export const goalCreateSchema = z.object({
+  title: z.string().min(1, 'Goal title is required'),
+  description: z.string().optional().default(''),
+  goalType: z.string().optional().default('INDIVIDUAL'),
+  ownerId: z.string().optional(),
+  managerId: z.string().optional(),
+  managerName: z.string().optional(),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional().default('MEDIUM'),
+  weight: z.number().min(0).max(10).optional().default(1),
+  status: z.enum(['NOT_STARTED', 'ON_TRACK', 'BEHIND', 'AT_RISK', 'BLOCKED', 'COMPLETED', 'CANCELLED']).optional(),
+  startDate: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  endDate: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  dueDate: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  businessObjective: z.string().optional(),
+  businessImpact: z.string().optional(),
+  successMetrics: z.array(z.string()).optional().default([]),
+  kpiName: z.string().optional(),
+  kpiCurrent: z.number().optional(),
+  kpiTarget: z.number().optional(),
+  kpiUnit: z.string().optional(),
+  departmentKpi: z.string().optional(),
+  linkedProject: z.string().optional(),
+  skills: z.array(z.string()).optional().default([]),
+  contributors: z.array(z.string()).optional().default([]),
+  attachments: z.array(z.string()).optional().default([]),
+  keyResults: z.array(z.object({
+    id: z.string().optional(),
+    title: z.string().min(1),
+    current: z.number().optional().default(0),
+    target: z.number().min(0.01),
+    unit: z.string().optional(),
+  })).optional().default([]),
+  dependencies: z.array(z.string()).optional().default([]),
+  parentGoalId: z.string().optional(),
+  isCompanyGoal: z.boolean().optional().default(false),
+  visibility: z.string().optional().default('TEAM'),
+  approvalStatus: z.string().optional().default('APPROVED'),
+});
+
+export const goalUpdateSchema = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
+  goalType: z.string().optional(),
+  ownerId: z.string().optional(),
+  managerId: z.string().optional(),
+  managerName: z.string().optional(),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
+  weight: z.number().min(0).max(10).optional(),
+  status: z.enum(['NOT_STARTED', 'ON_TRACK', 'BEHIND', 'AT_RISK', 'BLOCKED', 'COMPLETED', 'CANCELLED']).optional(),
+  progress: z.number().min(0).max(100).optional(),
+  startDate: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  endDate: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  dueDate: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
+  businessObjective: z.string().optional(),
+  businessImpact: z.string().optional(),
+  successMetrics: z.array(z.string()).optional(),
+  kpiName: z.string().optional(),
+  kpiCurrent: z.number().optional(),
+  kpiTarget: z.number().optional(),
+  kpiUnit: z.string().optional(),
+  departmentKpi: z.string().optional(),
+  linkedProject: z.string().optional(),
+  skills: z.array(z.string()).optional(),
+  contributors: z.array(z.string()).optional(),
+  attachments: z.array(z.string()).optional(),
+  keyResults: z.array(z.object({
+    id: z.string().optional(),
+    title: z.string().min(1),
+    current: z.number().optional().default(0),
+    target: z.number().min(0.01),
+    unit: z.string().optional(),
+    progress: z.number().optional(),
+    confidence: z.number().optional(),
+  })).optional(),
+  dependencies: z.array(z.string()).optional(),
+  parentGoalId: z.string().optional(),
+  isCompanyGoal: z.boolean().optional(),
+  visibility: z.string().optional(),
+  approvalStatus: z.string().optional(),
+  approvalNote: z.string().optional(),
+  confidence: z.number().optional(),
+});
+
+export const goalCheckInSchema = z.object({
+  weekLabel: z.string().optional().default(() => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+  progress: z.number().min(0).max(100),
+  problems: z.string().optional(),
+  wins: z.string().optional(),
+  nextActions: z.string().optional(),
+  attachments: z.array(z.string()).optional().default([]),
+  status: z.enum(['NOT_STARTED', 'ON_TRACK', 'BEHIND', 'AT_RISK', 'BLOCKED', 'COMPLETED', 'CANCELLED']).optional(),
+  managerComment: z.string().optional(),
+});
+
+export const goalCommentSchema = z.object({
+  content: z.string().min(1),
+  isManager: z.boolean().optional().default(false),
+  attachments: z.array(z.string()).optional().default([]),
+});
+
+export const goalAiAssistSchema = z.object({
+  action: z.string(), // draft_from_text, convert_task, suggest_kpis, improve_wording, predict_completion, detect_unrealistic, suggest_milestones, generate_weekly_update, recommend_learning, identify_blockers
+  text: z.string().optional(),
+  goalType: z.string().optional(),
+  goal: z.any().optional(),
+});
+
+export const goalTemplateSchema = z.object({
+  name: z.string().min(1),
+  goalType: z.string().min(1),
+  description: z.string().optional().default(''),
+  keyResults: z.any().optional().default([]),
+  successMetrics: z.any().optional().default([]),
+  skills: z.array(z.string()).optional().default([]),
+  aiConfig: z.any().optional(),
+});
