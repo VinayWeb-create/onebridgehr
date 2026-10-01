@@ -87,6 +87,11 @@ app.use('/api', limiter);
 
 // 5. Static Files Serving (Signatures, Profiles, Payslip PDFs, Quotes, Invoices)
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// Quotation/invoice PDFs are now served only via authenticated API routes or share links;
+// block older files that were written here with guessable names (e.g. INV-2026-0001.pdf).
+app.use(['/documents/quotations', '/documents/invoices'], (_req, res) => {
+  res.status(404).json({ status: 'fail', message: 'Not found' });
+});
 app.use('/documents', express.static(path.join(process.cwd(), 'documents')));
 
 // 6. Socket.io setup

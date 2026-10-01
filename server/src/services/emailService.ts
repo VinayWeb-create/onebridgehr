@@ -79,7 +79,14 @@ class EmailService {
     return this.transporter;
   }
 
-  public async sendMail(to: string, subject: string, html: string, attachments?: any[]): Promise<any> {
+  public async sendMail(
+    to: string,
+    subject: string,
+    html: string,
+    attachments?: any[],
+    options: { cc?: string[]; fromName?: string; replyTo?: string } = {}
+  ): Promise<any> {
+    const cc = (options.cc || []).map((e) => e.trim()).filter(Boolean);
     // 0. If emails are disabled globally via ENV, exit cleanly and immediately
     const isEmailDisabled =
       process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true' ||
@@ -117,10 +124,12 @@ class EmailService {
           },
           body: JSON.stringify({
             sender: {
-              name: 'OneBridge HR System',
+              name: options.fromName || 'OneBridge HR System',
               email: senderEmail,
             },
             to: [{ email: to }],
+            cc: cc.length ? cc.map((email) => ({ email })) : undefined,
+            replyTo: options.replyTo ? { email: options.replyTo } : undefined,
             subject,
             htmlContent: html,
             attachment: formattedAttachments.length > 0 ? formattedAttachments : undefined,
@@ -164,8 +173,10 @@ class EmailService {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: fromEmail.includes('<') ? fromEmail : `"OneBridge HR" <${fromEmail}>`,
+            from: fromEmail.includes('<') ? fromEmail : `"${options.fromName || 'OneBridge HR'}" <${fromEmail}>`,
             to: [to],
+            cc: cc.length ? cc : undefined,
+            reply_to: options.replyTo || undefined,
             subject,
             html,
             attachments: formattedAttachments.length > 0 ? formattedAttachments : undefined,
@@ -188,8 +199,10 @@ class EmailService {
     // 3. Fallback to SMTP (Nodemailer)
     const logoPath = this.logoPath();
     const mailOptions = {
-      from: `"OneBridge HR System" <${process.env.EMAIL_USER || 'vinay@onebridgeinfotech.com'}>`,
+      from: `"${options.fromName || 'OneBridge HR System'}" <${process.env.EMAIL_USER || 'vinay@onebridgeinfotech.com'}>`,
       to,
+      cc: cc.length ? cc : undefined,
+      replyTo: options.replyTo || undefined,
       subject,
       html,
       attachments: [

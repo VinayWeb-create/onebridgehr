@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Sparkles, FileText, Receipt, Users } from 'lucide-react';
+import { Sparkles, FileText, Receipt, Users, Building2 } from 'lucide-react';
 
 export const CrmNavTabs: React.FC = () => {
   const location = useLocation();
@@ -30,6 +30,11 @@ export const CrmNavTabs: React.FC = () => {
       name: 'Tax Invoices & Billing',
       path: '/crm/invoices',
       icon: Receipt,
+    },
+    {
+      name: 'Billing Settings',
+      path: '/crm/billing-settings',
+      icon: Building2,
     },
   ];
 

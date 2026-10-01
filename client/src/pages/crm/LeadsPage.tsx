@@ -661,7 +661,7 @@ export const LeadsPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() =>
-                        navigate('/quotations', {
+                        navigate('/crm/quotations', {
                           state: {
                             createFromLead: {
                               leadId: lead.id,
@@ -791,7 +791,7 @@ export const LeadsPage: React.FC = () => {
                           </button>
                           <button
                             onClick={() =>
-                              navigate('/quotations', {
+                              navigate('/crm/quotations', {
                                 state: {
                                   createFromLead: {
                                     leadId: lead.id,
@@ -943,7 +943,7 @@ export const LeadsPage: React.FC = () => {
                   onClick={() => {
                     const l = viewingLead;
                     setViewingLead(null);
-                    navigate('/quotations', {
+                    navigate('/crm/quotations', {
                       state: {
                         createFromLead: {
                           leadId: l.id,

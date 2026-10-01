@@ -2,6 +2,7 @@ import { prisma } from '../../../config/db';
 import { aiEventBus, AiEventPayload } from '../aiEventBus';
 import { BillingPdfService } from '../../billingPdfService';
 import { CommunicationService } from '../../communicationService';
+import { DocumentNumberService } from '../../documentNumberService';
 
 export class ProposalPricingAgent {
   public static readonly ROLE = 'PROPOSAL_ENGINEER';
@@ -52,8 +53,7 @@ export class ProposalPricingAgent {
     const taxAmount = Math.round(subTotal * 0.18);
     const totalAmount = subTotal + taxAmount;
 
-    const count = await prisma.quotation.count();
-    const quotationNumber = `QUO-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
+    const quotationNumber = await DocumentNumberService.next('QUO');
 
     try {
       const quotation = await prisma.quotation.create({

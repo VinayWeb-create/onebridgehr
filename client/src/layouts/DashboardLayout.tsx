@@ -35,6 +35,7 @@ import {
   ChevronRight,
   Bot,
   BrainCircuit,
+  Building2,
 } from 'lucide-react';
 
 interface NotificationToast {
@@ -175,6 +176,12 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       path: '/crm/invoices',
       icon: Receipt,
       tag: 'Billing',
+    },
+    {
+      name: 'Billing Settings',
+      path: '/crm/billing-settings',
+      icon: Building2,
+      tag: 'Company',
     },
   ];
 

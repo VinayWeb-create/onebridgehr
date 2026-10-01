@@ -23,6 +23,7 @@ import OfferAccepted from './pages/OfferAccepted';
 import RequestProposalPage from './pages/public/RequestProposalPage';
 import BookDemoPage from './pages/public/BookDemoPage';
 import PaymentPage from './pages/public/PaymentPage';
+import SharedDocumentPage from './pages/public/SharedDocumentPage';
 
 // Super Admin ERP Suite
 import CrmHubPage from './pages/crm/CrmHubPage';
@@ -32,6 +33,7 @@ import { ProposalsPage } from './pages/crm/ProposalsPage';
 import { ConsultationsPage } from './pages/crm/ConsultationsPage';
 import QuotationsPage from './pages/crm/QuotationsPage';
 import InvoicesPage from './pages/crm/InvoicesPage';
+import BillingSettingsPage from './pages/crm/BillingSettingsPage';
 import TallyFinancePage from './pages/finance/TallyFinancePage';
 import StatementOcrPage from './pages/finance/StatementOcrPage';
 import AutomationSettingsPage from './pages/automations/AutomationSettingsPage';
@@ -100,6 +102,7 @@ export const App: React.FC = () => {
                 <Route path="/proposal/request/:leadId" element={<RequestProposalPage />} />
                 <Route path="/demo/book/:leadId" element={<BookDemoPage />} />
                 <Route path="/payment/:id" element={<PaymentPage />} />
+                <Route path="/p/:token" element={<SharedDocumentPage />} />
 
                 {/* Core Protected Workspace Nodes */}
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -154,6 +157,14 @@ export const App: React.FC = () => {
                   element={
                     <ProtectedRoute requiredRoles={['SUPER_ADMIN']}>
                       <InvoicesPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/crm/billing-settings"
+                  element={
+                    <ProtectedRoute requiredRoles={['SUPER_ADMIN']}>
+                      <BillingSettingsPage />
                     </ProtectedRoute>
                   }
                 />
