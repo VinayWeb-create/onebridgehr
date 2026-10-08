@@ -646,9 +646,46 @@ export const getEmployeeDashboardStats = async (req: Request, res: Response, nex
     const currentYear = today.getFullYear();
 
     // Today's attendance
-    const todayAttendance = await prisma.attendance.findFirst({
+    const todayAttendanceRaw = await prisma.attendance.findFirst({
       where: { employeeId, date: today },
     });
+
+    // Check today's warning count
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const warningCount = await prisma.attendanceVerificationLog.count({
+      where: {
+        employeeId,
+        createdAt: { gte: todayStart, lte: todayEnd },
+        status: { in: ['FAILED', 'OUTSIDE_GEOFENCE', 'FACE_MISMATCH', 'DEVICE_MISMATCH', 'LIVENESS_FAILED'] },
+      },
+    });
+
+    const isLockedAbsent = Boolean(
+      todayAttendanceRaw?.status === 'ABSENT' &&
+      todayAttendanceRaw?.verificationStatus?.includes('FAILED_FRAUD_LOCKED')
+    );
+
+    // Check biometric enrollment status for EMPLOYEE and TEAM_LEAD
+    const attendanceEnrollment = await prisma.attendanceEnrollment.findFirst({
+      where: { employeeId },
+    });
+    const attendanceEnrollmentPending =
+      (req.user?.role === 'EMPLOYEE' || req.user?.role === 'TEAM_LEAD') &&
+      (!attendanceEnrollment || attendanceEnrollment.status !== 'COMPLETED');
+
+    const todayAttendance = todayAttendanceRaw
+      ? {
+          ...todayAttendanceRaw,
+          warningCount,
+          maxWarnings: 3,
+          isLockedAbsent,
+          attendanceEnrollmentPending,
+        }
+      : null;
 
     const isSuperAdmin = ['OBI0001', 'OBI1117'].includes(employeeId) || req.user?.role === 'SUPER_ADMIN';
 
@@ -917,6 +954,10 @@ export const getEmployeeDashboardStats = async (req: Request, res: Response, nex
       status: 'success',
       data: {
         todayAttendance,
+        warningCount,
+        maxWarnings: 3,
+        isLockedAbsent,
+        attendanceEnrollmentPending,
         tasks: taskCounters,
         todayTasks: {
           assigned: todayAssigned,

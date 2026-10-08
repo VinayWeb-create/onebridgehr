@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>You're Offline - Onebridge HRMS</title>
+  <link rel="icon" type="image/png" href="/favicon-32x32.png">
+  <meta name="theme-color" content="#f37021">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      text-align: center;
+    }
+    .card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 24px;
+      padding: 2.5rem 2rem;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5), 0 0 50px rgba(243, 112, 33, 0.15);
+      animation: fadeIn 0.6s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .logo-container {
+      margin-bottom: 1.5rem;
+      display: inline-block;
+      padding: 12px;
+      background: #ffffff;
+      border-radius: 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+    .logo-img {
+      width: 72px;
+      height: 72px;
+      object-fit: contain;
+      display: block;
+    }
+    .illustration {
+      width: 110px;
+      height: 110px;
+      margin: 1rem auto 1.5rem;
+      position: relative;
+    }
+    .illustration svg {
+      width: 100%;
+      height: 100%;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: rgba(243, 112, 33, 0.15);
+      color: #f97316;
+      border: 1px solid rgba(243, 112, 33, 0.3);
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 1.25rem;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #f97316;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+    }
+    p {
+      color: #94a3b8;
+      font-size: 0.95rem;
+      line-height: 1.55;
+      margin-bottom: 2rem;
+    }
+    .retry-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #f37021 0%, #ea580c 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 10px 25px -5px rgba(243, 112, 33, 0.4);
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+    .retry-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 30px -5px rgba(243, 112, 33, 0.5);
+    }
+    .retry-btn:active {
+      transform: translateY(0);
+    }
+    .footer-note {
+      margin-top: 1.75rem;
+      font-size: 0.78rem;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-container">
+      <img src="/icons/icon-192x192.png" alt="Onebridge HRMS Logo" class="logo-img">
+    </div>
+
+    <div>
+      <span class="badge">
+        <span class="pulse-dot"></span>
+        Offline Mode
+      </span>
+    </div>
+
+    <!-- Offline SVG Illustration -->
+    <div class="illustration">
+      <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="60" cy="60" r="54" fill="rgba(243, 112, 33, 0.08)" stroke="rgba(243, 112, 33, 0.25)" stroke-width="2" stroke-dasharray="4 4"/>
+        <path d="M40 70C35.5817 70 32 66.4183 32 62C32 57.9405 35.0219 54.5888 38.9499 54.0673C40.4074 46.1264 47.3887 40 55.7692 40C62.4837 40 68.2573 43.9922 70.8252 49.7711C72.1326 49.2714 73.5358 49 75 49C80.5228 49 85 53.4772 85 59C85 59.421 84.974 59.8361 84.9231 60.2435C87.8967 61.2721 90 64.0886 90 67.4C90 71.6 86.6 75 82.4 75H40" stroke="#f37021" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="30" y1="30" x2="90" y2="90" stroke="#ef4444" stroke-width="4" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <h1>You're Offline</h1>
+    <p>Reconnect to continue syncing your HRMS data. Previously cached pages and offline attendance logs are safely preserved.</p>
+
+    <button class="retry-btn" onclick="window.location.reload()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+        <path d="M16 16h5v5"/>
+      </svg>
+      Reconnect to HRMS
+    </button>
+
+    <div class="footer-note">
+      Onebridge Infotech Pvt Ltd • Progressive Web App
+    </div>
+  </div>
+
+  <script>
+    // Automatically reload when network returns
+    window.addEventListener('online', () => {
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>

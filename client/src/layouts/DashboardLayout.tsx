@@ -44,7 +44,10 @@ import {
   History,
   Trophy,
   LayoutTemplate,
+  Sliders,
+  Download,
 } from 'lucide-react';
+import { triggerPwaInstall } from '../components/PwaInstallPrompt';
 
 interface NotificationToast {
   id: string;
@@ -142,6 +145,12 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       path: '/attendance',
       icon: CalendarDays,
       roles: ['SUPER_ADMIN', 'HR', 'TEAM_LEAD', 'EMPLOYEE'],
+    },
+    {
+      name: 'Attendance Setup',
+      path: '/attendance/setup',
+      icon: Sliders,
+      roles: ['SUPER_ADMIN', 'HR'],
     },
     {
       name: 'Leaves',
@@ -287,14 +296,16 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       >
         {/* Header Branding */}
         <div className="p-6 flex items-center justify-between border-b border-brand-200 dark:border-brand-900">
-          <Link to="/dashboard" className="flex items-center space-x-3.5">
-            <img src="/image.png" className="w-12 h-12 object-contain animate-pulse" alt="OneBridge Logo" />
+          <Link to="/dashboard" className="flex items-center space-x-3 group">
+            <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-900 p-1 shadow-sm border border-brand-200 dark:border-brand-800/80 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+              <img src="/image.png" className="w-full h-full object-contain" alt="OneBridge Logo" />
+            </div>
             <div>
               <h1 className="font-extrabold text-lg tracking-tight leading-none">
                 <span className="text-orange-500">ONE</span>
                 <span className="text-slate-900 dark:text-white">BRIDGE</span>
               </h1>
-              <p className="text-[10px] text-brand-500 font-bold tracking-wider uppercase mt-1.5">HR PORTAL</p>
+              <p className="text-[10px] text-brand-500 font-bold tracking-wider uppercase mt-1">HR PORTAL</p>
             </div>
           </Link>
           <button onClick={() => setSidebarOpen(false)} className="md:hidden text-brand-600 dark:text-brand-400">
@@ -554,6 +565,19 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           </div>
         </nav>
 
+        {/* PWA App Install Button */}
+        <div className="px-4 pb-2">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => triggerPwaInstall()}
+            className="group w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/70 dark:border-orange-900/50 hover:bg-orange-100 dark:hover:bg-orange-900/60 transition-all cursor-pointer shadow-sm"
+          >
+            <Download size={15} className="text-orange-500 shrink-0" />
+            <span className="truncate">Install HRMS App</span>
+          </motion.button>
+        </div>
+
         {/* Log Out */}
         <div className="p-4 border-t border-brand-200 dark:border-brand-900">
           <motion.button
@@ -587,7 +611,19 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3 md:space-x-4">
+            {/* Install App Quick Action */}
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => triggerPwaInstall()}
+              title="Install Onebridge HRMS App"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/70 dark:border-orange-900/60 hover:bg-orange-100 dark:hover:bg-orange-900/60 transition-all cursor-pointer shadow-sm"
+            >
+              <Download size={14} className="text-orange-500" />
+              <span>Install App</span>
+            </motion.button>
+
             {/* Theme Toggle */}
             <motion.button
               whileHover={{ scale: 1.05 }}

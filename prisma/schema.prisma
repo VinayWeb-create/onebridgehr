@@ -170,6 +170,10 @@ model Employee {
   performanceReviews PerformanceReview[]
   goals              Goal[]         @relation("GoalOwner")
   assignedGoals      Goal[]         @relation("GoalAssigner")
+  officeId           String?        @db.ObjectId
+  office             OfficeLocation? @relation(fields: [officeId], references: [id])
+  attendanceEnrollment AttendanceEnrollment?
+  registeredDevices  RegisteredDevice[]
 }
 
 type PersonalInfo {
@@ -243,6 +247,16 @@ model Attendance {
   latitude        Float?
   longitude       Float?
   workFromHome    Boolean          @default(false)
+  officeId        String?
+  officeName      String?
+  gpsAccuracy     Float?
+  distanceFromOffice Float?
+  faceMatchScore  Float?
+  livenessResult  String?
+  deviceId        String?
+  browser         String?
+  operatingSystem String?
+  verificationStatus String?
   createdAt       DateTime         @default(now())
 }
 
@@ -1230,5 +1244,112 @@ model AutonomousFollowupTask {
   @@index([scheduledFor, status])
   @@index([leadId, status])
 }
+
+// -------------------------------------------------------------
+// SMART BIOMETRIC ATTENDANCE SYSTEM
+// -------------------------------------------------------------
+
+model OfficeLocation {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  branch       String
+  latitude     Float
+  longitude    Float
+  radiusMeters Float    @default(200)
+  timeZone     String   @default("Asia/Kolkata")
+  status       String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employees    Employee[]
+  enrollments  AttendanceEnrollment[]
+}
+
+model AttendancePolicy {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  name                 String
+  isDefault            Boolean  @default(false)
+  gpsVerification      Boolean  @default(true)
+  faceVerification     Boolean  @default(true)
+  livenessDetection    Boolean  @default(true)
+  deviceRegistration   Boolean  @default(true)
+  graceTimeMinutes     Int      @default(15)
+  lateThresholdMinutes Int      @default(30)
+  halfDayHours         Float    @default(4.5)
+  fullDayHours         Float    @default(8.5)
+  workingHoursStart    String   @default("09:30")
+  workingHoursEnd      String   @default("18:30")
+  shifts               Json?    // Optional shifts: [{ name: "Morning", start: "09:00", end: "18:00" }, ...]
+  allowedOfficeIds     String[] // Offices applicable
+  department           String?  // null for all, or department name
+  employeeIds          String[] // specific employee overrides
+  status               String   @default("ACTIVE")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model AttendanceEnrollment {
+  id                    String          @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId            String          @unique
+  employee              Employee        @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  officeId              String?         @db.ObjectId
+  office                OfficeLocation? @relation(fields: [officeId], references: [id])
+  faceTemplateEncrypted String?         // Encrypted AES-256 embedding array
+  facePhotoThumbnails   String[]        // Base64 thumbnail or URI preview of angles
+  deviceId              String?
+  deviceName            String?
+  browser               String?
+  operatingSystem       String?
+  enrolledAt            DateTime?
+  status                String          @default("PENDING") // PENDING, COMPLETED, RESET
+  enrolledLatitude      Float?
+  enrolledLongitude     Float?
+  notes                 String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+}
+
+model RegisteredDevice {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  deviceId     String
+  deviceName   String
+  browser      String
+  os           String
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  registeredAt DateTime @default(now())
+  lastUsedAt   DateTime @default(now())
+
+  @@index([employeeId, deviceId])
+}
+
+model AttendanceVerificationLog {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId         String
+  employeeName       String?
+  department         String?
+  officeName         String?
+  eventType          String   // "CHECK_IN", "CHECK_OUT", "ENROLLMENT"
+  latitude           Float?
+  longitude          Float?
+  gpsAccuracy        Float?
+  distanceFromOffice Float?
+  faceMatchScore     Float?
+  livenessResult     String?  // "PASSED", "FAILED", "SKIPPED"
+  deviceId           String?
+  browser            String?
+  operatingSystem    String?
+  status             String   // "SUCCESS", "FAILED", "OUTSIDE_GEOFENCE", "FACE_MISMATCH", "DEVICE_MISMATCH"
+  failureReason      String?
+  serverTimestamp    DateTime @default(now())
+  createdAt          DateTime @default(now())
+
+  @@index([employeeId, createdAt])
+  @@index([status, createdAt])
+}
+
 
 

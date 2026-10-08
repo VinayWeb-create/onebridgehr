@@ -234,3 +234,41 @@
   animation: shimmerGlow 3s ease-in-out infinite;
 }
 
+/* ==========================================================================
+   PWA & Mobile Native Experience Enhancements
+   ========================================================================== */
+
+/* Safe area insets for notches & home bars on mobile devices */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Standalone PWA Mode Optimizations */
+@media all and (display-mode: standalone) {
+  body {
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* Remove 300ms tap delay & unwanted pinch-zoom gestures on controls */
+button, a, input, select, textarea {
+  touch-action: manipulation;
+}
+
+/* Smooth momentum scrolling for iOS */
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+}
+

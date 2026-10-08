@@ -102,6 +102,14 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       ? !['DOCUMENTS_SUBMITTED', 'HR_VERIFICATION', 'DOCUMENTS_VERIFIED', 'APPROVED', 'COMPLETED'].includes(onboarding.status)
       : false;
 
+    // Fetch attendance enrollment status
+    const attendanceEnrollment = await prisma.attendanceEnrollment.findFirst({
+      where: { employeeId: user.employeeId },
+    });
+    const isStaffRequiringBiometrics = user.role === 'EMPLOYEE' || user.role === 'TEAM_LEAD';
+    const attendanceEnrollmentPending =
+      isStaffRequiringBiometrics && (!attendanceEnrollment || attendanceEnrollment.status !== 'COMPLETED');
+
     await logActivity(user.employeeId, 'USER_LOGIN', 'User logged in successfully', req);
 
     res.status(200).json({
@@ -120,6 +128,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
           department: employee?.department,
           designation: employee?.designation,
           onboardingPending,
+          attendanceEnrollmentPending,
         },
       },
     });
@@ -205,6 +214,14 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
       ? !['DOCUMENTS_SUBMITTED', 'HR_VERIFICATION', 'DOCUMENTS_VERIFIED', 'APPROVED', 'COMPLETED'].includes(onboarding.status)
       : false;
 
+    // Fetch attendance enrollment status
+    const attendanceEnrollment = await prisma.attendanceEnrollment.findFirst({
+      where: { employeeId: req.user.employeeId },
+    });
+    const isStaffRequiringBiometrics = req.user.role === 'EMPLOYEE' || req.user.role === 'TEAM_LEAD';
+    const attendanceEnrollmentPending =
+      isStaffRequiringBiometrics && (!attendanceEnrollment || attendanceEnrollment.status !== 'COMPLETED');
+
     res.status(200).json({
       status: 'success',
       data: {
@@ -214,6 +231,7 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
           role: req.user.role,
           employeeId: req.user.employeeId,
           onboardingPending,
+          attendanceEnrollmentPending,
         },
         employee,
       },

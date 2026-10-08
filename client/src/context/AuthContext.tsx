@@ -11,6 +11,8 @@ interface User {
   profileImageUrl?: string;
   department?: string;
   designation?: string;
+  onboardingPending?: boolean;
+  attendanceEnrollmentPending?: boolean;
 }
 
 interface AuthContextType {
@@ -53,6 +55,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               profileImageUrl: res.data.data.employee?.profileImageUrl || savedUserParsed.profileImageUrl,
               department: res.data.data.employee?.department || savedUserParsed.department,
               designation: res.data.data.employee?.designation || savedUserParsed.designation,
+              onboardingPending: res.data.data.user?.onboardingPending ?? savedUserParsed.onboardingPending,
+              attendanceEnrollmentPending: res.data.data.user?.attendanceEnrollmentPending ?? savedUserParsed.attendanceEnrollmentPending,
             };
             setUser(freshUser);
             localStorage.setItem('user', JSON.stringify(freshUser));

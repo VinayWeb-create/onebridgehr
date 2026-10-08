@@ -11,6 +11,8 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
 import Attendance from './pages/Attendance';
+import AttendanceEnrollment from './pages/attendance/AttendanceEnrollment';
+import AttendanceSetup from './pages/attendance/AttendanceSetup';
 import Leaves from './pages/Leaves';
 import Tasks from './pages/Tasks';
 import Payroll from './pages/Payroll';
@@ -49,6 +51,8 @@ import GoalsTimelinePage from './pages/goals/GoalsTimelinePage';
 import RecognitionPage from './pages/goals/RecognitionPage';
 import TemplatesAdminPage from './pages/goals/TemplatesAdminPage';
 import CareerPage from './pages/goals/CareerPage';
+import { PwaInstallPrompt } from './components/PwaInstallPrompt';
+import { PwaSplashScreen } from './components/PwaSplashScreen';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,6 +98,15 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRoles?: stri
     return <Navigate to="/onboarding/my-documents" replace />;
   }
 
+  // Force attendance enrollment if incomplete for EMPLOYEE and TEAM_LEAD
+  if (
+    (user.role === 'EMPLOYEE' || user.role === 'TEAM_LEAD') &&
+    (user as any).attendanceEnrollmentPending &&
+    location.pathname !== '/attendance/enrollment'
+  ) {
+    return <Navigate to="/attendance/enrollment" replace />;
+  }
+
   return <DashboardLayout>{children}</DashboardLayout>;
 };
 
@@ -104,6 +117,8 @@ export const App: React.FC = () => {
         <DialogProvider>
           <AuthProvider>
             <BrowserRouter>
+              <PwaSplashScreen />
+              <PwaInstallPrompt />
               <Routes>
                 {/* Auth & Public Routes */}
                 <Route path="/login" element={<Login />} />
@@ -119,6 +134,15 @@ export const App: React.FC = () => {
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
                 <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+                <Route path="/attendance/enrollment" element={<ProtectedRoute><AttendanceEnrollment /></ProtectedRoute>} />
+                <Route
+                  path="/attendance/setup"
+                  element={
+                    <ProtectedRoute requiredRoles={['SUPER_ADMIN', 'HR']}>
+                      <AttendanceSetup />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/leaves" element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
                 <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
                 <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />

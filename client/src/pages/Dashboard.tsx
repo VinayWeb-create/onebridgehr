@@ -16,9 +16,11 @@ import {
   TrendingUp, TrendingDown, Award, Zap, Target, Crown, Medal, Trophy, Star,
   BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon, DollarSign,
   ShoppingBag, Wallet, PiggyBank, Briefcase, CalendarCheck, UserMinus, UserPlus,
-  Activity, PieChart as PieIcon, Gauge, Rocket, Flame, CheckSquare, Bell, Loader2, RefreshCw, Plus
+  Activity, PieChart as PieIcon, Gauge, Rocket, Flame, CheckSquare, Bell, Loader2, RefreshCw, Plus,
+  Scan, AlertTriangle, AlertOctagon, ShieldCheck
 } from 'lucide-react';
 import GoogleDriveCard from '../components/GoogleDriveCard';
+import SmartBiometricModal from '../components/SmartBiometricModal';
 
 const COLORS = ['#f97316', '#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444'];
 const CHART_COLORS = {
@@ -239,6 +241,30 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [breakTimer, setBreakTimer] = useState<string>('00:00');
+  const [smartModalOpen, setSmartModalOpen] = useState<boolean>(false);
+  const [smartAction, setSmartAction] = useState<'CHECK_IN' | 'CHECK_OUT'>('CHECK_IN');
+
+  const handleOpenSmartCheckIn = () => {
+    // If first-time enrollment pending for EMPLOYEE or TEAM_LEAD:
+    const isPending = (user as any)?.attendanceEnrollmentPending || (empData as any)?.attendanceEnrollmentPending;
+    if (isPending) {
+      alert({
+        title: 'Biometric Face Setup Required',
+        message: 'You must set up your facial biometrics for the first time before you can mark office attendance.',
+        variant: 'info',
+      });
+      navigate('/attendance/enrollment');
+      return;
+    }
+
+    setSmartAction('CHECK_IN');
+    setSmartModalOpen(true);
+  };
+
+  const handleOpenSmartCheckOut = () => {
+    setSmartAction('CHECK_OUT');
+    setSmartModalOpen(true);
+  };
 
   useEffect(() => {
     fetchStats(true);
@@ -1352,6 +1378,33 @@ export const Dashboard: React.FC = () => {
         </div>
       )}
 
+      {/* First-Time Biometric Face Setup Required Banner for Employee & Team Lead */}
+      {((user as any)?.attendanceEnrollmentPending || (empData as any)?.attendanceEnrollmentPending) && (
+        <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-brand-900 rounded-3xl p-6 text-white shadow-xl shadow-indigo-600/25 flex flex-col md:flex-row items-center justify-between gap-4 border border-indigo-400/30">
+          <div className="flex items-center gap-4">
+            <div className="p-3.5 bg-white/20 rounded-2xl shadow-inner">
+              <Scan size={28} className="text-white" />
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/20 text-indigo-100 text-[10px] font-black uppercase tracking-wider mb-1.5">
+                First-Time Face Setup Required
+              </div>
+              <h3 className="text-lg font-black tracking-tight">Set Up Your Facial Biometrics</h3>
+              <p className="text-xs text-indigo-100 font-medium max-w-xl">
+                To unlock daily smart attendance and office geofence check-ins, please register your face biometrics. Next time onwards, check-in will work automatically using your face, office GPS, and shift timings.
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => navigate('/attendance/enrollment')}
+            className="bg-white text-indigo-700 hover:bg-indigo-50 px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 whitespace-nowrap flex items-center gap-2 shrink-0"
+          >
+            <Scan size={16} />
+            <span>Set Up Face Now</span>
+          </button>
+        </div>
+      )}
+
       {/* Team Lead Department Management Hub (Exclusive to Team Leads for their Department) */}
       {empData.teamOverview && (
         <div className="space-y-6">
@@ -1518,20 +1571,52 @@ export const Dashboard: React.FC = () => {
                 <CalendarCheck size={16} className="text-orange-500" />
                 <span>Attendance Console</span>
               </h3>
-              <span className={`text-[10px] px-3 py-1 rounded-full font-black uppercase border ${
-                att ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-500/30' :
-                'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-500/30'
-              }`}>
-                {att ? (att.workFromHome ? 'WFH ACTIVE' : 'CHECKED IN') : 'NOT CHECKED IN'}
-              </span>
+              {((att?.status === 'ABSENT' && att?.verificationStatus?.includes('FAILED_FRAUD_LOCKED')) || (empData as any)?.isLockedAbsent || att?.isLockedAbsent) ? (
+                <span className="text-[10px] px-3 py-1 rounded-full font-black uppercase border bg-rose-950/80 text-rose-300 border-rose-500/50 flex items-center gap-1 shadow-sm">
+                  <AlertOctagon size={12} className="text-rose-400" /> LOCKED (MARKED ABSENT)
+                </span>
+              ) : (att?.checkIn && att?.status !== 'ABSENT') ? (
+                <span className="text-[10px] px-3 py-1 rounded-full font-black uppercase border bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-500/30">
+                  {att.workFromHome ? 'WFH ACTIVE' : 'CHECKED IN'}
+                </span>
+              ) : (
+                <span className="text-[10px] px-3 py-1 rounded-full font-black uppercase border bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-500/30">
+                  NOT CHECKED IN
+                </span>
+              )}
             </div>
+
+            {/* If locked out due to 3 warnings */}
+            {((att?.status === 'ABSENT' && att?.verificationStatus?.includes('FAILED_FRAUD_LOCKED')) || (empData as any)?.isLockedAbsent || att?.isLockedAbsent) && (
+              <div className="mb-4 p-4 rounded-2xl bg-rose-950/60 border border-rose-500/50 text-rose-200 text-xs space-y-1.5 shadow-md">
+                <div className="flex items-center gap-2 font-black text-rose-300 uppercase tracking-wider text-[11px]">
+                  <AlertOctagon size={16} className="text-rose-400 shrink-0" />
+                  <span>3 Warnings Exceeded — Marked ABSENT</span>
+                </div>
+                <p className="text-[11px] text-rose-200/90 leading-relaxed">
+                  Security policy alert: You failed facial biometric/geofence verification 3 times today and have been automatically marked <strong>ABSENT</strong>. Further check-ins are locked for today. Please contact HR or Super Admin.
+                </p>
+              </div>
+            )}
+
+            {/* Warning notice if 1 or 2 warnings exist today */}
+            {!((att?.status === 'ABSENT' && att?.verificationStatus?.includes('FAILED_FRAUD_LOCKED')) || (empData as any)?.isLockedAbsent || att?.isLockedAbsent) &&
+              (att?.warningCount || (empData as any)?.warningCount) > 0 && (
+                <div className="mb-4 p-3 rounded-2xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-xs flex items-center gap-2.5 shadow-sm">
+                  <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+                  <p className="text-[11px] font-semibold leading-tight">
+                    <strong>Warning {(att?.warningCount || (empData as any)?.warningCount)}/3:</strong>{' '}
+                    {3 - ((att?.warningCount || (empData as any)?.warningCount) || 0)} verification attempt(s) remaining before being automatically marked ABSENT.
+                  </p>
+                </div>
+              )}
 
             <div className="space-y-3 text-xs text-brand-600 dark:text-brand-400">
               <div className="flex items-center space-x-2.5 p-3 bg-brand-50 dark:bg-brand-900/50 rounded-xl border border-brand-100 dark:border-brand-800">
                 <Clock size={16} className="text-indigo-600 shrink-0" />
                 <span className="font-bold shrink-0">Check In:</span>
                 <span className="font-black text-brand-950 dark:text-white">
-                  {att?.checkIn ? new Date(att.checkIn).toLocaleTimeString() : '--:--'}
+                  {att?.checkIn && att?.status !== 'ABSENT' ? new Date(att.checkIn).toLocaleTimeString() : '--:--'}
                 </span>
               </div>
               <div className="flex items-center space-x-2.5 p-3 bg-brand-50 dark:bg-brand-900/50 rounded-xl border border-brand-100 dark:border-brand-800">
@@ -1551,31 +1636,51 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-auto grid grid-cols-2 gap-3">
-            {!att ? (
-              <>
-                <button disabled={actionLoading !== null} onClick={() => handleCheckIn(false)} className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all shadow-lg shadow-orange-500/30 flex items-center justify-center space-x-1.5 disabled:opacity-50">
-                  {actionLoading === 'office-check-in' && <Loader2 size={14} className="animate-spin" />}
+          <div className="mt-auto">
+            {((att?.status === 'ABSENT' && att?.verificationStatus?.includes('FAILED_FRAUD_LOCKED')) || (empData as any)?.isLockedAbsent || att?.isLockedAbsent) ? (
+              <button
+                disabled
+                className="w-full py-3.5 bg-rose-900/30 border border-rose-700/50 text-rose-300 rounded-2xl font-black text-[11px] tracking-wider uppercase cursor-not-allowed flex items-center justify-center gap-2 opacity-80"
+              >
+                <AlertOctagon size={14} />
+                <span>Attendance Locked Today</span>
+              </button>
+            ) : (!att?.checkIn || att?.status === 'ABSENT') ? (
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  disabled={actionLoading !== null}
+                  onClick={handleOpenSmartCheckIn}
+                  className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-700 hover:to-purple-800 text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                >
+                  <Scan size={14} />
                   <span>Office Check In</span>
                 </button>
-                <button disabled={actionLoading !== null} onClick={() => handleCheckIn(true)} className="bg-brand-200 hover:bg-brand-300 dark:bg-brand-800 dark:hover:bg-brand-700 text-brand-900 dark:text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all border border-brand-300 dark:border-brand-700 flex items-center justify-center space-x-1.5 disabled:opacity-50">
+                <button
+                  disabled={actionLoading !== null}
+                  onClick={() => handleCheckIn(true)}
+                  className="bg-brand-200 hover:bg-brand-300 dark:bg-brand-800 dark:hover:bg-brand-700 text-brand-900 dark:text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all border border-brand-300 dark:border-brand-700 flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                >
                   {actionLoading === 'wfh-check-in' && <Loader2 size={14} className="animate-spin" />}
                   <span>WFH Check In</span>
                 </button>
-              </>
+              </div>
             ) : (
-              <>
+              <div className="space-y-3">
                 {!att.checkOut && (
-                  <button disabled={actionLoading !== null} onClick={handleCheckOut} className="col-span-2 bg-gradient-to-br from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all shadow-lg shadow-rose-500/30 flex items-center justify-center space-x-1.5 disabled:opacity-50">
-                    {actionLoading === 'check-out' && <Loader2 size={14} className="animate-spin" />}
-                    <span>Check Out</span>
+                  <button
+                    disabled={actionLoading !== null}
+                    onClick={handleOpenSmartCheckOut}
+                    className="w-full bg-gradient-to-br from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all shadow-lg shadow-rose-500/30 flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                  >
+                    <Scan size={14} />
+                    <span>Check Out (Biometric)</span>
                   </button>
                 )}
                 {att.checkIn && !att.checkOut && (
                   <button
                     disabled={actionLoading !== null}
                     onClick={isBreakActive ? handleEndBreak : handleStartBreak}
-                    className={`col-span-2 rounded-2xl py-3 font-black text-[11px] tracking-wider uppercase transition-all flex items-center justify-center space-x-2 shadow-md disabled:opacity-50 ${
+                    className={`w-full rounded-2xl py-3 font-black text-[11px] tracking-wider uppercase transition-all flex items-center justify-center space-x-2 shadow-md disabled:opacity-50 ${
                       isBreakActive
                         ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white'
                         : 'bg-gradient-to-br from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white'
@@ -1591,7 +1696,7 @@ export const Dashboard: React.FC = () => {
                     <span>{isBreakActive ? 'End Break (Resume)' : 'Take Break'}</span>
                   </button>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -2023,6 +2128,20 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Smart Biometric Verification Modal */}
+      <SmartBiometricModal
+        isOpen={smartModalOpen}
+        onClose={() => setSmartModalOpen(false)}
+        action={smartAction}
+        officeName="OneBridge Infotech HQ"
+        onSuccess={() => {
+          fetchStats(false);
+        }}
+        onViolationLocked={() => {
+          fetchStats(false);
+        }}
+      />
     </div>
   );
 };

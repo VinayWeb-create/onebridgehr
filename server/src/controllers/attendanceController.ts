@@ -151,6 +151,14 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction) =
     if (existing && existing.checkIn) {
       return next(new AppError('Already checked in today', 400));
     }
+    if (existing?.status === 'ABSENT' && existing?.verificationStatus?.includes('FAILED_FRAUD_LOCKED')) {
+      return next(
+        new AppError(
+          'Attendance Locked: You have exceeded the maximum verification attempts today and are marked as ABSENT.',
+          403
+        )
+      );
+    }
 
     const checkInTime = new Date();
     const userAgent = req.headers['user-agent'] || '';
@@ -279,7 +287,44 @@ export const getTodayStatus = async (req: Request, res: Response, next: NextFunc
     const record = await prisma.attendance.findFirst({
       where: { employeeId, date: today },
     });
-    res.status(200).json({ status: 'success', data: record || null });
+
+    // Check today's warning count
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const warningCount = employeeId
+      ? await prisma.attendanceVerificationLog.count({
+          where: {
+            employeeId,
+            createdAt: { gte: todayStart, lte: todayEnd },
+            status: { in: ['FAILED', 'OUTSIDE_GEOFENCE', 'FACE_MISMATCH', 'DEVICE_MISMATCH', 'LIVENESS_FAILED'] },
+          },
+        })
+      : 0;
+
+    const isLockedAbsent = Boolean(
+      record?.status === 'ABSENT' && record?.verificationStatus?.includes('FAILED_FRAUD_LOCKED')
+    );
+
+    // Check enrollment status
+    const enrollment = employeeId
+      ? await prisma.attendanceEnrollment.findFirst({
+          where: { employeeId },
+        })
+      : null;
+    const attendanceEnrollmentPending =
+      (req.user?.role === 'EMPLOYEE' || req.user?.role === 'TEAM_LEAD') &&
+      (!enrollment || enrollment.status !== 'COMPLETED');
+
+    res.status(200).json({
+      status: 'success',
+      data: record
+        ? { ...record, warningCount, maxWarnings: 3, isLockedAbsent, attendanceEnrollmentPending }
+        : null,
+      meta: { warningCount, maxWarnings: 3, isLockedAbsent, attendanceEnrollmentPending },
+    });
   } catch (error) {
     next(error);
   }
