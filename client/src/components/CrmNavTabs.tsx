@@ -39,7 +39,7 @@ export const CrmNavTabs: React.FC = () => {
   ];
 
   return (
-    <div className="flex items-center space-x-1 border-b border-brand-200 dark:border-brand-900 pb-px overflow-x-auto">
+    <div className="flex items-center space-x-1 border-b border-brand-200 dark:border-brand-900 pb-px overflow-x-auto scroll-touch no-scrollbar">
       {subPages.map((tab) => {
         const Icon = tab.icon;
         const isActive =
@@ -52,13 +52,13 @@ export const CrmNavTabs: React.FC = () => {
           <Link
             key={tab.path}
             to={tab.path}
-            className={`whitespace-nowrap flex items-center gap-2 px-5 py-2.5 text-sm font-bold border-b-2 transition-all ${
+            className={`whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all ${
               isActive
                 ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-500'
                 : 'border-transparent text-brand-500 hover:text-brand-700 dark:hover:text-brand-300 hover:border-brand-300'
             }`}
           >
-            <Icon size={16} />
+            <Icon size={15} className="shrink-0" />
             <span>{tab.name}</span>
           </Link>
         );
