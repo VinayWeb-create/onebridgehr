@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import {
@@ -10,20 +10,13 @@ import {
   AlertTriangle,
   ArrowRight,
   Globe,
-  Shield,
-  Clock,
   Users,
+  Cog,
+  BarChart3,
+  ChevronDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-type MascotState = 'idle' | 'email' | 'password' | 'success';
-
-const MASCOT_IMAGES: Record<MascotState, string> = {
-  idle: '/mascot/idle.jpg',
-  email: '/mascot/email.jpg',
-  password: '/mascot/password.jpg',
-  success: '/mascot/success.jpg',
-};
+import { AiMascotRobot, type RobotState } from '../components/AiMascotRobot';
 
 export const Login: React.FC = () => {
   const { login } = useAuth();
@@ -34,7 +27,7 @@ export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
-  const [mascotState, setMascotState] = useState<MascotState>('idle');
+  const [robotState, setRobotState] = useState<RobotState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -42,6 +35,7 @@ export const Login: React.FC = () => {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    setRobotState('loading');
 
     try {
       const res = await api.post('/auth/login', {
@@ -51,7 +45,7 @@ export const Login: React.FC = () => {
       });
 
       if (res.data.status === 'success') {
-        setMascotState('success');
+        setRobotState('success');
         const { token, refreshToken, user } = res.data.data;
         setTimeout(() => {
           login(token, refreshToken, user);
@@ -62,341 +56,315 @@ export const Login: React.FC = () => {
       console.error('Login failed:', err);
       const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
       setError(msg);
-      setMascotState('idle');
+      setRobotState('failed');
+      setTimeout(() => {
+        setRobotState('idle');
+      }, 3500);
     } finally {
       setLoading(false);
     }
   };
 
+  const handlePasswordFocus = () => {
+    setRobotState(showPassword ? 'password_visible' : 'password_hidden');
+  };
+
+  const togglePasswordVisibility = () => {
+    const nextVal = !showPassword;
+    setShowPassword(nextVal);
+    setRobotState(nextVal ? 'password_visible' : 'password_hidden');
+  };
+
+  const featurePills = [
+    {
+      title: 'Empower',
+      sub: 'Your Team',
+      icon: Users,
+    },
+    {
+      title: 'Automate',
+      sub: 'HR Operations',
+      icon: Cog,
+    },
+    {
+      title: 'Build a',
+      sub: 'Better Workplace',
+      icon: BarChart3,
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#0a0b0e] text-white flex items-center justify-center p-4 sm:p-8 font-sans relative overflow-hidden">
-      {/* Background ambient lighting */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-orange-500/5 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-[#07080c] text-white flex flex-col justify-between p-4 sm:p-6 lg:p-8 font-sans relative overflow-x-hidden pt-safe pb-safe selection:bg-orange-500 selection:text-white">
+      {/* Background with Ambient Glowing Waves & Vignette */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        {/* Abstract Glowing Silk Ribbon Texture */}
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-screen scale-105"
+          style={{ backgroundImage: 'url(/mascot/bg_waves.jpg)' }}
+        />
 
-      {/* Main Grid Container */}
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-8 items-center z-10">
-        
-        {/* LEFT COLUMN: Mascot & Branding */}
-        <div className="lg:col-span-6 flex flex-col justify-between space-y-8 py-4">
+        {/* Ambient Dark Gradient Vignette */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#07080c] via-transparent to-[#07080c]/80" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#07080c]/90 via-transparent to-[#07080c]/90" />
+
+        {/* Soft Glowing Orange Orbs */}
+        <div className="absolute top-1/4 left-1/3 w-[500px] h-[500px] bg-orange-600/10 rounded-full blur-[140px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[140px]" />
+      </div>
+
+      {/* Top Header Bar */}
+      <header className="relative z-20 w-full max-w-7xl mx-auto flex items-center justify-between pb-4">
+        {/* Brand Logo */}
+        <Link to="/" className="flex items-center gap-3 group">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white p-1.5 shadow-md border border-white/20 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+            <img src="/icons/icon-192x192.png" alt="Onebridge Logo" className="w-full h-full object-contain" />
+          </div>
+          <div>
+            <div className="flex items-center gap-1">
+              <span className="font-extrabold text-base sm:text-lg tracking-tight text-white leading-none">
+                Onebridge<span className="text-orange-500">®</span>
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 font-medium tracking-wider uppercase mt-0.5">
+              Infotech Pvt Ltd — <span className="text-orange-400 font-bold">HRMS</span>
+            </p>
+          </div>
+        </Link>
+
+        {/* Language Selector Pill */}
+        <button
+          type="button"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.08] border border-white/10 text-xs font-semibold text-slate-300 transition-colors shadow-sm"
+        >
+          <Globe size={13} className="text-orange-400" />
+          <span>EN</span>
+          <ChevronDown size={12} className="text-slate-400" />
+        </button>
+      </header>
+
+      {/* Main Hero & Login Area */}
+      <main className="relative z-10 w-full max-w-7xl mx-auto my-auto py-4 sm:py-8 lg:py-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* Logo Header */}
-          <div>
-            <div className="flex items-center space-x-3 mb-6">
-              <img src="/image.png" alt="OneBridge Logo" className="h-10 object-contain" />
-              <div className="flex flex-col">
-                <span className="font-extrabold text-xl tracking-wider">
-                  <span className="text-[#ea6d2a]">ONE</span>
-                  <span className="text-white">BRIDGE</span>
-                </span>
-                <span className="text-[9px] tracking-widest text-slate-400 font-bold uppercase">INFOTECH</span>
-              </div>
+          {/* ========================================================= */}
+          {/* LEFT SIDE: Brand Pillar Headlines & Features (Desktop)  */}
+          {/* ========================================================= */}
+          <div className="hidden lg:flex lg:col-span-6 flex-col justify-between space-y-8 pr-4">
+            <div>
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="space-y-1"
+              >
+                <h1 className="text-5xl xl:text-6xl font-black tracking-tight text-white leading-none">
+                  People
+                </h1>
+                <h1 className="text-5xl xl:text-6xl font-black tracking-tight text-white leading-none">
+                  Process
+                </h1>
+                <h1 className="text-5xl xl:text-6xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 leading-tight">
+                  Growth
+                </h1>
+              </motion.div>
+
+              <motion.p
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.15 }}
+                className="text-sm text-slate-400 mt-4 max-w-md font-medium leading-relaxed"
+              >
+                A smarter HRMS for a more connected workplace.
+              </motion.p>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-white mb-2">
-              Welcome <span className="text-[#ea6d2a]">Back!</span>
-            </h1>
-            <p className="text-sm text-slate-400 font-medium">
-              Sign in to continue your HRMS experience
-            </p>
+            {/* 3 Sleek Feature Pills */}
+            <div className="space-y-3.5 max-w-md">
+              {featurePills.map((item, index) => {
+                const Icon = item.icon;
+                return (
+                  <motion.div
+                    key={item.title}
+                    initial={{ opacity: 0, x: -15 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.4, delay: 0.2 + index * 0.1 }}
+                    whileHover={{ x: 4 }}
+                    className="flex items-center gap-4 p-3 rounded-2xl bg-slate-900/40 border border-white/[0.08] backdrop-blur-md transition-all"
+                  >
+                    <div className="w-11 h-11 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400 shrink-0 shadow-sm shadow-orange-500/10">
+                      <Icon size={18} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">{item.title}</h4>
+                      <p className="text-sm font-bold text-white mt-0.5">{item.sub}</p>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Interactive 3D Mascot Card */}
-          <div className="relative flex flex-col items-center">
-            
-            {/* Tooltip Bubble */}
+          {/* ========================================================= */}
+          {/* RIGHT SIDE: Floating Glass Card Login Form              */}
+          {/* ========================================================= */}
+          <div className="lg:col-span-6 flex justify-center lg:justify-end">
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              key={mascotState}
-              className="absolute top-2 right-4 sm:right-12 z-20 bg-slate-900/90 border border-slate-700/80 px-4 py-2 rounded-2xl shadow-xl backdrop-blur-md max-w-xs"
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              className="w-full max-w-md rounded-[32px] p-6 sm:p-9 bg-slate-900/60 dark:bg-slate-900/70 border border-orange-500/30 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85),0_0_50px_rgba(243,112,33,0.18)] backdrop-blur-2xl relative"
             >
-              <div className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                {mascotState === 'idle' && <>Hi there! 👋 <span className="text-slate-400 font-normal">Login to manage amazing things together.</span></>}
-                {mascotState === 'email' && <>Looking good! 👀 <span className="text-slate-400 font-normal">Typing your email address...</span></>}
-                {mascotState === 'password' && <>Privacy mode 🙈 <span className="text-slate-400 font-normal">Don't worry, I won't peek at your password!</span></>}
-                {mascotState === 'success' && <>Access Granted! 🎉 <span className="text-slate-400 font-normal">Welcome back onboard!</span></>}
-              </div>
-            </motion.div>
-
-            {/* Mascot Image Container */}
-            <div className="w-full max-w-md aspect-square rounded-3xl overflow-hidden border border-slate-800/80 bg-slate-950/40 relative shadow-2xl flex items-center justify-center p-2">
-              <AnimatePresence mode="wait">
-                <motion.img
-                  key={mascotState}
-                  src={MASCOT_IMAGES[mascotState]}
-                  alt="3D Puppy Mascot"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 1.05 }}
-                  transition={{ duration: 0.3 }}
-                  className="w-full h-full object-cover rounded-2xl"
-                />
-              </AnimatePresence>
-            </div>
-          </div>
-
-          {/* Feature Badges */}
-          <div>
-            <p className="text-xs font-bold text-center text-[#ea6d2a] tracking-wider uppercase mb-4">
-              Why OneBridge HRMS?
-            </p>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="flex flex-col items-center p-3 rounded-2xl bg-slate-900/40 border border-slate-800/60">
-                <Shield size={20} className="text-[#ea6d2a] mb-1.5" />
-                <span className="text-xs font-bold text-white">Secure</span>
-                <span className="text-[10px] text-slate-400 mt-0.5">Enterprise Grade Security</span>
+              {/* Top Mascot Robot Head with Glowing Halo & Speech Bubble */}
+              <div className="flex justify-center items-center mb-5">
+                <AiMascotRobot state={robotState} />
               </div>
 
-              <div className="flex flex-col items-center p-3 rounded-2xl bg-slate-900/40 border border-slate-800/60">
-                <Clock size={20} className="text-[#ea6d2a] mb-1.5" />
-                <span className="text-xs font-bold text-white">Smart</span>
-                <span className="text-[10px] text-slate-400 mt-0.5">Automate HR Processes</span>
-              </div>
-
-              <div className="flex flex-col items-center p-3 rounded-2xl bg-slate-900/40 border border-slate-800/60">
-                <Users size={20} className="text-[#ea6d2a] mb-1.5" />
-                <span className="text-xs font-bold text-white">Connected</span>
-                <span className="text-[10px] text-slate-400 mt-0.5">Empowering Teams</span>
-              </div>
-            </div>
-
-            <p className="text-center text-[11px] text-slate-500 mt-6">
-              © 2026 <span className="text-[#ea6d2a] font-semibold">OneBridge Infotech</span>. All rights reserved.
-            </p>
-          </div>
-
-        </div>
-
-        {/* RIGHT COLUMN: Sign In Form Card */}
-        <div className="lg:col-span-6">
-          <div className="bg-[#0f1015] border border-[#ea6d2a]/30 rounded-3xl p-6 sm:p-10 shadow-2xl relative">
-            
-            {/* Header + Language Switcher */}
-            <div className="flex justify-between items-start mb-8">
-              <div>
-                <h2 className="text-3xl font-black text-white">
-                  Sign <span className="text-[#ea6d2a]">In</span>
+              {/* Title & Subtitle */}
+              <div className="text-center mb-6">
+                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                  Sign <span className="text-orange-500">In</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-1 font-medium">
                   Welcome back! Please enter your details.
                 </p>
               </div>
 
-              <button className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-slate-800/60 border border-slate-700 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition-colors">
-                <Globe size={14} />
-                <span>EN</span>
-                <span className="text-[10px]">▼</span>
-              </button>
-            </div>
+              {/* Error Alert Banner */}
+              <AnimatePresence mode="wait">
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.96 }}
+                    className="mb-5 p-3.5 rounded-2xl bg-rose-950/50 border border-rose-800/60 flex items-start gap-3 text-rose-300 text-xs shadow-lg"
+                  >
+                    <AlertTriangle className="shrink-0 mt-0.5 text-rose-400" size={16} />
+                    <div className="min-w-0">
+                      <p className="font-bold">Authentication Failed</p>
+                      <p className="mt-0.5 text-slate-300 leading-relaxed text-[11px]">{error}</p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            {/* Error Banner */}
-            <AnimatePresence mode="wait">
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="mb-6 p-4 rounded-xl bg-rose-950/40 border border-rose-800/50 flex items-start space-x-3 text-rose-300 text-xs"
-                >
-                  <AlertTriangle className="shrink-0 mt-0.5 text-rose-400" size={16} />
-                  <div>
-                    <p className="font-bold">Authentication Error</p>
-                    <p className="mt-0.5 text-slate-300 leading-relaxed">{error}</p>
+              {/* Sign In Form */}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Email Address */}
+                <div className="space-y-1.5">
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-orange-400 transition-colors">
+                      <Mail size={17} />
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onFocus={() => setRobotState('email')}
+                      onBlur={() => robotState === 'email' && setRobotState('idle')}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (robotState !== 'email') setRobotState('email');
+                      }}
+                      placeholder="hr@onebridge.com"
+                      className="w-full bg-white/[0.04] border border-white/10 rounded-2xl py-3.5 pl-11 pr-4 text-xs sm:text-sm font-medium text-white placeholder-slate-500 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-inner"
+                    />
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
-              
-              {/* Email Address */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Mail size={18} />
-                  </div>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onFocus={() => setMascotState('email')}
-                    onBlur={() => mascotState === 'email' && setMascotState('idle')}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your email"
-                    className="w-full bg-[#161822] border border-slate-800 rounded-2xl py-3.5 pl-11 pr-4 text-sm font-medium text-white placeholder-slate-500 outline-none focus:border-[#ea6d2a] focus:ring-1 focus:ring-[#ea6d2a] transition-all"
-                  />
                 </div>
-              </div>
 
-              {/* Password */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Lock size={18} />
+                {/* Password */}
+                <div className="space-y-1.5">
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-orange-400 transition-colors">
+                      <Lock size={17} />
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onFocus={handlePasswordFocus}
+                      onBlur={() =>
+                        ['password_hidden', 'password_visible'].includes(robotState) &&
+                        setRobotState('idle')
+                      }
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full bg-white/[0.04] border border-white/10 rounded-2xl py-3.5 pl-11 pr-11 text-xs sm:text-sm font-medium text-white placeholder-slate-500 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-inner tracking-wider"
+                    />
+                    <button
+                      type="button"
+                      onClick={togglePasswordVisibility}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white transition-colors"
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
                   </div>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onFocus={() => setMascotState('password')}
-                    onBlur={() => mascotState === 'password' && setMascotState('idle')}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className="w-full bg-[#161822] border border-slate-800 rounded-2xl py-3.5 pl-11 pr-11 text-sm font-medium text-white placeholder-slate-500 outline-none focus:border-[#ea6d2a] focus:ring-1 focus:ring-[#ea6d2a] transition-all"
-                  />
+                </div>
+
+                {/* Remember Me & Forgot Password */}
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-300 font-medium select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded border-white/20 bg-white/10 text-orange-500 focus:ring-orange-500 focus:ring-offset-0 transition-colors cursor-pointer"
+                    />
+                    <span>Remember me</span>
+                  </label>
+
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200"
+                    onClick={() => {
+                      alert('Please contact your HR administrator at hr@onebridgeinfotech.com to reset your credentials.');
+                    }}
+                    className="text-orange-400 hover:text-orange-300 font-semibold transition-colors"
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    Forgot Password?
                   </button>
                 </div>
+
+                {/* Submit Sign In Button */}
+                <motion.button
+                  whileHover={{ scale: 1.015 }}
+                  whileTap={{ scale: 0.985 }}
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-3 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-orange-500 via-orange-600 to-amber-600 hover:from-orange-600 hover:to-orange-700 text-white font-extrabold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-xl shadow-orange-500/30 transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {loading ? (
+                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <span>Sign In</span>
+                      <ArrowRight size={17} />
+                    </>
+                  )}
+                </motion.button>
+              </form>
+
+              {/* Administrator Note */}
+              <div className="mt-6 pt-4 border-t border-white/[0.06] text-center text-xs text-slate-400">
+                <span>New to Onebridge HRMS? </span>
+                <span className="text-slate-300 font-semibold">Contact your administrator.</span>
               </div>
-
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between text-xs">
-                <label className="flex items-center space-x-2 cursor-pointer text-slate-300 font-medium">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-[#ea6d2a] focus:ring-[#ea6d2a] focus:ring-offset-0"
-                  />
-                  <span>Remember me</span>
-                </label>
-
-                <button
-                  type="button"
-                  className="text-[#ea6d2a] hover:underline font-semibold"
-                >
-                  Forgot Password?
-                </button>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-[#ea6d2a] hover:bg-[#d65c1e] text-white font-bold py-4 rounded-2xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg shadow-[#ea6d2a]/20 disabled:opacity-50"
-              >
-                {loading ? (
-                  <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span className="text-base font-extrabold">Sign In</span>
-                    <div className="w-7 h-7 rounded-full bg-black/20 flex items-center justify-center">
-                      <ArrowRight size={16} />
-                    </div>
-                  </>
-                )}
-              </button>
-
-            </form>
-
-            {/* Divider */}
-            <div className="relative my-8 text-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-800" />
-              </div>
-              <span className="relative px-4 text-xs font-semibold text-slate-500 bg-[#0f1015]">
-                or continue with
-              </span>
-            </div>
-
-            {/* Social / SSO Buttons */}
-            <div className="grid grid-cols-3 gap-3">
-              <button className="flex items-center justify-center space-x-2 py-3 px-3 rounded-2xl bg-[#161822] border border-slate-800 hover:border-slate-700 text-xs font-bold text-slate-200 transition-all">
-                <span className="text-base font-bold text-rose-500">G</span>
-                <span>Google</span>
-              </button>
-
-              <button className="flex items-center justify-center space-x-2 py-3 px-3 rounded-2xl bg-[#161822] border border-slate-800 hover:border-slate-700 text-xs font-bold text-slate-200 transition-all">
-                <span className="text-base font-bold text-blue-500">田</span>
-                <span>Microsoft</span>
-              </button>
-
-              <button className="flex items-center justify-center space-x-2 py-3 px-3 rounded-2xl bg-[#161822] border border-slate-800 hover:border-slate-700 text-xs font-bold text-slate-200 transition-all">
-                <span className="text-xs bg-slate-700 rounded-full w-5 h-5 flex items-center justify-center">A</span>
-                <span>SSO Login</span>
-              </button>
-            </div>
-
-            {/* Mascot Interactive State Guide (Matching Screenshot) */}
-            <div className="mt-8 pt-6 border-t border-slate-800/80">
-              <div className="grid grid-cols-4 gap-2 text-center">
-                
-                {/* State 1 */}
-                <div
-                  onClick={() => setMascotState('idle')}
-                  className={`cursor-pointer p-2 rounded-xl border transition-all ${
-                    mascotState === 'idle'
-                      ? 'border-[#ea6d2a] bg-[#ea6d2a]/10'
-                      : 'border-slate-800/60 bg-slate-900/30 hover:border-slate-700'
-                  }`}
-                >
-                  <img src="/mascot/idle.jpg" alt="Idle" className="w-10 h-10 object-cover rounded-lg mx-auto mb-1" />
-                  <p className="text-[10px] font-bold text-slate-300 truncate">Ready to work</p>
-                  <p className="text-[8px] text-slate-500">(Idle)</p>
-                </div>
-
-                {/* State 2 */}
-                <div
-                  onClick={() => setMascotState('email')}
-                  className={`cursor-pointer p-2 rounded-xl border transition-all ${
-                    mascotState === 'email'
-                      ? 'border-[#ea6d2a] bg-[#ea6d2a]/10'
-                      : 'border-slate-800/60 bg-slate-900/30 hover:border-slate-700'
-                  }`}
-                >
-                  <img src="/mascot/email.jpg" alt="Email" className="w-10 h-10 object-cover rounded-lg mx-auto mb-1" />
-                  <p className="text-[10px] font-bold text-slate-300 truncate">Looking at you</p>
-                  <p className="text-[8px] text-slate-500">(Email typed)</p>
-                </div>
-
-                {/* State 3 */}
-                <div
-                  onClick={() => setMascotState('password')}
-                  className={`cursor-pointer p-2 rounded-xl border transition-all ${
-                    mascotState === 'password'
-                      ? 'border-[#ea6d2a] bg-[#ea6d2a]/10'
-                      : 'border-slate-800/60 bg-slate-900/30 hover:border-slate-700'
-                  }`}
-                >
-                  <img src="/mascot/password.jpg" alt="Password" className="w-10 h-10 object-cover rounded-lg mx-auto mb-1" />
-                  <p className="text-[10px] font-bold text-slate-300 truncate">Privacy mode</p>
-                  <p className="text-[8px] text-slate-500">(Typing password)</p>
-                </div>
-
-                {/* State 4 */}
-                <div
-                  onClick={() => setMascotState('success')}
-                  className={`cursor-pointer p-2 rounded-xl border transition-all ${
-                    mascotState === 'success'
-                      ? 'border-[#ea6d2a] bg-[#ea6d2a]/10'
-                      : 'border-slate-800/60 bg-slate-900/30 hover:border-slate-700'
-                  }`}
-                >
-                  <img src="/mascot/success.jpg" alt="Success" className="w-10 h-10 object-cover rounded-lg mx-auto mb-1" />
-                  <p className="text-[10px] font-bold text-slate-300 truncate">Access Granted!</p>
-                  <p className="text-[8px] text-slate-500">(Login Success)</p>
-                </div>
-
-              </div>
-            </div>
-
+            </motion.div>
           </div>
-        </div>
 
-      </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="relative z-20 w-full max-w-7xl mx-auto pt-4 pb-2 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+        <p>© 2026 Onebridge Infotech Pvt Ltd. All rights reserved.</p>
+        <p className="flex items-center gap-4 text-[11px] text-slate-400">
+          <span>Secure</span>
+          <span>•</span>
+          <span>Reliable</span>
+          <span>•</span>
+          <span>People First</span>
+        </p>
+      </footer>
     </div>
   );
 };
