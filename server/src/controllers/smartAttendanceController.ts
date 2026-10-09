@@ -7,6 +7,7 @@ import {
   calculateCosineSimilarity,
   calculateHaversineDistance,
   verifyFaceBiometricMatch,
+  callInsightFaceEngine,
 } from '../services/biometricService';
 import { logActivity } from '../middleware/auditLogger';
 
@@ -393,8 +394,23 @@ export const completeEnrollment = async (req: Request, res: Response, next: Next
       officeId,
     } = req.body;
 
-    if (!faceTemplate || !Array.isArray(faceTemplate) || faceTemplate.length !== 128) {
-      return next(new AppError('A valid 128-dimensional face template embedding is required for biometric enrollment', 400));
+    let finalTemplate: number[] = faceTemplate;
+
+    // If client passes photo thumbnail or liveFaceImage, attempt InsightFace ArcFace 512-D extraction
+    const photoToProcess = req.body.liveFaceImage || facePhotoThumbnails?.[0];
+    if (photoToProcess) {
+      try {
+        const insightRes = await callInsightFaceEngine(photoToProcess);
+        if (insightRes.success && insightRes.embedding && insightRes.embedding.length === 512) {
+          finalTemplate = insightRes.embedding;
+        }
+      } catch (e) {
+        // Fallback to provided faceTemplate
+      }
+    }
+
+    if (!finalTemplate || !Array.isArray(finalTemplate) || (finalTemplate.length !== 128 && finalTemplate.length !== 512)) {
+      return next(new AppError('A valid biometric face template embedding is required for enrollment', 400));
     }
 
     if (!deviceId) {
@@ -458,7 +474,7 @@ export const completeEnrollment = async (req: Request, res: Response, next: Next
     }
 
     // Encrypt Face Template securely (AES-256-GCM)
-    const encryptedFaceTemplate = encryptFaceTemplate(faceTemplate);
+    const encryptedFaceTemplate = encryptFaceTemplate(finalTemplate);
 
     // Upsert Attendance Enrollment
     const enrollment = await prisma.attendanceEnrollment.upsert({
@@ -884,14 +900,6 @@ export const smartVerifyAndMark = async (req: Request, res: Response, next: Next
         );
       }
 
-      if (!faceEmbedding || !Array.isArray(faceEmbedding) || faceEmbedding.length !== 128) {
-        return recordFailureAndWarn(
-          'FACE_MISMATCH',
-          'Live facial biometric capture is required for verification.',
-          { latitude, longitude, distanceMeters, deviceId }
-        );
-      }
-
       if (!enrollment.faceTemplateEncrypted) {
         return res.status(400).json({
           status: 'fail',
@@ -903,15 +911,77 @@ export const smartVerifyAndMark = async (req: Request, res: Response, next: Next
       const storedTemplate = decryptFaceTemplate(enrollment.faceTemplateEncrypted);
       const FACE_MATCH_THRESHOLD = parseFloat(process.env.FACE_MATCH_THRESHOLD || '0.95');
 
-      const matchResult = verifyFaceBiometricMatch(faceEmbedding, storedTemplate, FACE_MATCH_THRESHOLD);
-      faceMatchScore = matchResult.similarityScore;
+      let verified = false;
 
-      if (!matchResult.isMatch) {
-        return recordFailureAndWarn(
-          'FACE_MISMATCH',
-          matchResult.reason || `Biometric face match failed (${Math.round(faceMatchScore * 100)}% match, minimum ${Math.round(FACE_MATCH_THRESHOLD * 100)}% required). Identity does not match enrolled employee.`,
-          { latitude, longitude, distanceMeters, faceMatchScore, livenessResult: 'PASSED', deviceId }
-        );
+      // Pipeline 1: If liveFaceImage is passed and stored template is 512-D (ArcFace), run InsightFace Engine
+      if (req.body.liveFaceImage && storedTemplate.length === 512) {
+        try {
+          const insightRes = await callInsightFaceEngine(req.body.liveFaceImage, storedTemplate, FACE_MATCH_THRESHOLD);
+          if (insightRes.error === 'MULTIPLE_FACES') {
+            return recordFailureAndWarn(
+              'MULTIPLE_FACES',
+              'Only one employee should be visible.',
+              { latitude, longitude, distanceMeters, deviceId }
+            );
+          }
+          if (insightRes.error === 'POOR_QUALITY') {
+            return recordFailureAndWarn(
+              'POOR_QUALITY',
+              insightRes.message || 'Face capture poor quality (blurry or poorly illuminated).',
+              { latitude, longitude, distanceMeters, deviceId }
+            );
+          }
+          if (insightRes.decision === 'SCAN_AGAIN') {
+            return res.status(400).json({
+              status: 'fail',
+              rescanRequired: true,
+              message: insightRes.message || 'Face scan borderline (90-95% match). Please scan again with direct lighting.',
+            });
+          }
+          if (insightRes.decision === 'APPROVED') {
+            faceMatchScore = insightRes.similarityScore || 0.98;
+            verified = true;
+          } else if (insightRes.decision === 'REJECTED') {
+            faceMatchScore = insightRes.similarityScore || 0;
+            return recordFailureAndWarn(
+              'FACE_MISMATCH',
+              insightRes.message || `Biometric face match failed (${Math.round(faceMatchScore * 100)}% match, minimum 95% required). Identity does not match enrolled employee.`,
+              { latitude, longitude, distanceMeters, faceMatchScore, livenessResult: 'PASSED', deviceId }
+            );
+          }
+        } catch (e) {
+          // Fall through to vector matcher
+        }
+      }
+
+      // Pipeline 2: If not verified via image yet, use verifyFaceBiometricMatch on vector
+      if (!verified) {
+        if (!faceEmbedding || !Array.isArray(faceEmbedding) || (faceEmbedding.length !== 128 && faceEmbedding.length !== 512)) {
+          return recordFailureAndWarn(
+            'FACE_MISMATCH',
+            'Live facial biometric capture is required for verification.',
+            { latitude, longitude, distanceMeters, deviceId }
+          );
+        }
+
+        const matchResult = verifyFaceBiometricMatch(faceEmbedding, storedTemplate, FACE_MATCH_THRESHOLD);
+        faceMatchScore = matchResult.similarityScore;
+
+        if (matchResult.rescanRequired) {
+          return res.status(400).json({
+            status: 'fail',
+            rescanRequired: true,
+            message: matchResult.reason || 'Face scan borderline (90-95% match). Please hold steady and scan again.',
+          });
+        }
+
+        if (!matchResult.isMatch) {
+          return recordFailureAndWarn(
+            'FACE_MISMATCH',
+            matchResult.reason || `Biometric face match failed (${Math.round(faceMatchScore * 100)}% match, minimum ${Math.round(FACE_MATCH_THRESHOLD * 100)}% required). Identity does not match enrolled employee.`,
+            { latitude, longitude, distanceMeters, faceMatchScore, livenessResult: 'PASSED', deviceId }
+          );
+        }
       }
     }
 

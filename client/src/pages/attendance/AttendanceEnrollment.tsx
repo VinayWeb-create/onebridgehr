@@ -371,6 +371,7 @@ export const AttendanceEnrollment: React.FC = () => {
 
       const payload = {
         faceTemplate: compositeTemplate,
+        liveFaceImage: angleCaptures.front.preview,
         facePhotoThumbnails: [
           angleCaptures.front.preview,
           angleCaptures.left.preview,

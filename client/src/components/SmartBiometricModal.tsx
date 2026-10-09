@@ -203,6 +203,7 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
     }
 
     const liveEmbedding = extractFaceEmbeddingFromCanvas(canvas, faceCheck.primaryFaceBox);
+    const liveFaceImage = canvas.toDataURL('image/jpeg', 0.90);
 
     // 2. Fetch GPS
     if (!navigator.geolocation) {
@@ -227,6 +228,7 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
             longitude: pos.coords.longitude,
             gpsAccuracy: pos.coords.accuracy,
             faceEmbedding: liveEmbedding,
+            liveFaceImage,
             livenessScore: 0.95,
             livenessPassed: true,
             deviceId: deviceInfo.deviceId,
@@ -249,6 +251,20 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
         } catch (err: any) {
           setVerifying(false);
           const data = err.response?.data;
+
+          if (data?.rescanRequired) {
+            setWarningData({
+              count: 0,
+              max: 3,
+              remaining: 3,
+              message: data.message || 'Face scan borderline. Please scan again with direct lighting.',
+              isLockedAbsent: false,
+            });
+            isVerifyingRef.current = false;
+            setLivenessPassed(false);
+            setLivenessStatus(data.message || 'Please scan again');
+            return;
+          }
 
           if (data?.enrollmentPending) {
             setWarningData({

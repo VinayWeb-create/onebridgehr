@@ -292,6 +292,7 @@ export const Attendance: React.FC = () => {
     }
 
     const liveEmbedding = extractFaceEmbeddingFromCanvas(canvas, faceCheck.primaryFaceBox);
+    const liveFaceImage = canvas.toDataURL('image/jpeg', 0.90);
 
     // 2. Fetch current GPS coordinates
     if (!navigator.geolocation) {
@@ -310,6 +311,7 @@ export const Attendance: React.FC = () => {
             longitude: pos.coords.longitude,
             gpsAccuracy: pos.coords.accuracy,
             faceEmbedding: liveEmbedding,
+            liveFaceImage,
             livenessScore: 0.95,
             livenessPassed: true,
             deviceId: deviceInfo.deviceId,
@@ -333,6 +335,17 @@ export const Attendance: React.FC = () => {
         } catch (err: any) {
           const data = err.response?.data;
           const msg = data?.message || 'Smart attendance verification failed';
+          if (data?.rescanRequired) {
+            alert({
+              title: 'Scan Again',
+              message: msg,
+              variant: 'warning',
+            });
+            setVerifying(false);
+            setLivenessPassed(false);
+            setLivenessStatus(msg);
+            return;
+          }
           if (data?.markedAbsent || data?.isLockedAbsent || data?.warningCount >= 3) {
             alert({
               title: '⚠️ 3/3 Warnings Exceeded — Marked ABSENT',
