@@ -300,6 +300,17 @@ class VerifyRequest(BaseModel):
     stored_template: Optional[List[float]] = None
     threshold: Optional[float] = 0.95
 
+@app.get("/")
+def root():
+    return {
+        "service": "OneBridge HRMS AI Face Recognition Microservice",
+        "status": "online",
+        "engine": "InsightFace ArcFace 512-D",
+        "database": "Neon PostgreSQL (pgvector)",
+        "health_check": "/health",
+        "documentation": "/docs"
+    }
+
 @app.get("/health")
 def health():
     db_ok = False

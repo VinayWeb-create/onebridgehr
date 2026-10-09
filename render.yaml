@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: onebridge-aiface
+    runtime: docker
+    rootDir: ai_face_service
+    dockerfilePath: Dockerfile
+    plan: free
+    envVars:
+      - key: POSTGRES_URL
+        value: postgresql://neondb_owner:npg_YmLBdCqf1QS7@ep-curly-voice-a54f2nr8-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require
