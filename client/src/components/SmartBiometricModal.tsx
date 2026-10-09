@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { getClientDeviceInfo } from '../utils/deviceFingerprint';
-import { extractFaceEmbeddingFromCanvas, LivenessDetector } from '../utils/faceBiometrics';
+import { extractFaceEmbeddingFromCanvas, LivenessDetector, detectFacesInCanvas } from '../utils/faceBiometrics';
 import { getResilientPosition, getFriendlyGpsErrorMessage } from '../utils/geolocation';
 
 interface SmartBiometricModalProps {
@@ -155,7 +155,54 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
     if (!ctx) return;
 
     ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-    const liveEmbedding = extractFaceEmbeddingFromCanvas(canvas);
+
+    const faceCheck = detectFacesInCanvas(canvas);
+    if (faceCheck.multipleFaces || faceCheck.faceCount > 1) {
+      setWarningData({
+        count: 1,
+        max: 3,
+        remaining: 2,
+        message: 'Only one employee should be visible.',
+        isLockedAbsent: false,
+      });
+      setVerifying(false);
+      return;
+    }
+    if (faceCheck.noFace || faceCheck.faceCount === 0) {
+      setWarningData({
+        count: 1,
+        max: 3,
+        remaining: 2,
+        message: 'No face detected. Please face the camera directly.',
+        isLockedAbsent: false,
+      });
+      setVerifying(false);
+      return;
+    }
+    if (faceCheck.maskDetected) {
+      setWarningData({
+        count: 1,
+        max: 3,
+        remaining: 2,
+        message: 'Face mask detected. Please remove your mask for attendance verification.',
+        isLockedAbsent: false,
+      });
+      setVerifying(false);
+      return;
+    }
+    if (faceCheck.spoofDetected) {
+      setWarningData({
+        count: 1,
+        max: 3,
+        remaining: 2,
+        message: faceCheck.spoofReason || 'Spoof attempt detected. Please face the camera directly.',
+        isLockedAbsent: false,
+      });
+      setVerifying(false);
+      return;
+    }
+
+    const liveEmbedding = extractFaceEmbeddingFromCanvas(canvas, faceCheck.primaryFaceBox);
 
     // 2. Fetch GPS
     if (!navigator.geolocation) {

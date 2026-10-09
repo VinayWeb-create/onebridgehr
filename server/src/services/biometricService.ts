@@ -49,7 +49,7 @@ export function decryptFaceTemplate(encryptedPayload: string): number[] {
 }
 
 /**
- * Cosine similarity between two feature vectors (values in -1..1 or 0..1)
+ * Cosine similarity between two feature vectors (values normalized in 0..1)
  */
 export function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
   if (!vecA || !vecB || vecA.length !== vecB.length || vecA.length === 0) {
@@ -65,7 +65,61 @@ export function calculateCosineSimilarity(vecA: number[], vecB: number[]): numbe
   }
   if (normA === 0 || normB === 0) return 0;
   const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-  return Math.max(0, Math.min(1, similarity));
+  return Math.max(0, Math.min(1, Math.round(similarity * 10000) / 10000));
+}
+
+export interface FaceMatchVerificationResult {
+  isMatch: boolean;
+  similarityScore: number;
+  reason?: string;
+}
+
+/**
+ * Validates and verifies live face embedding against permanently stored biometric template.
+ * Strictly verifies identity against the enrolled employee only.
+ */
+export function verifyFaceBiometricMatch(
+  liveEmbedding: number[],
+  storedTemplate: number[],
+  threshold = 0.95
+): FaceMatchVerificationResult {
+  if (!liveEmbedding || !storedTemplate || !Array.isArray(liveEmbedding) || !Array.isArray(storedTemplate)) {
+    return {
+      isMatch: false,
+      similarityScore: 0,
+      reason: 'Biometric face embedding data is missing or invalid',
+    };
+  }
+
+  if (liveEmbedding.length !== 128 || storedTemplate.length !== 128) {
+    return {
+      isMatch: false,
+      similarityScore: 0,
+      reason: `Biometric vector dimension mismatch (expected 128 dimensions, got live: ${liveEmbedding.length}, stored: ${storedTemplate.length})`,
+    };
+  }
+
+  const liveNormSq = liveEmbedding.reduce((sum, val) => sum + val * val, 0);
+  const storedNormSq = storedTemplate.reduce((sum, val) => sum + val * val, 0);
+
+  if (liveNormSq === 0 || storedNormSq === 0) {
+    return {
+      isMatch: false,
+      similarityScore: 0,
+      reason: 'Biometric face vector contains all zeros (no face detected or invalid template)',
+    };
+  }
+
+  const similarityScore = calculateCosineSimilarity(liveEmbedding, storedTemplate);
+  const isMatch = similarityScore >= threshold;
+
+  return {
+    isMatch,
+    similarityScore,
+    reason: isMatch
+      ? undefined
+      : `Biometric face match failed (${Math.round(similarityScore * 100)}% match, minimum ${Math.round(threshold * 100)}% required). Identity does not match enrolled employee.`,
+  };
 }
 
 /**

@@ -4,7 +4,7 @@ import { useDialog } from '../context/DialogContext';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getClientDeviceInfo } from '../utils/deviceFingerprint';
-import { extractFaceEmbeddingFromCanvas, LivenessDetector } from '../utils/faceBiometrics';
+import { extractFaceEmbeddingFromCanvas, LivenessDetector, detectFacesInCanvas } from '../utils/faceBiometrics';
 import { getResilientPosition, getFriendlyGpsErrorMessage } from '../utils/geolocation';
 import {
   Calendar, CheckCircle, Clock, MapPin, AlertCircle, AlertTriangle, Coffee, Play, Download,
@@ -252,7 +252,46 @@ export const Attendance: React.FC = () => {
     if (!ctx) return;
 
     ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-    const liveEmbedding = extractFaceEmbeddingFromCanvas(canvas);
+
+    const faceCheck = detectFacesInCanvas(canvas);
+    if (faceCheck.multipleFaces || faceCheck.faceCount > 1) {
+      alert({
+        title: 'Multiple Faces Detected',
+        message: 'Only one employee should be visible.',
+        variant: 'warning',
+      });
+      closeSmartModal();
+      return;
+    }
+    if (faceCheck.noFace || faceCheck.faceCount === 0) {
+      alert({
+        title: 'No Face Detected',
+        message: 'No face detected. Please ensure your face is clearly visible in the camera.',
+        variant: 'warning',
+      });
+      closeSmartModal();
+      return;
+    }
+    if (faceCheck.maskDetected) {
+      alert({
+        title: 'Face Mask Detected',
+        message: 'Face mask detected. Please remove your mask for attendance verification.',
+        variant: 'warning',
+      });
+      closeSmartModal();
+      return;
+    }
+    if (faceCheck.spoofDetected) {
+      alert({
+        title: 'Anti-Spoofing Alert',
+        message: faceCheck.spoofReason || 'Spoof attempt detected. Please face the camera directly.',
+        variant: 'warning',
+      });
+      closeSmartModal();
+      return;
+    }
+
+    const liveEmbedding = extractFaceEmbeddingFromCanvas(canvas, faceCheck.primaryFaceBox);
 
     // 2. Fetch current GPS coordinates
     if (!navigator.geolocation) {

@@ -6,6 +6,7 @@ import {
   decryptFaceTemplate,
   calculateCosineSimilarity,
   calculateHaversineDistance,
+  verifyFaceBiometricMatch,
 } from '../services/biometricService';
 import { logActivity } from '../middleware/auditLogger';
 
@@ -392,8 +393,8 @@ export const completeEnrollment = async (req: Request, res: Response, next: Next
       officeId,
     } = req.body;
 
-    if (!faceTemplate || !Array.isArray(faceTemplate) || faceTemplate.length === 0) {
-      return next(new AppError('Face template embedding is required for biometric enrollment', 400));
+    if (!faceTemplate || !Array.isArray(faceTemplate) || faceTemplate.length !== 128) {
+      return next(new AppError('A valid 128-dimensional face template embedding is required for biometric enrollment', 400));
     }
 
     if (!deviceId) {
@@ -875,7 +876,15 @@ export const smartVerifyAndMark = async (req: Request, res: Response, next: Next
     // 6. Face Template Comparison (Biometric Match)
     let faceMatchScore = 1.0;
     if (policy.faceVerification) {
-      if (!faceEmbedding || !Array.isArray(faceEmbedding) || faceEmbedding.length === 0) {
+      if (req.body.multipleFacesDetected) {
+        return recordFailureAndWarn(
+          'MULTIPLE_FACES',
+          'Only one employee should be visible.',
+          { latitude, longitude, distanceMeters, deviceId }
+        );
+      }
+
+      if (!faceEmbedding || !Array.isArray(faceEmbedding) || faceEmbedding.length !== 128) {
         return recordFailureAndWarn(
           'FACE_MISMATCH',
           'Live facial biometric capture is required for verification.',
@@ -892,14 +901,15 @@ export const smartVerifyAndMark = async (req: Request, res: Response, next: Next
       }
 
       const storedTemplate = decryptFaceTemplate(enrollment.faceTemplateEncrypted);
-      faceMatchScore = calculateCosineSimilarity(faceEmbedding, storedTemplate);
+      const FACE_MATCH_THRESHOLD = parseFloat(process.env.FACE_MATCH_THRESHOLD || '0.95');
 
-      // Match threshold: 0.75 (75% cosine similarity)
-      const MATCH_THRESHOLD = 0.75;
-      if (faceMatchScore < MATCH_THRESHOLD) {
+      const matchResult = verifyFaceBiometricMatch(faceEmbedding, storedTemplate, FACE_MATCH_THRESHOLD);
+      faceMatchScore = matchResult.similarityScore;
+
+      if (!matchResult.isMatch) {
         return recordFailureAndWarn(
           'FACE_MISMATCH',
-          `Biometric face match failed (${Math.round(faceMatchScore * 100)}% match, minimum 75% required). Ensure clear lighting and look directly into the camera.`,
+          matchResult.reason || `Biometric face match failed (${Math.round(faceMatchScore * 100)}% match, minimum ${Math.round(FACE_MATCH_THRESHOLD * 100)}% required). Identity does not match enrolled employee.`,
           { latitude, longitude, distanceMeters, faceMatchScore, livenessResult: 'PASSED', deviceId }
         );
       }

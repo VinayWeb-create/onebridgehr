@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import api from '../../services/api';
 import { getClientDeviceInfo } from '../../utils/deviceFingerprint';
-import { extractFaceEmbeddingFromCanvas } from '../../utils/faceBiometrics';
+import { extractFaceEmbeddingFromCanvas, detectFacesInCanvas } from '../../utils/faceBiometrics';
 import { getResilientPosition, getFriendlyGpsErrorMessage } from '../../utils/geolocation';
 import {
   UserCheck,
@@ -239,8 +239,42 @@ export const AttendanceEnrollment: React.FC = () => {
     ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
     const preview = canvas.toDataURL('image/jpeg', 0.85);
 
+    const faceCheck = detectFacesInCanvas(canvas);
+    if (faceCheck.multipleFaces || faceCheck.faceCount > 1) {
+      alert({
+        title: 'Multiple Faces Detected',
+        message: 'Only one employee should be visible.',
+        variant: 'warning',
+      });
+      return;
+    }
+    if (faceCheck.noFace || faceCheck.faceCount === 0) {
+      alert({
+        title: 'No Face Detected',
+        message: 'No face detected. Please ensure your face is clearly visible in the camera.',
+        variant: 'warning',
+      });
+      return;
+    }
+    if (faceCheck.maskDetected) {
+      alert({
+        title: 'Face Mask Detected',
+        message: 'Please remove your face mask to complete enrollment.',
+        variant: 'warning',
+      });
+      return;
+    }
+    if (faceCheck.spoofDetected) {
+      alert({
+        title: 'Anti-Spoofing Alert',
+        message: faceCheck.spoofReason || 'Spoof attempt detected. Please face the camera directly.',
+        variant: 'warning',
+      });
+      return;
+    }
+
     // Generate 128-dim mathematical embedding
-    const embedding = extractFaceEmbeddingFromCanvas(canvas);
+    const embedding = extractFaceEmbeddingFromCanvas(canvas, faceCheck.primaryFaceBox);
 
     const angleKey = ANGLES[currentAngleIndex].key;
     setAngleCaptures((prev) => ({
@@ -322,8 +356,17 @@ export const AttendanceEnrollment: React.FC = () => {
       const rEmb = angleCaptures.right.embedding;
 
       const compositeTemplate: number[] = new Array(128).fill(0);
+      let norm = 0;
       for (let i = 0; i < 128; i++) {
-        compositeTemplate[i] = Math.round(((fEmb[i] + lEmb[i] + rEmb[i]) / 3) * 10000) / 10000;
+        const avg = (fEmb[i] + lEmb[i] + rEmb[i]) / 3;
+        compositeTemplate[i] = avg;
+        norm += avg * avg;
+      }
+      norm = Math.sqrt(norm);
+      if (norm > 0) {
+        for (let i = 0; i < 128; i++) {
+          compositeTemplate[i] = Math.round((compositeTemplate[i] / norm) * 10000) / 10000;
+        }
       }
 
       const payload = {
