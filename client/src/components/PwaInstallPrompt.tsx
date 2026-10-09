@@ -16,17 +16,33 @@ export const PwaInstallPrompt: React.FC = () => {
   const [showOnlineToast, setShowOnlineToast] = useState(false);
 
   useEffect(() => {
-    // Check if app is already running in standalone PWA mode
+    // Check if app is already running in standalone PWA mode or marked as installed
     const checkStandalone = () => {
       const isStandaloneMode =
         window.matchMedia('(display-mode: standalone)').matches ||
         (window.navigator as any).standalone === true ||
-        document.referrer.includes('android-app://');
+        document.referrer.includes('android-app://') ||
+        localStorage.getItem('onebridge_pwa_installed') === 'true';
       setIsStandalone(isStandaloneMode);
       return isStandaloneMode;
     };
 
-    if (checkStandalone()) return;
+    // Standard browser event when user completes installation
+    const handleAppInstalled = () => {
+      localStorage.setItem('onebridge_pwa_installed', 'true');
+      setIsStandalone(true);
+      setShowPrompt(false);
+      setDeferredPrompt(null);
+      window.dispatchEvent(new CustomEvent('onebridge-pwa-installed'));
+    };
+
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    if (checkStandalone()) {
+      return () => {
+        window.removeEventListener('appinstalled', handleAppInstalled);
+      };
+    }
 
     // Detect iOS
     const userAgent = window.navigator.userAgent.toLowerCase();
@@ -64,11 +80,14 @@ export const PwaInstallPrompt: React.FC = () => {
       }, 3000);
       return () => {
         clearTimeout(timer);
+        window.removeEventListener('appinstalled', handleAppInstalled);
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
         window.removeEventListener('onebridge-open-install', handleManualTrigger);
       };
     }
 
     return () => {
+      window.removeEventListener('appinstalled', handleAppInstalled);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('onebridge-open-install', handleManualTrigger);
     };
@@ -114,6 +133,9 @@ export const PwaInstallPrompt: React.FC = () => {
       if (choiceResult.outcome === 'accepted') {
         setShowPrompt(false);
         setDeferredPrompt(null);
+        setIsStandalone(true);
+        localStorage.setItem('onebridge_pwa_installed', 'true');
+        window.dispatchEvent(new CustomEvent('onebridge-pwa-installed'));
       } else {
         handleDismiss();
       }
@@ -261,3 +283,97 @@ export const PwaInstallPrompt: React.FC = () => {
 export function triggerPwaInstall() {
   window.dispatchEvent(new CustomEvent('onebridge-open-install'));
 }
+
+/**
+ * Hook to reactively determine if Onebridge HRMS is already installed
+ * (via display-mode: standalone, iOS navigator.standalone, getInstalledRelatedApps,
+ * or localStorage marker set on installation).
+ */
+export function usePwaInstall() {
+  const [isInstalled, setIsInstalled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true ||
+      document.referrer.includes('android-app://');
+    const isLocallyMarked = localStorage.getItem('onebridge_pwa_installed') === 'true';
+    return isStandalone || isLocallyMarked;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const checkInstallStatus = async () => {
+      // 1. Check standalone display mode
+      const isStandalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true ||
+        document.referrer.includes('android-app://');
+
+      if (isStandalone) {
+        setIsInstalled(true);
+        localStorage.setItem('onebridge_pwa_installed', 'true');
+        return;
+      }
+
+      // 2. Check Chromium getInstalledRelatedApps API
+      if ('getInstalledRelatedApps' in navigator) {
+        try {
+          const relatedApps = await (navigator as any).getInstalledRelatedApps();
+          if (Array.isArray(relatedApps) && relatedApps.length > 0) {
+            setIsInstalled(true);
+            localStorage.setItem('onebridge_pwa_installed', 'true');
+            return;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // 3. Check persistent marker
+      if (localStorage.getItem('onebridge_pwa_installed') === 'true') {
+        setIsInstalled(true);
+      }
+    };
+
+    checkInstallStatus();
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      localStorage.setItem('onebridge_pwa_installed', 'true');
+    };
+
+    const handleCustomInstalled = () => {
+      setIsInstalled(true);
+    };
+
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const handleMediaChange = (e: MediaQueryListEvent) => {
+      if (e.matches) {
+        setIsInstalled(true);
+        localStorage.setItem('onebridge_pwa_installed', 'true');
+      }
+    };
+
+    window.addEventListener('appinstalled', handleAppInstalled);
+    window.addEventListener('onebridge-pwa-installed', handleCustomInstalled);
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleMediaChange);
+    } else if ((mediaQuery as any).addListener) {
+      (mediaQuery as any).addListener(handleMediaChange);
+    }
+
+    return () => {
+      window.removeEventListener('appinstalled', handleAppInstalled);
+      window.removeEventListener('onebridge-pwa-installed', handleCustomInstalled);
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', handleMediaChange);
+      } else if ((mediaQuery as any).removeListener) {
+        (mediaQuery as any).removeListener(handleMediaChange);
+      }
+    };
+  }, []);
+
+  return { isInstalled };
+}
+

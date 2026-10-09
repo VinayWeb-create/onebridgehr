@@ -98,23 +98,34 @@ app.use('/documents', express.static(path.join(process.cwd(), 'documents')));
 // 6. Socket.io setup
 socketService.init(server, FRONTEND_URL);
 
-// 7. Health Check
-app.get('/health', async (_req, res) => {
-  try {
-    await prisma.user.findFirst();
-    res.status(200).json({ status: 'success', db: 'connected', time: new Date() });
-  } catch (err: any) {
-    res.status(500).json({ status: 'error', db: 'disconnected', error: err.message });
-  }
-});
-
-// Root Welcome Endpoint
-app.get('/', (req, res) => {
+// 7. Health Check & Keep-Alive Endpoints
+/**
+ * Health Check Endpoint
+ *
+ * This endpoint is intended for uptime monitoring and Render keep-alive services such as cron-job.org or UptimeRobot.
+ * - Requires no authentication.
+ * - Executes no database queries or external API calls.
+ * - Responds within milliseconds with HTTP 200 to prevent Render instances from going to sleep.
+ */
+const healthCheckHandler = (_req: express.Request, res: express.Response) => {
   res.status(200).json({
-    status: 'success',
-    message: 'Welcome to the OneBridge HR Management API Service!',
+    status: 'ok',
+    service: 'Onebridge HRMS',
     version: '1.0.0',
-    health: `${req.protocol}://${req.get('host')}/health`,
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+  });
+};
+
+app.get('/health', healthCheckHandler);
+app.get('/api/health', healthCheckHandler);
+
+// Root Welcome / Ping Endpoint
+app.get('/', (_req, res) => {
+  res.status(200).json({
+    message: 'Onebridge HRMS API',
+    status: 'running',
   });
 });
 

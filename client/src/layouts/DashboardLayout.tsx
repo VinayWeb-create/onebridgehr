@@ -46,8 +46,9 @@ import {
   LayoutTemplate,
   Sliders,
   Download,
+  CheckCircle2,
 } from 'lucide-react';
-import { triggerPwaInstall } from '../components/PwaInstallPrompt';
+import { triggerPwaInstall, usePwaInstall } from '../components/PwaInstallPrompt';
 
 interface NotificationToast {
   id: string;
@@ -59,6 +60,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { confirm } = useDialog();
+  const { isInstalled } = usePwaInstall();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -567,15 +569,25 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
 
         {/* PWA App Install Button */}
         <div className="px-4 pb-2">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => triggerPwaInstall()}
-            className="group w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/70 dark:border-orange-900/50 hover:bg-orange-100 dark:hover:bg-orange-900/60 transition-all cursor-pointer shadow-sm"
-          >
-            <Download size={15} className="text-orange-500 shrink-0" />
-            <span className="truncate">Install HRMS App</span>
-          </motion.button>
+          {isInstalled ? (
+            <div
+              title="Onebridge HRMS App is Installed"
+              className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-900/50 shadow-sm cursor-default select-none"
+            >
+              <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+              <span className="truncate">HRMS App Installed</span>
+            </div>
+          ) : (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => triggerPwaInstall()}
+              className="group w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/70 dark:border-orange-900/50 hover:bg-orange-100 dark:hover:bg-orange-900/60 transition-all cursor-pointer shadow-sm"
+            >
+              <Download size={15} className="text-orange-500 shrink-0" />
+              <span className="truncate">Install HRMS App</span>
+            </motion.button>
+          )}
         </div>
 
         {/* Log Out */}
@@ -613,16 +625,26 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
 
           <div className="flex items-center space-x-3 md:space-x-4">
             {/* Install App Quick Action */}
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => triggerPwaInstall()}
-              title="Install Onebridge HRMS App"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/70 dark:border-orange-900/60 hover:bg-orange-100 dark:hover:bg-orange-900/60 transition-all cursor-pointer shadow-sm"
-            >
-              <Download size={14} className="text-orange-500" />
-              <span>Install App</span>
-            </motion.button>
+            {isInstalled ? (
+              <div
+                title="Onebridge HRMS App is Installed"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/70 dark:border-emerald-900/60 shadow-sm cursor-default select-none"
+              >
+                <CheckCircle2 size={14} className="text-emerald-500" />
+                <span>Installed</span>
+              </div>
+            ) : (
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => triggerPwaInstall()}
+                title="Install Onebridge HRMS App"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/70 dark:border-orange-900/60 hover:bg-orange-100 dark:hover:bg-orange-900/60 transition-all cursor-pointer shadow-sm"
+              >
+                <Download size={14} className="text-orange-500" />
+                <span>Install App</span>
+              </motion.button>
+            )}
 
             {/* Theme Toggle */}
             <motion.button
