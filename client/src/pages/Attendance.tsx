@@ -5,6 +5,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getClientDeviceInfo } from '../utils/deviceFingerprint';
 import { extractFaceEmbeddingFromCanvas, LivenessDetector } from '../utils/faceBiometrics';
+import { getResilientPosition, getFriendlyGpsErrorMessage } from '../utils/geolocation';
 import {
   Calendar, CheckCircle, Clock, MapPin, AlertCircle, AlertTriangle, Coffee, Play, Download,
   FileText, Users, Code, Key, LogOut, Activity, ShieldCheck, Camera, Smartphone, Scan,
@@ -85,14 +86,10 @@ export const Attendance: React.FC = () => {
       fetchDailyCode();
       fetchVerificationLogs();
     }
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => setLocError(err.message)
-      );
-    } else {
-      setLocError('Geolocation not supported');
-    }
+    getResilientPosition(
+      (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => setLocError(getFriendlyGpsErrorMessage(err))
+    );
   }, [isAdmin]);
 
   const fetchEnrollmentStatus = async () => {
@@ -264,7 +261,7 @@ export const Attendance: React.FC = () => {
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
+    getResilientPosition(
       async (pos) => {
         try {
           const deviceInfo = getClientDeviceInfo();
@@ -317,10 +314,9 @@ export const Attendance: React.FC = () => {
         }
       },
       (geoErr) => {
-        alert({ title: 'GPS Error', message: `Could not acquire GPS: ${geoErr.message}`, variant: 'error' });
+        alert({ title: 'GPS Error', message: getFriendlyGpsErrorMessage(geoErr), variant: 'error' });
         closeSmartModal();
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
+      }
     );
   };
 

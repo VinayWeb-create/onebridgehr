@@ -16,6 +16,7 @@ import {
 import api from '../services/api';
 import { getClientDeviceInfo } from '../utils/deviceFingerprint';
 import { extractFaceEmbeddingFromCanvas, LivenessDetector } from '../utils/faceBiometrics';
+import { getResilientPosition, getFriendlyGpsErrorMessage } from '../utils/geolocation';
 
 interface SmartBiometricModalProps {
   isOpen: boolean;
@@ -169,7 +170,7 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
+    getResilientPosition(
       async (pos) => {
         try {
           const deviceInfo = getClientDeviceInfo();
@@ -252,11 +253,10 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
           count: 1,
           max: 3,
           remaining: 2,
-          message: `GPS error: ${geoErr.message}. Ensure location permissions are granted.`,
+          message: getFriendlyGpsErrorMessage(geoErr),
           isLockedAbsent: false,
         });
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
+      }
     );
   };
 

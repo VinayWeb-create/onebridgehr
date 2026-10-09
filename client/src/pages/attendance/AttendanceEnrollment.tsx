@@ -5,6 +5,7 @@ import { useDialog } from '../../context/DialogContext';
 import api from '../../services/api';
 import { getClientDeviceInfo } from '../../utils/deviceFingerprint';
 import { extractFaceEmbeddingFromCanvas } from '../../utils/faceBiometrics';
+import { getResilientPosition, getFriendlyGpsErrorMessage } from '../../utils/geolocation';
 import {
   UserCheck,
   Camera,
@@ -162,12 +163,9 @@ export const AttendanceEnrollment: React.FC = () => {
   };
 
   const requestGps = () => {
-    if (!navigator.geolocation) {
-      setGpsPermission('denied');
-      return;
-    }
     setGpsLoading(true);
-    navigator.geolocation.getCurrentPosition(
+    setGpsError('');
+    getResilientPosition(
       (pos) => {
         setGpsPermission('granted');
         setCurrentCoords({
@@ -180,9 +178,8 @@ export const AttendanceEnrollment: React.FC = () => {
       (err) => {
         setGpsPermission('denied');
         setGpsLoading(false);
-        setGpsError(err.message);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
+        setGpsError(getFriendlyGpsErrorMessage(err));
+      }
     );
   };
 
@@ -260,15 +257,10 @@ export const AttendanceEnrollment: React.FC = () => {
      STEP 5: GEOFENCE VERIFICATION
   ------------------------------------------------------------- */
   const verifyGeofenceLocation = () => {
-    if (!navigator.geolocation) {
-      setGpsError('Geolocation is not supported by your browser');
-      return;
-    }
-
     setGpsLoading(true);
     setGpsError('');
 
-    navigator.geolocation.getCurrentPosition(
+    getResilientPosition(
       (pos) => {
         const userLat = pos.coords.latitude;
         const userLng = pos.coords.longitude;
@@ -294,9 +286,8 @@ export const AttendanceEnrollment: React.FC = () => {
       },
       (err) => {
         setGpsLoading(false);
-        setGpsError(`GPS Error: ${err.message}`);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        setGpsError(getFriendlyGpsErrorMessage(err));
+      }
     );
   };
 
@@ -880,20 +871,42 @@ export const AttendanceEnrollment: React.FC = () => {
                 <div className="flex flex-col items-center justify-center p-8 rounded-3xl bg-gradient-to-b from-brand-50 to-brand-100/50 dark:from-brand-900/30 dark:to-brand-900/60 border border-brand-200 dark:border-brand-800 text-center space-y-4">
                   <div
                     className={`w-20 h-20 rounded-full flex items-center justify-center text-3xl shadow-xl transition-all ${
-                      geofencePassed
+                      gpsLoading
+                        ? 'bg-amber-500 text-white shadow-amber-500/30'
+                        : !currentCoords || gpsError
+                        ? 'bg-amber-500 text-white shadow-amber-500/30'
+                        : geofencePassed
                         ? 'bg-emerald-500 text-white shadow-emerald-500/30 animate-bounce'
                         : 'bg-rose-500 text-white shadow-rose-500/30'
                     }`}
                   >
-                    {geofencePassed ? <CheckCircle2 size={40} /> : <AlertTriangle size={40} />}
+                    {gpsLoading ? (
+                      <RotateCcw size={36} className="animate-spin" />
+                    ) : !currentCoords || gpsError ? (
+                      <AlertTriangle size={38} />
+                    ) : geofencePassed ? (
+                      <CheckCircle2 size={40} />
+                    ) : (
+                      <AlertTriangle size={40} />
+                    )}
                   </div>
 
                   <div>
                     <h3 className="text-base font-extrabold text-brand-950 dark:text-white">
-                      {geofencePassed ? 'Inside Office Geofence!' : 'Outside Office Boundary'}
+                      {gpsLoading
+                        ? 'Acquiring GPS Signal...'
+                        : !currentCoords || gpsError
+                        ? 'GPS Signal Pending'
+                        : geofencePassed
+                        ? 'Inside Office Geofence!'
+                        : 'Outside Office Boundary'}
                     </h3>
                     <p className="text-xs text-brand-500 max-w-xs mt-1">
-                      {geofencePassed
+                      {gpsLoading
+                        ? 'Connecting to satellites & Wi-Fi networks. Please wait...'
+                        : !currentCoords || gpsError
+                        ? 'Could not lock GPS signal yet. Please tap "Refresh GPS Coordinates" or check that phone Wi-Fi/location accuracy is enabled.'
+                        : geofencePassed
                         ? `Coordinates verified. You are ${distanceToOffice}m from ${office?.name}, well within the allowed radius of ${office?.radiusMeters}m.`
                         : `Please move inside ${office?.name} boundary (within ${office?.radiusMeters}m radius) to finalize enrollment.`}
                     </p>
