@@ -173,16 +173,54 @@ export interface InsightFaceResponse {
 
 /**
  * Invokes the production-grade InsightFace ArcFace engine
+ * Supports Railway HTTP microservice (production) with local Python fallback (development)
  */
 export async function callInsightFaceEngine(
   imageInput: string,
   storedTemplate?: number[],
-  threshold = 0.95
+  threshold = 0.95,
+  employeeId?: string
 ): Promise<InsightFaceResponse> {
+  const serviceUrl = process.env.AI_FACE_SERVICE_URL?.replace(/\/$/, '');
+
+  // 1. Production Mode: HTTP call to Railway AI Microservice
+  if (serviceUrl) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      const res = await fetch(`${serviceUrl}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: employeeId || null,
+          image: imageInput,
+          stored_template: storedTemplate || null,
+          threshold,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = (await res.json()) as InsightFaceResponse;
+        return data;
+      } else {
+        const errText = await res.text();
+        console.warn('Railway AI Service HTTP error:', res.status, errText);
+      }
+    } catch (err: any) {
+      console.warn('Railway AI Service connection failed, falling back:', err.message);
+    }
+  }
+
+  // 2. Development Mode: Local Python Process Fallback
   return new Promise((resolve) => {
     try {
       const scriptPath = path.resolve(__dirname, '../ai_service/face_engine.py');
-      const pyProcess = spawn('py', [scriptPath], {
+      const pythonCmd = process.platform === 'win32' ? 'py' : 'python3';
+      const pyProcess = spawn(pythonCmd, [scriptPath], {
         cwd: path.resolve(__dirname, '../..'),
       });
 
@@ -215,8 +253,7 @@ export async function callInsightFaceEngine(
             console.error('Failed to parse InsightFace stdout:', stdoutData);
           }
         }
-        console.warn('InsightFace CLI failed or exited with code', code, stderrData);
-        // Fallback response
+        console.warn('InsightFace CLI exited with code', code, stderrData);
         resolve({
           success: false,
           error: 'PYTHON_ENGINE_UNAVAILABLE',
@@ -240,6 +277,73 @@ export async function callInsightFaceEngine(
       });
     }
   });
+}
+
+/**
+ * Enrolls employee biometric face vector into PostgreSQL pgvector via Railway AI Service
+ */
+export async function callInsightFaceEnroll(
+  employeeId: string,
+  imageInput: string,
+  anglesCount = 1
+): Promise<{ success: boolean; dimension?: number; qualityScore?: number; message?: string; error?: string }> {
+  const serviceUrl = process.env.AI_FACE_SERVICE_URL?.replace(/\/$/, '');
+
+  if (serviceUrl) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const res = await fetch(`${serviceUrl}/enroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: employeeId,
+          image: imageInput,
+          angles_count: anglesCount,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        return (await res.json()) as any;
+      }
+    } catch (err: any) {
+      console.warn('Railway AI Service enrollment call error:', err.message);
+    }
+  }
+
+  // Fallback: extract embedding locally
+  const extraction = await callInsightFaceEngine(imageInput);
+  return {
+    success: extraction.success,
+    dimension: extraction.dimension || (extraction.embedding ? extraction.embedding.length : undefined),
+    qualityScore: extraction.qualityScore,
+    message: extraction.message,
+    error: extraction.error,
+  };
+}
+
+/**
+ * Deletes employee biometric face vectors from PostgreSQL pgvector via Railway AI Service
+ */
+export async function callInsightFaceReset(employeeId: string): Promise<{ success: boolean }> {
+  const serviceUrl = process.env.AI_FACE_SERVICE_URL?.replace(/\/$/, '');
+
+  if (serviceUrl) {
+    try {
+      await fetch(`${serviceUrl}/reset/${employeeId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (err: any) {
+      console.warn('Railway AI Service reset call error:', err.message);
+    }
+  }
+
+  return { success: true };
 }
 
 /**

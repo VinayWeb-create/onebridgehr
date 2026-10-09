@@ -8,6 +8,8 @@ import {
   calculateHaversineDistance,
   verifyFaceBiometricMatch,
   callInsightFaceEngine,
+  callInsightFaceEnroll,
+  callInsightFaceReset,
 } from '../services/biometricService';
 import { logActivity } from '../middleware/auditLogger';
 
@@ -562,6 +564,14 @@ export const completeEnrollment = async (req: Request, res: Response, next: Next
       },
     });
 
+    // Sync face vector to PostgreSQL pgvector via Railway AI Service (if face image provided)
+    const primaryEnrollImage = (facePhotoThumbnails && facePhotoThumbnails[0]) || req.body.faceImageBase64;
+    if (primaryEnrollImage) {
+      callInsightFaceEnroll(employeeId, primaryEnrollImage, facePhotoThumbnails?.length || 1).catch((err) => {
+        console.warn('PostgreSQL pgvector enrollment background sync note:', err.message);
+      });
+    }
+
     await logActivity(
       employeeId,
       'ATTENDANCE_ENROLLMENT_COMPLETED',
@@ -613,6 +623,11 @@ export const resetEmployeeEnrollment = async (req: Request, res: Response, next:
     // Also remove registered devices for this employee so they can register new hardware cleanly
     await prisma.registeredDevice.deleteMany({
       where: { employeeId },
+    });
+
+    // Also remove from PostgreSQL pgvector via Railway AI Service
+    callInsightFaceReset(employeeId).catch((err) => {
+      console.warn('PostgreSQL pgvector reset sync note:', err.message);
     });
 
     if (actorId) {
@@ -1031,7 +1046,12 @@ export const smartVerifyAndMark = async (req: Request, res: Response, next: Next
       // Pipeline 1: If liveFaceImage is passed and stored template is 512-D (ArcFace), run InsightFace Engine
       if (req.body.liveFaceImage && storedTemplate.length === 512) {
         try {
-          const insightRes = await callInsightFaceEngine(req.body.liveFaceImage, storedTemplate, FACE_MATCH_THRESHOLD);
+          const insightRes = await callInsightFaceEngine(
+            req.body.liveFaceImage,
+            storedTemplate,
+            FACE_MATCH_THRESHOLD,
+            employeeId
+          );
           if (insightRes.error === 'MULTIPLE_FACES') {
             return recordFailureAndWarn(
               'MULTIPLE_FACES',
