@@ -75,6 +75,7 @@ export const Attendance: React.FC = () => {
   // Admin Logs State
   const [verificationLogs, setVerificationLogs] = useState<any[]>([]);
   const [logFilterStatus, setLogFilterStatus] = useState<string>('ALL');
+  const [clearingAllToday, setClearingAllToday] = useState<boolean>(false);
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'HR';
 
@@ -153,6 +154,39 @@ export const Attendance: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to fetch verification logs:', err);
+    }
+  };
+
+  const handleClearAllTodayAttendance = async () => {
+    const isConfirmed = await confirm({
+      title: "Clear All Today's Attendance",
+      message: "Are you sure you want to delete ALL attendance records and verification warnings created today across all employees? This will reset all today's test records and fraud locks.",
+      confirmText: 'Clear All Today',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      setClearingAllToday(true);
+      const res = await api.delete('/attendance/admin/today-all');
+      alert({
+        title: 'All Cleared',
+        message: res.data?.message || "Today's attendance data cleared for all employees.",
+        variant: 'info',
+      });
+      fetchAdminStats();
+      fetchVerificationLogs();
+      fetchAttendance();
+    } catch (err: any) {
+      alert({
+        title: 'Error',
+        message: err.response?.data?.message || "Failed to clear all today's attendance",
+        variant: 'error',
+      });
+    } finally {
+      setClearingAllToday(false);
     }
   };
 
@@ -896,9 +930,18 @@ export const Attendance: React.FC = () => {
                 </p>
               </div>
 
-              {/* Status Filter */}
+              {/* Status Filter & Admin Actions */}
               <div className="flex items-center gap-2">
-                <Filter size={14} className="text-brand-400" />
+                <button
+                  onClick={handleClearAllTodayAttendance}
+                  disabled={clearingAllToday}
+                  className="px-3 py-1.5 rounded-xl border border-rose-300 dark:border-rose-900/60 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 flex items-center gap-1.5 transition-all shadow-sm"
+                  title="Clear all today's attendance check-ins and fraud locks across all employees"
+                >
+                  <RotateCcw size={12} className={clearingAllToday ? 'animate-spin' : ''} />
+                  Clear Today's Data
+                </button>
+                <Filter size={14} className="text-brand-400 ml-1" />
                 <select
                   value={logFilterStatus}
                   onChange={(e) => setLogFilterStatus(e.target.value)}

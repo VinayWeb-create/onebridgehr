@@ -26,6 +26,8 @@ import {
   getEnrollmentStatus,
   completeEnrollment,
   resetEmployeeEnrollment,
+  clearTodayAttendance,
+  clearAllTodayAttendance,
   smartVerifyAndMark,
   getSmartAttendanceDashboard,
   getVerificationLogs,
@@ -51,15 +53,20 @@ router.get('/policy', getAttendancePolicies);
 router.post('/policy', restrictTo('SUPER_ADMIN', 'HR'), saveAttendancePolicy);
 router.put('/policy/:id', restrictTo('SUPER_ADMIN', 'HR'), saveAttendancePolicy);
 
-// 3. Employee Enrollment (One-Time Setup)
+// 3. Employee Enrollment (One-Time Setup) & Administrative Resets
 router.get('/enrollment/status', getEnrollmentStatus);
 router.post('/enrollment/complete', completeEnrollment);
 router.post('/enrollment/reset/:employeeId', restrictTo('SUPER_ADMIN', 'HR'), resetEmployeeEnrollment);
+router.delete('/enrollment/reset/:employeeId', restrictTo('SUPER_ADMIN', 'HR'), resetEmployeeEnrollment);
 
-// 4. Daily Smart Biometric Auto-Verification & Check-in
+// 4. Admin Attendance Clearing (Today single employee / Today all employees)
+router.delete('/admin/today-all', restrictTo('SUPER_ADMIN', 'HR'), clearAllTodayAttendance);
+router.delete('/admin/today/:employeeId', restrictTo('SUPER_ADMIN', 'HR'), clearTodayAttendance);
+
+// 5. Daily Smart Biometric Auto-Verification & Check-in
 router.post('/smart/verify-and-mark', smartVerifyAndMark);
 
-// 5. Smart Attendance Dashboard & Logs (Admin / HR)
+// 6. Smart Attendance Dashboard & Logs (Admin / HR)
 router.get('/smart/dashboard', restrictTo('SUPER_ADMIN', 'HR'), getSmartAttendanceDashboard);
 router.get('/smart/logs', restrictTo('SUPER_ADMIN', 'HR'), getVerificationLogs);
 

@@ -416,9 +416,47 @@ export const getEmployee = async (req: Request, res: Response, next: NextFunctio
 
 export const getEmployeesList = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
     const employees = await prisma.employee.findMany({
       where: {
         employeeId: { notIn: ['OBI0001', 'OBI1117'] },
+      },
+      include: {
+        office: true,
+        attendanceEnrollment: {
+          select: {
+            id: true,
+            status: true,
+            enrolledAt: true,
+            deviceName: true,
+            browser: true,
+            operatingSystem: true,
+          },
+        },
+        registeredDevices: {
+          select: {
+            id: true,
+            deviceId: true,
+            deviceName: true,
+            browser: true,
+            os: true,
+            isActive: true,
+            lastUsedAt: true,
+          },
+        },
+        attendances: {
+          where: {
+            OR: [
+              { date: { gte: todayStart, lte: todayEnd } },
+              { checkIn: { gte: todayStart, lte: todayEnd } },
+            ],
+          },
+          take: 1,
+        },
       },
       orderBy: { employeeId: 'asc' },
     });
@@ -435,6 +473,7 @@ export const getEmployeesList = async (req: Request, res: Response, next: NextFu
 
     const enrichedEmployees = employees.map(emp => ({
       ...emp,
+      todayAttendance: emp.attendances?.[0] || null,
       role: userMapByEmpId[emp.employeeId] || userMapByEmail[emp.email?.toLowerCase()?.trim()] || 'EMPLOYEE',
     }));
 

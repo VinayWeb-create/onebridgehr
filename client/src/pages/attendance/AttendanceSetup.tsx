@@ -20,6 +20,9 @@ import {
   Search,
   ExternalLink,
   Info,
+  RotateCcw,
+  CalendarX,
+  ShieldAlert,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -109,6 +112,8 @@ export const AttendanceSetup: React.FC = () => {
   const [employees, setEmployees] = useState<any[]>([]);
   const [employeeSearch, setEmployeeSearch] = useState<string>('');
   const [resettingId, setResettingId] = useState<string | null>(null);
+  const [clearingTodayId, setClearingTodayId] = useState<string | null>(null);
+  const [clearingAllToday, setClearingAllToday] = useState<boolean>(false);
 
   useEffect(() => {
     fetchOffices();
@@ -240,13 +245,13 @@ export const AttendanceSetup: React.FC = () => {
   };
 
   /* -------------------------------------------------------------
-     RESET ENROLLMENT ACTION
+     RESET ENROLLMENT & DEVICE ACTION
   ------------------------------------------------------------- */
   const handleResetEnrollment = async (empId: string, empName: string) => {
     const isConfirmed = await confirm({
-      title: 'Reset Attendance Enrollment',
-      message: `Reset smart attendance enrollment for ${empName} (${empId})? They will be required to re-enroll face biometrics and device upon next login.`,
-      confirmText: 'Reset Enrollment',
+      title: 'Reset Biometric & Device Setup',
+      message: `Reset attendance setup for ${empName} (${empId})? This deletes their enrolled facial template and registered device, requiring them to re-enroll face biometrics and device upon next login.`,
+      confirmText: 'Reset Setup',
       cancelText: 'Cancel',
       variant: 'warning',
     });
@@ -255,13 +260,85 @@ export const AttendanceSetup: React.FC = () => {
 
     try {
       setResettingId(empId);
-      await api.post(`/attendance/enrollment/reset/${empId}`);
-      alert({ title: 'Reset Complete', message: `Enrollment reset for ${empName}. Re-enrollment required on next login.`, variant: 'info' });
+      const res = await api.post(`/attendance/enrollment/reset/${empId}`);
+      alert({
+        title: 'Setup Reset Complete',
+        message: res.data?.message || `Biometrics & device setup reset for ${empName}. Re-enrollment required on next login.`,
+        variant: 'info',
+      });
       fetchEmployeesList();
     } catch (err: any) {
       alert({ title: 'Error', message: err.response?.data?.message || 'Failed to reset enrollment', variant: 'error' });
     } finally {
       setResettingId(null);
+    }
+  };
+
+  /* -------------------------------------------------------------
+     CLEAR TODAY'S ATTENDANCE FOR AN EMPLOYEE
+  ------------------------------------------------------------- */
+  const handleClearTodayAttendance = async (empId: string, empName: string) => {
+    const isConfirmed = await confirm({
+      title: "Clear Today's Attendance",
+      message: `Are you sure you want to delete today's attendance record and verification warnings for ${empName} (${empId})? This resets any fraud lockout and allows them to re-verify today.`,
+      confirmText: "Clear Today's Data",
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      setClearingTodayId(empId);
+      const res = await api.delete(`/attendance/admin/today/${empId}`);
+      alert({
+        title: "Cleared Today's Data",
+        message: res.data?.message || `Today's attendance records and verification warnings cleared for ${empName}.`,
+        variant: 'info',
+      });
+      fetchEmployeesList();
+    } catch (err: any) {
+      alert({
+        title: 'Error',
+        message: err.response?.data?.message || "Failed to clear today's attendance",
+        variant: 'error',
+      });
+    } finally {
+      setClearingTodayId(null);
+    }
+  };
+
+  /* -------------------------------------------------------------
+     CLEAR ALL TODAY'S ATTENDANCE (BULK RESET)
+  ------------------------------------------------------------- */
+  const handleClearAllTodayAttendance = async () => {
+    const isConfirmed = await confirm({
+      title: "Clear All Today's Attendance",
+      message: "Are you sure you want to delete ALL attendance records and verification warnings created today across all employees? This will reset all today's test records and fraud locks.",
+      confirmText: 'Clear All Today',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      setClearingAllToday(true);
+      const res = await api.delete('/attendance/admin/today-all');
+      alert({
+        title: 'All Cleared',
+        message: res.data?.message || "Today's attendance data cleared for all employees.",
+        variant: 'info',
+      });
+      fetchEmployeesList();
+    } catch (err: any) {
+      alert({
+        title: 'Error',
+        message: err.response?.data?.message || "Failed to clear all today's attendance",
+        variant: 'error',
+      });
+    } finally {
+      setClearingAllToday(false);
     }
   };
 
@@ -788,22 +865,34 @@ export const AttendanceSetup: React.FC = () => {
             <div>
               <h2 className="text-lg font-bold text-brand-950 dark:text-white flex items-center gap-2">
                 <Users className="text-indigo-500" size={20} />
-                Employee Biometric Enrollments
+                Employee Biometrics & Attendance Management
               </h2>
               <p className="text-xs text-brand-500 mt-1">
-                Monitor enrollment status and reset employee biometrics when a device or facial profile changes.
+                Monitor setup status, reset face/device biometrics, and clear today's attendance records or lockout warnings.
               </p>
             </div>
 
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-2.5 text-brand-400" size={14} />
-              <input
-                type="text"
-                placeholder="Search employee..."
-                value={employeeSearch}
-                onChange={(e) => setEmployeeSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-900/40 text-brand-950 dark:text-white outline-none focus:border-indigo-500"
-              />
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-2.5 text-brand-400" size={14} />
+                <input
+                  type="text"
+                  placeholder="Search employee..."
+                  value={employeeSearch}
+                  onChange={(e) => setEmployeeSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-900/40 text-brand-950 dark:text-white outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <button
+                onClick={handleClearAllTodayAttendance}
+                disabled={clearingAllToday}
+                className="px-3.5 py-2 text-xs font-bold rounded-xl border border-rose-300 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 flex items-center gap-1.5 transition-all shadow-sm whitespace-nowrap"
+                title="Deletes all attendance check-ins and resets failure warning locks created today across all employees"
+              >
+                <RotateCcw size={13} className={clearingAllToday ? 'animate-spin' : ''} />
+                Clear All Today Attendance
+              </button>
             </div>
           </div>
 
@@ -814,8 +903,9 @@ export const AttendanceSetup: React.FC = () => {
                   <th className="px-5 py-3.5">Employee</th>
                   <th className="px-5 py-3.5">Department</th>
                   <th className="px-5 py-3.5">Office</th>
-                  <th className="px-5 py-3.5 text-center">Enrollment Status</th>
-                  <th className="px-5 py-3.5 text-right">Actions</th>
+                  <th className="px-5 py-3.5 text-center">Biometrics & Setup</th>
+                  <th className="px-5 py-3.5 text-center">Today's Status</th>
+                  <th className="px-5 py-3.5 text-right">Administrative Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-100 dark:divide-brand-900 font-semibold">
@@ -828,6 +918,11 @@ export const AttendanceSetup: React.FC = () => {
                   )
                   .map((emp) => {
                     const isEnrolled = emp.attendanceEnrollment?.status === 'COMPLETED';
+                    const isReset = emp.attendanceEnrollment?.status === 'RESET';
+                    const todayRecord = emp.todayAttendance;
+                    const hasTodayRecord = !!todayRecord;
+                    const isLocked = todayRecord?.verificationStatus?.includes('LOCKED') || todayRecord?.verificationStatus?.includes('FAILED_FRAUD');
+
                     return (
                       <tr key={emp.employeeId} className="hover:bg-brand-100/20 dark:hover:bg-brand-900/20">
                         <td className="px-5 py-4">
@@ -847,25 +942,78 @@ export const AttendanceSetup: React.FC = () => {
                         <td className="px-5 py-4 text-brand-600 dark:text-brand-300">{emp.department}</td>
                         <td className="px-5 py-4 text-brand-600 dark:text-brand-300">{emp.office?.name || 'HQ Campus'}</td>
                         <td className="px-5 py-4 text-center">
-                          <span
-                            className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase ${
-                              isEnrolled
-                                ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
-                                : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400'
-                            }`}
-                          >
-                            {isEnrolled ? '✓ Enrolled' : 'Pending Setup'}
-                          </span>
+                          <div className="inline-flex flex-col items-center">
+                            <span
+                              className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                                isEnrolled
+                                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+                                  : isReset
+                                  ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400'
+                                  : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400'
+                              }`}
+                            >
+                              {isEnrolled ? '✓ Enrolled' : isReset ? '↺ Reset Pending' : 'Pending Setup'}
+                            </span>
+                            {emp.registeredDevices?.length > 0 && (
+                              <span className="text-[9px] text-brand-400 mt-0.5">
+                                {emp.registeredDevices.length} Device bound
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          {hasTodayRecord ? (
+                            <div className="inline-flex flex-col items-center">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                                  todayRecord.status === 'PRESENT'
+                                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+                                    : todayRecord.status === 'LATE'
+                                    ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400'
+                                    : todayRecord.status === 'WORK_FROM_HOME'
+                                    ? 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400'
+                                    : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400'
+                                }`}
+                              >
+                                {isLocked ? 'Locked (3 Warnings)' : todayRecord.status.replace('_', ' ')}
+                              </span>
+                              {todayRecord.checkIn && (
+                                <span className="text-[9px] text-brand-400 mt-0.5">
+                                  {new Date(todayRecord.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  {todayRecord.faceMatchScore ? ` • ${Math.round(todayRecord.faceMatchScore * 100)}%` : ''}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-brand-400 font-normal">
+                              No Check-in Today
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-4 text-right">
-                          <button
-                            onClick={() => handleResetEnrollment(emp.employeeId, `${emp.firstName} ${emp.lastName}`)}
-                            disabled={resettingId === emp.employeeId}
-                            className="px-3 py-1.5 rounded-lg border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-[11px] font-bold flex items-center gap-1.5 ml-auto"
-                          >
-                            <RefreshCw size={12} className={resettingId === emp.employeeId ? 'animate-spin' : ''} />
-                            Reset Attendance
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            {/* Clear Today's Attendance & Warnings */}
+                            <button
+                              onClick={() => handleClearTodayAttendance(emp.employeeId, `${emp.firstName} ${emp.lastName}`)}
+                              disabled={clearingTodayId === emp.employeeId}
+                              className="px-2.5 py-1.5 rounded-lg border border-amber-300 dark:border-amber-900/60 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-[11px] font-bold flex items-center gap-1.5 transition-colors"
+                              title="Clear today's attendance record and reset 3-warning lockout"
+                            >
+                              <RotateCcw size={12} className={clearingTodayId === emp.employeeId ? 'animate-spin' : ''} />
+                              Clear Today
+                            </button>
+
+                            {/* Reset Biometrics & Device Setup */}
+                            <button
+                              onClick={() => handleResetEnrollment(emp.employeeId, `${emp.firstName} ${emp.lastName}`)}
+                              disabled={resettingId === emp.employeeId}
+                              className="px-2.5 py-1.5 rounded-lg border border-rose-300 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-[11px] font-bold flex items-center gap-1.5 transition-colors"
+                              title="Delete face template and registered device so employee re-enrolls"
+                            >
+                              <RefreshCw size={12} className={resettingId === emp.employeeId ? 'animate-spin' : ''} />
+                              Reset Setup
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

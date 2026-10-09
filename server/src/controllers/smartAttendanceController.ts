@@ -592,30 +592,145 @@ export const resetEmployeeEnrollment = async (req: Request, res: Response, next:
       where: { employeeId },
     });
 
-    if (!enrollment) {
-      return next(new AppError('No enrollment found for this employee', 404));
+    if (enrollment) {
+      await prisma.attendanceEnrollment.update({
+        where: { employeeId },
+        data: {
+          status: 'RESET',
+          faceTemplateEncrypted: null,
+          facePhotoThumbnails: [],
+          enrolledAt: null,
+          deviceId: null,
+          deviceName: null,
+          browser: null,
+          operatingSystem: null,
+          enrolledLatitude: null,
+          enrolledLongitude: null,
+        },
+      });
     }
 
-    await prisma.attendanceEnrollment.update({
+    // Also remove registered devices for this employee so they can register new hardware cleanly
+    await prisma.registeredDevice.deleteMany({
       where: { employeeId },
-      data: {
-        status: 'RESET',
-        faceTemplateEncrypted: null,
-      },
     });
 
     if (actorId) {
       await logActivity(
         actorId,
         'ATTENDANCE_ENROLLMENT_RESET',
-        `Reset smart attendance enrollment for employee: ${employeeId}`,
+        `Reset smart attendance enrollment and registered devices for employee: ${employeeId}`,
         req
       );
     }
 
     res.status(200).json({
       status: 'success',
-      message: `Enrollment reset for ${employeeId}. Employee can now re-enroll.`,
+      message: `Enrollment and device registration reset for ${employeeId}. Employee can now re-enroll face biometrics and device.`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const clearTodayAttendance = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { employeeId } = req.params;
+    const actorId = req.user?.employeeId;
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    // 1. Delete today's attendance records for this employee
+    const deletedAttendance = await prisma.attendance.deleteMany({
+      where: {
+        employeeId,
+        OR: [
+          { date: { gte: todayStart, lte: todayEnd } },
+          { checkIn: { gte: todayStart, lte: todayEnd } },
+        ],
+      },
+    });
+
+    // 2. Delete today's verification logs for this employee (resets failure warnings and locks)
+    const deletedLogs = await prisma.attendanceVerificationLog.deleteMany({
+      where: {
+        employeeId,
+        OR: [
+          { createdAt: { gte: todayStart, lte: todayEnd } },
+          { serverTimestamp: { gte: todayStart, lte: todayEnd } },
+        ],
+      },
+    });
+
+    if (actorId) {
+      await logActivity(
+        actorId,
+        'ATTENDANCE_TODAY_CLEARED',
+        `Cleared today's attendance (${deletedAttendance.count}) and verification logs (${deletedLogs.count}) for employee: ${employeeId}`,
+        req
+      );
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: `Cleared today's attendance (${deletedAttendance.count} records) and verification warning logs (${deletedLogs.count} logs) for ${employeeId}.`,
+      data: {
+        employeeId,
+        deletedAttendanceCount: deletedAttendance.count,
+        deletedLogsCount: deletedLogs.count,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const clearAllTodayAttendance = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const actorId = req.user?.employeeId;
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const deletedAttendance = await prisma.attendance.deleteMany({
+      where: {
+        OR: [
+          { date: { gte: todayStart, lte: todayEnd } },
+          { checkIn: { gte: todayStart, lte: todayEnd } },
+        ],
+      },
+    });
+
+    const deletedLogs = await prisma.attendanceVerificationLog.deleteMany({
+      where: {
+        OR: [
+          { createdAt: { gte: todayStart, lte: todayEnd } },
+          { serverTimestamp: { gte: todayStart, lte: todayEnd } },
+        ],
+      },
+    });
+
+    if (actorId) {
+      await logActivity(
+        actorId,
+        'ATTENDANCE_ALL_TODAY_CLEARED',
+        `Cleared today's attendance (${deletedAttendance.count}) and verification logs (${deletedLogs.count}) for all employees`,
+        req
+      );
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: `Cleared today's attendance (${deletedAttendance.count} records) and verification warning logs (${deletedLogs.count} logs) across all employees.`,
+      data: {
+        deletedAttendanceCount: deletedAttendance.count,
+        deletedLogsCount: deletedLogs.count,
+      },
     });
   } catch (error) {
     next(error);
