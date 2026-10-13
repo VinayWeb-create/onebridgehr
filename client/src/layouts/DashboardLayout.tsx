@@ -47,16 +47,8 @@ import {
   Sliders,
   Download,
   CheckCircle2,
-  Smartphone,
-  Send,
-  Radio,
-  BellRing,
 } from 'lucide-react';
 import api from '../services/api';
-import {
-  subscribeToPushNotifications,
-  sendTestPushNotification,
-} from '../registerServiceWorker';
 import { triggerPwaInstall, usePwaInstall } from '../components/PwaInstallPrompt';
 
 interface NotificationToast {
@@ -77,14 +69,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const [notifications, setNotifications] = useState<NotificationToast[]>([]);
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
 
-  const [pushPermission, setPushPermission] = useState<string>(
-    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
-  );
-  const [pushSyncing, setPushSyncing] = useState(false);
-  const [pushStatusMessage, setPushStatusMessage] = useState<string | null>(null);
-  const [dismissedPushBanner, setDismissedPushBanner] = useState(false);
-
-  // Strict Single Active Device Policy & Push Status Sync
+  // Strict Single Active Device Policy & Realtime Notification Listener
   useEffect(() => {
     if (!user) return;
     
@@ -166,42 +151,6 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       socket.disconnect();
     };
   }, [user]);
-
-  const handleEnablePushNotifications = async () => {
-    setPushSyncing(true);
-    setPushStatusMessage(null);
-    try {
-      const granted = await subscribeToPushNotifications();
-      if ('Notification' in window) {
-        setPushPermission(Notification.permission);
-      }
-      if (granted) {
-        setPushStatusMessage('🎉 Phone push notifications active! Sending test lock screen alert...');
-        const testRes = await sendTestPushNotification();
-        setPushStatusMessage(testRes.message);
-      } else {
-        setPushStatusMessage('Notification permission not granted or blocked in browser settings.');
-      }
-    } catch (e: any) {
-      setPushStatusMessage(e?.message || 'Failed to enable notifications');
-    } finally {
-      setPushSyncing(false);
-    }
-  };
-
-  const handleSendTestPush = async () => {
-    setPushSyncing(true);
-    setPushStatusMessage(null);
-    try {
-      const res = await sendTestPushNotification();
-      setPushStatusMessage(res.message);
-      setTimeout(() => setPushStatusMessage(null), 6000);
-    } catch (e: any) {
-      setPushStatusMessage('Error sending test notification');
-    } finally {
-      setPushSyncing(false);
-    }
-  };
 
   if (!user) return null;
 
@@ -715,49 +664,22 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             >
               <Menu size={20} />
             </button>
-            {/* Mobile compact greeting */}
+            {/* Mobile compact welcome */}
             <div className="md:hidden flex items-center gap-1.5 text-xs font-bold text-brand-800 dark:text-brand-200">
-              {(() => {
-                const hour = new Date().getHours();
-                const icon = hour < 12 ? '🌅' : hour < 17 ? '⚡' : '🌙';
-                return (
-                  <span className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-brand-100/70 dark:bg-brand-900/50">
-                    <span>{icon}</span>
-                    <span className="truncate max-w-[120px]">Hi, {user.firstName}</span>
-                  </span>
-                );
-              })()}
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
+                <span>👋</span>
+                <span className="truncate max-w-[140px]">Hi, {user.firstName}</span>
+              </span>
             </div>
 
             <div className="hidden md:flex items-center space-x-2.5 text-xs font-semibold text-brand-500 dark:text-brand-400">
-              {/* Energetic Greeting Pill */}
-              {(() => {
-                const hour = new Date().getHours();
-                let greeting = 'Good Morning';
-                let icon = '🌅';
-                let tagColor = 'from-amber-500/20 via-orange-500/15 to-amber-500/10 text-amber-800 dark:text-amber-200 border-amber-300/70 dark:border-amber-700/60 shadow-amber-500/5';
-                let energyText = 'Rise & Shine 🚀';
-                if (hour >= 12 && hour < 17) {
-                  greeting = 'Good Afternoon';
-                  icon = '⚡';
-                  tagColor = 'from-sky-500/20 via-indigo-500/15 to-cyan-500/10 text-sky-800 dark:text-sky-200 border-sky-300/70 dark:border-sky-700/60 shadow-sky-500/5';
-                  energyText = 'Keep The Energy High 💥';
-                } else if (hour >= 17) {
-                  greeting = 'Good Evening';
-                  icon = '🌙';
-                  tagColor = 'from-purple-500/20 via-indigo-500/15 to-pink-500/10 text-purple-800 dark:text-purple-200 border-purple-300/70 dark:border-purple-700/60 shadow-purple-500/5';
-                  energyText = 'Finishing Strong 🌟';
-                }
-                return (
-                  <div className={`flex items-center gap-2 px-3 py-1 rounded-xl bg-gradient-to-r ${tagColor} border shadow-xs select-none transition-all`}>
-                    <span className="text-sm">{icon}</span>
-                    <span className="font-bold text-xs">
-                      {greeting}, <span className="font-extrabold">{user.firstName}</span>!
-                    </span>
-                    <span className="hidden xl:inline text-[10px] opacity-80 font-medium">({energyText})</span>
-                  </div>
-                );
-              })()}
+              {/* Hi Employee Name Welcome Pill */}
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-orange-500/15 to-indigo-500/10 text-brand-900 dark:text-brand-100 border border-orange-500/20 shadow-xs select-none">
+                <span className="text-sm">👋</span>
+                <span className="font-bold text-xs">
+                  Hi, <span className="font-extrabold text-orange-600 dark:text-orange-400">{user.firstName} {user.lastName}</span>! Welcome back
+                </span>
+              </div>
 
               <span className="text-brand-300 dark:text-brand-800">•</span>
               <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
@@ -832,51 +754,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                       )}
                     </div>
 
-                    {/* Native Phone Push Notification Controller (Like Swiggy) */}
-                    <div className="p-3 bg-brand-50/80 dark:bg-brand-900/40 border-b border-brand-200 dark:border-brand-800">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[11px] font-bold flex items-center gap-1.5 text-brand-900 dark:text-brand-100">
-                          <Smartphone size={13} className="text-orange-500" />
-                          <span>Phone Lockscreen Alerts</span>
-                        </span>
-                        <span
-                          className={`text-[9px] px-2 py-0.5 rounded font-extrabold uppercase tracking-wider ${
-                            pushPermission === 'granted'
-                              ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
-                              : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
-                          }`}
-                        >
-                          {pushPermission === 'granted' ? 'Active' : 'Disabled'}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-brand-600 dark:text-brand-400 mb-2 leading-relaxed">
-                        Real notifications outside the app (morning, afternoon & evening energetic boosts) like Swiggy & Zomato.
-                      </p>
-                      {pushPermission !== 'granted' ? (
-                        <button
-                          onClick={handleEnablePushNotifications}
-                          disabled={pushSyncing}
-                          className="w-full py-1.5 px-2.5 rounded-lg text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                        >
-                          <Radio size={13} className={pushSyncing ? 'animate-spin' : ''} />
-                          <span>{pushSyncing ? 'Enabling...' : 'Enable Phone Notifications'}</span>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleSendTestPush}
-                          disabled={pushSyncing}
-                          className="w-full py-1.5 px-2.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                        >
-                          <Send size={12} className={pushSyncing ? 'animate-pulse' : ''} />
-                          <span>{pushSyncing ? 'Sending Alert...' : '⚡ Test Phone Notification'}</span>
-                        </button>
-                      )}
-                      {pushStatusMessage && (
-                        <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1.5 text-center leading-snug">
-                          {pushStatusMessage}
-                        </p>
-                      )}
-                    </div>
+
                     <div className="max-h-60 overflow-y-auto">
                       {notifications.length === 0 ? (
                         <p className="text-center py-6 text-xs text-brand-500">No new alerts</p>
@@ -915,38 +793,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           </div>
         </header>
 
-        {/* Push Notification Activation Banner (Shows on mobile/desktop if lock screen notifications are not yet enabled) */}
-        {pushPermission !== 'granted' && !dismissedPushBanner && (
-          <div className="bg-gradient-to-r from-orange-500/15 via-amber-500/10 to-orange-500/15 border-b border-orange-500/20 px-4 py-2.5 flex items-center justify-between text-xs animate-fadeIn">
-            <div className="flex items-center gap-2.5">
-              <span className="text-base">🔔</span>
-              <div>
-                <span className="font-extrabold text-orange-950 dark:text-orange-200">
-                  Enable Real Phone Alerts:
-                </span>{' '}
-                <span className="text-brand-700 dark:text-brand-300 hidden sm:inline">
-                  Get energetic morning, afternoon & evening boosts directly on your mobile lock screen (outside the browser).
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleEnablePushNotifications}
-                disabled={pushSyncing}
-                className="px-3 py-1 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap"
-              >
-                {pushSyncing ? 'Enabling...' : 'Enable Now'}
-              </button>
-              <button
-                onClick={() => setDismissedPushBanner(true)}
-                className="p-1 rounded text-brand-400 hover:text-brand-700 dark:hover:text-white cursor-pointer"
-                title="Dismiss"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-        )}
+
 
 
         {/* Content Body */}

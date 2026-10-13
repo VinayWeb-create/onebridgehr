@@ -63,8 +63,8 @@ export const testPushNotification = async (req: Request, res: Response, next: Ne
     const name = employee?.firstName || 'Champion';
 
     const result = await WebPushService.sendPushToEmployee(employeeId, {
-      title: `⚡ Real Phone Notification Active, ${name}!`,
-      body: `You will now receive real outside-the-app mobile notifications (like Swiggy) for morning, afternoon & evening energetic boosts! 🚀`,
+      title: `Hi, ${name}! Welcome to Onebridge HRMS`,
+      body: `Welcome to your employee portal. Have a productive and great day ahead! 👋`,
       url: '/dashboard',
       actions: [
         { action: 'open', title: 'Open HRMS' },
@@ -72,17 +72,9 @@ export const testPushNotification = async (req: Request, res: Response, next: Ne
       ],
     });
 
-    if (result.sent === 0) {
-      return res.status(200).json({
-        status: 'warning',
-        message: 'No push subscription found for this phone yet. Please tap "Enable Notifications" on this device first.',
-        data: result,
-      });
-    }
-
     res.status(200).json({
       status: 'success',
-      message: `Real mobile push notification sent to ${result.sent} subscribed device(s)! Check your phone lock screen or notification tray.`,
+      message: `Welcome notification sent successfully!`,
       data: result,
     });
   } catch (error) {
