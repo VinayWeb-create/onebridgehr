@@ -51,6 +51,7 @@ import {
 import api from '../services/api';
 import { triggerPwaInstall, usePwaInstall } from '../components/PwaInstallPrompt';
 import { NotificationPermissionModal } from '../components/NotificationPermissionModal';
+import { sendTestPushNotification, subscribeToPushNotifications } from '../registerServiceWorker';
 
 interface NotificationToast {
   id: string;
@@ -69,6 +70,23 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationToast[]>([]);
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
+  const [testingPush, setTestingPush] = useState(false);
+  const [pushFeedback, setPushFeedback] = useState<string | null>(null);
+
+  const handleTestPush = async () => {
+    setTestingPush(true);
+    setPushFeedback(null);
+    try {
+      await subscribeToPushNotifications();
+      const res = await sendTestPushNotification();
+      setPushFeedback(res.message || 'Notification triggered! Check your notification tray.');
+    } catch {
+      setPushFeedback('Could not send notification. Ensure permissions are allowed.');
+    } finally {
+      setTestingPush(false);
+      setTimeout(() => setPushFeedback(null), 4000);
+    }
+  };
 
   // Strict Single Active Device Policy & Realtime Notification Listener
   useEffect(() => {
@@ -784,6 +802,24 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                             <p className="text-[11px] text-brand-600 dark:text-brand-400 mt-0.5">{n.message}</p>
                           </div>
                         ))
+                      )}
+                    </div>
+
+                    {/* Quick Push Test & Status Footer */}
+                    <div className="pt-2.5 px-3 border-t border-brand-200 dark:border-brand-900 bg-brand-50/50 dark:bg-brand-950/40 rounded-b-2xl">
+                      <button
+                        type="button"
+                        onClick={handleTestPush}
+                        disabled={testingPush}
+                        className="w-full py-1.5 px-3 rounded-xl bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all text-white text-[11px] font-bold flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Bell size={12} />
+                        <span>{testingPush ? 'Sending Test...' : 'Send Test Push Notification'}</span>
+                      </button>
+                      {pushFeedback && (
+                        <p className="text-[10px] text-center text-emerald-600 dark:text-emerald-400 font-semibold mt-1 truncate">
+                          {pushFeedback}
+                        </p>
                       )}
                     </div>
                   </motion.div>

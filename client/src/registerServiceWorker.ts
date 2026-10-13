@@ -157,6 +157,11 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
     if (subscription) {
       await api.post('/notifications/push-subscription', { subscription });
       console.log('[Onebridge PWA] Web push subscription synced with backend successfully.');
+      // Direct local confirmation notification
+      showAppNotification('🔔 Notifications Active!', {
+        body: 'You will now receive shift and attendance alerts from OneBridge HRMS.',
+        tag: 'onebridge-welcome-confirmation',
+      }).catch(() => {});
       return true;
     }
   } catch (err) {

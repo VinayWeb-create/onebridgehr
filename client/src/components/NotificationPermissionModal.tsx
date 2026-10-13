@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BellRing, Check, Sparkles, Clock, Smartphone, X } from 'lucide-react';
-import { subscribeToPushNotifications } from '../registerServiceWorker';
+import { BellRing, Check, Sparkles, Clock, Smartphone, X, AlertTriangle, RefreshCw } from 'lucide-react';
+import { subscribeToPushNotifications, sendTestPushNotification } from '../registerServiceWorker';
 
 export const NotificationPermissionModal: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isDenied, setIsDenied] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     // If browser doesn't support Notifications, don't show
@@ -13,9 +15,14 @@ export const NotificationPermissionModal: React.FC = () => {
       return;
     }
 
-    // If notifications are ALREADY enabled, NEVER ask again
+    // If notifications are ALREADY enabled, sync subscription and do not disturb
     if (Notification.permission === 'granted') {
+      subscribeToPushNotifications().catch(() => {});
       return;
+    }
+
+    if (Notification.permission === 'denied') {
+      setIsDenied(true);
     }
 
     // Check if dismissed in the current login session
@@ -36,11 +43,18 @@ export const NotificationPermissionModal: React.FC = () => {
     setLoading(true);
     try {
       const granted = await subscribeToPushNotifications();
-      if (granted || (typeof window !== 'undefined' && Notification.permission === 'granted')) {
-        // Once enabled, it will never show again
-        setIsOpen(false);
+      const currentPerm = typeof window !== 'undefined' ? Notification.permission : 'default';
+
+      if (granted || currentPerm === 'granted') {
+        setSuccessMessage('Notifications enabled! A welcome notification has been sent.');
+        // Trigger test push to ensure the user device receives it immediately
+        sendTestPushNotification().catch(() => {});
+        setTimeout(() => {
+          setIsOpen(false);
+        }, 1800);
+      } else if (currentPerm === 'denied') {
+        setIsDenied(true);
       } else {
-        // Permission was denied or dismissed; close for this session, ask again next login
         sessionStorage.setItem('obi_push_dismissed_session', 'true');
         setIsOpen(false);
       }
@@ -53,7 +67,6 @@ export const NotificationPermissionModal: React.FC = () => {
   };
 
   const handleDismiss = () => {
-    // Dismiss only for the current login attempt; will ask again next login
     sessionStorage.setItem('obi_push_dismissed_session', 'true');
     setIsOpen(false);
   };
@@ -108,6 +121,35 @@ export const NotificationPermissionModal: React.FC = () => {
             </div>
           </div>
 
+          {/* Success Banner */}
+          {successMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 flex items-center space-x-2 text-emerald-700 dark:text-emerald-300 text-xs font-semibold"
+            >
+              <Check size={16} className="text-emerald-500 shrink-0" />
+              <span>{successMessage}</span>
+            </motion.div>
+          )}
+
+          {/* Blocked / Denied Banner */}
+          {isDenied && !successMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs space-y-1.5"
+            >
+              <div className="flex items-center space-x-2 font-bold text-amber-900 dark:text-amber-100">
+                <AlertTriangle size={15} className="text-amber-500 shrink-0" />
+                <span>Notifications Blocked in Browser</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
+                To enable: Click the site settings icon (🔒 or ⚙️) beside the browser address bar, set <b>Notifications</b> to <b>Allow</b>, then click below.
+              </p>
+            </motion.div>
+          )}
+
           {/* Feature List */}
           <div className="space-y-2.5 my-5">
             <div className="flex items-start space-x-3 p-2.5 rounded-xl bg-brand-50 dark:bg-brand-800/50 border border-brand-100 dark:border-brand-800">
@@ -160,11 +202,21 @@ export const NotificationPermissionModal: React.FC = () => {
             <button
               type="button"
               onClick={handleEnable}
-              disabled={loading}
+              disabled={loading || Boolean(successMessage)}
               className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 transition-all shadow-md shadow-orange-500/25 flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
             >
               {loading ? (
                 <span>Enabling...</span>
+              ) : isDenied ? (
+                <>
+                  <RefreshCw size={14} />
+                  <span>Check Permission Again</span>
+                </>
+              ) : successMessage ? (
+                <>
+                  <Check size={14} />
+                  <span>Enabled!</span>
+                </>
               ) : (
                 <>
                   <Check size={14} />

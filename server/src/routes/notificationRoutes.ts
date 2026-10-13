@@ -5,6 +5,7 @@ import {
   unsubscribePush,
   testPushNotification,
   triggerCheckoutRemindersManual,
+  triggerCheckInRemindersManual,
   triggerGreetingManual,
 } from '../controllers/notificationController';
 import { protect, restrictTo } from '../middleware/auth';
@@ -18,6 +19,7 @@ router.post('/push-subscription', subscribePush);
 router.post('/push-unsubscribe', unsubscribePush);
 router.post('/test-push', testPushNotification);
 router.post('/trigger-checkout-reminder', restrictTo('SUPER_ADMIN', 'HR'), triggerCheckoutRemindersManual);
+router.post('/trigger-checkin-reminder', restrictTo('SUPER_ADMIN', 'HR'), triggerCheckInRemindersManual);
 router.post('/trigger-greeting', restrictTo('SUPER_ADMIN', 'HR'), triggerGreetingManual);
 
 export default router;

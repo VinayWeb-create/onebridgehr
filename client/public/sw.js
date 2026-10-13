@@ -260,6 +260,8 @@ self.addEventListener('notificationclick', (event) => {
   let targetUrl = event.notification.data?.url || '/';
   if (event.action === 'checkout') {
     targetUrl = '/attendance?action=checkout';
+  } else if (event.action === 'checkin') {
+    targetUrl = '/attendance?action=checkin';
   }
 
   event.waitUntil(

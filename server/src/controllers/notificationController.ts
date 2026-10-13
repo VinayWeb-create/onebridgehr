@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/db';
 import { WebPushService } from '../services/webPushService';
-import { triggerShiftCheckOutReminders } from '../services/shiftReminderScheduler';
+import { triggerShiftCheckOutReminders, triggerShiftCheckInReminders } from '../services/shiftReminderScheduler';
 import { AppError } from '../middleware/errorHandler';
 
 export const getVapidPublicKey = async (req: Request, res: Response) => {
@@ -25,6 +25,23 @@ export const subscribePush = async (req: Request, res: Response, next: NextFunct
 
     const userAgent = req.headers['user-agent'] || 'PWA Browser';
     const saved = await WebPushService.saveSubscription(employeeId, subscription, userAgent);
+
+    // Send immediate confirmation push notification so user receives instant feedback
+    const employee = await prisma.employee.findUnique({
+      where: { employeeId },
+      select: { firstName: true },
+    });
+    const displayName = employee?.firstName || 'Champion';
+
+    WebPushService.sendPushToEmployee(employeeId, {
+      title: `🔔 Notifications Active, ${displayName}!`,
+      body: `You are all set! You will now receive daily attendance check-in & shift check-out reminders here.`,
+      url: '/dashboard',
+      actions: [
+        { action: 'open', title: 'Open HRMS' },
+        { action: 'close', title: 'Dismiss' },
+      ],
+    }).catch((err) => console.warn('[WebPush] Subscription confirmation push error:', err?.message || err));
 
     res.status(200).json({
       status: 'success',
@@ -94,6 +111,24 @@ export const triggerCheckoutRemindersManual = async (
     res.status(200).json({
       status: 'success',
       message: `Shift check-out reminders triggered for slot ${slot}`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const triggerCheckInRemindersManual = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const slot = req.body.slot || '09:20';
+    await triggerShiftCheckInReminders(slot);
+
+    res.status(200).json({
+      status: 'success',
+      message: `Shift check-in reminders triggered for slot ${slot}`,
     });
   } catch (error) {
     next(error);

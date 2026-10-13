@@ -6,6 +6,7 @@ import { AppError } from '../middleware/errorHandler';
 import { loginSchema } from '../models/validators';
 import { logActivity } from '../middleware/auditLogger';
 import { socketService } from '../services/socketService';
+import { WebPushService } from '../services/webPushService';
 
 const ACCESS_TOKEN_EXPIRY = '1d'; // Short in production, e.g. '15m'
 const REFRESH_TOKEN_EXPIRY = '7d';
@@ -170,6 +171,20 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       isStaffRequiringBiometrics && (!attendanceEnrollment || attendanceEnrollment.status !== 'COMPLETED');
 
     await logActivity(user.employeeId, 'USER_LOGIN', 'User logged in successfully', req);
+
+    // Send immediate login push notification to employee's registered devices
+    if (user.employeeId) {
+      const displayName = employee?.firstName || 'Champion';
+      WebPushService.sendPushToEmployee(user.employeeId, {
+        title: `👋 Welcome back, ${displayName}!`,
+        body: `Logged in to OneBridge HRMS. Have a productive and energized day ahead!`,
+        url: '/dashboard',
+        actions: [
+          { action: 'open', title: 'Open HRMS' },
+          { action: 'close', title: 'Dismiss' },
+        ],
+      }).catch((err) => console.warn('[WebPush] Login push notification notice:', err?.message || err));
+    }
 
     res.status(200).json({
       status: 'success',

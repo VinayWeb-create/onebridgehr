@@ -26,10 +26,10 @@ export const Login: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('hr@onebridge.com');
-  const [password, setPassword] = useState('hr12345');
+  const [email, setEmail] = useState(() => localStorage.getItem('obi_remembered_email') || '');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem('obi_remembered_email')));
 
   const [robotState, setRobotState] = useState<RobotState>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +74,11 @@ export const Login: React.FC = () => {
       });
 
       if (res.data.status === 'success') {
+        if (rememberMe) {
+          localStorage.setItem('obi_remembered_email', email);
+        } else {
+          localStorage.removeItem('obi_remembered_email');
+        }
         sessionStorage.removeItem('obi_push_dismissed_session');
         setSessionConflictModalOpen(false);
         setRobotState('success');
@@ -309,7 +314,7 @@ export const Login: React.FC = () => {
                         setEmail(e.target.value);
                         if (robotState !== 'email') setRobotState('email');
                       }}
-                      placeholder="hr@onebridge.com"
+                      placeholder="name@onebridgeinfotech.com"
                       className="w-full bg-white/[0.04] border border-white/10 rounded-2xl py-3.5 pl-11 pr-4 text-xs sm:text-sm font-medium text-white placeholder-slate-500 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-inner"
                     />
                   </div>

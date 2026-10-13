@@ -8,6 +8,11 @@ generator client {
   output   = "../server/node_modules/.prisma/client"
 }
 
+generator clientRoot {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
 enum Role {
   SUPER_ADMIN
   HR
