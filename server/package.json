@@ -43,9 +43,8 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5",
     "web-push": "^3.6.7",
+    "@types/web-push": "^3.6.4",
     "zod": "^3.22.4"
   },
-  "devDependencies": {
-    "@types/web-push": "^3.6.4"
-  }
+  "devDependencies": {}
 }
