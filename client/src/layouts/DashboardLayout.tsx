@@ -345,7 +345,12 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
         }`}
       >
         {/* Header Branding */}
-        <div className="p-6 flex items-center justify-between border-b border-brand-200 dark:border-brand-900">
+        <div
+          className="p-6 flex items-center justify-between border-b border-brand-200 dark:border-brand-900"
+          style={{
+            paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.25rem)',
+          }}
+        >
           <Link to="/dashboard" className="flex items-center space-x-3 group">
             <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-900 p-1 shadow-sm border border-brand-200 dark:border-brand-800/80 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
               <img src="/image.png" className="w-full h-full object-contain" alt="OneBridge Logo" />
@@ -655,25 +660,36 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       {/* --- Main Dashboard Container --- */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto h-screen relative">
         
-        {/* Top Header */}
-        <header className="glass sticky top-0 z-30 px-4 md:px-6 py-4 flex items-center justify-between border-b border-brand-200 dark:border-brand-900">
-          <div className="flex items-center space-x-4">
+        {/* Top Header with iOS & Android Safe-Area Inset Support */}
+        <header
+          className="glass sticky top-0 z-30 px-3.5 sm:px-6 flex items-center justify-between border-b border-brand-200 dark:border-brand-900 transition-all"
+          style={{
+            paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.65rem)',
+            paddingBottom: '0.65rem',
+          }}
+        >
+          {/* Header Left: Menu & Mobile Branding / Desktop Welcome */}
+          <div className="flex items-center space-x-2.5 sm:space-x-4">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-600 dark:text-brand-400"
+              className="p-2 sm:p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900 hover:bg-brand-200 dark:hover:bg-brand-800 text-brand-700 dark:text-brand-300 transition-all cursor-pointer shadow-2xs"
+              aria-label="Open menu"
             >
-              <Menu size={20} />
+              <Menu size={19} />
             </button>
-            {/* Mobile compact welcome */}
-            <div className="md:hidden flex items-center gap-1.5 text-xs font-bold text-brand-800 dark:text-brand-200">
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
-                <span>👋</span>
-                <span className="truncate max-w-[140px]">Hi, {user.firstName}</span>
+
+            {/* Mobile Branding - Clean, compact, never colliding with notch/clock */}
+            <div className="md:hidden flex items-center space-x-2">
+              <div className="w-7 h-7 rounded-lg bg-white dark:bg-slate-900 p-0.5 shadow-2xs border border-brand-200 dark:border-brand-800 flex items-center justify-center shrink-0">
+                <img src="/image.png" className="w-full h-full object-contain" alt="OneBridge" />
+              </div>
+              <span className="font-extrabold text-xs tracking-tight text-brand-950 dark:text-white leading-none">
+                <span className="text-orange-500">ONE</span>BRIDGE
               </span>
             </div>
 
+            {/* Desktop Welcome Pill & Date */}
             <div className="hidden md:flex items-center space-x-2.5 text-xs font-semibold text-brand-500 dark:text-brand-400">
-              {/* Hi Employee Name Welcome Pill */}
               <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-orange-500/15 to-indigo-500/10 text-brand-900 dark:text-brand-100 border border-orange-500/20 shadow-xs select-none">
                 <span className="text-sm">👋</span>
                 <span className="font-bold text-xs">
@@ -688,12 +704,13 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             </div>
           </div>
 
-          <div className="flex items-center space-x-3 md:space-x-4">
-            {/* Install App Quick Action */}
+          {/* Header Right: Actions, Theme, Bell, Profile */}
+          <div className="flex items-center space-x-2 sm:space-x-3.5">
+            {/* Install App Quick Action (Desktop & Tablet) */}
             {isInstalled ? (
               <div
                 title="Onebridge HRMS App is Installed"
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/70 dark:border-emerald-900/60 shadow-sm cursor-default select-none"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/70 dark:border-emerald-900/60 shadow-2xs cursor-default select-none"
               >
                 <CheckCircle2 size={14} className="text-emerald-500" />
                 <span>Installed</span>
@@ -704,7 +721,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                 whileTap={{ scale: 0.97 }}
                 onClick={() => triggerPwaInstall()}
                 title="Install Onebridge HRMS App"
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/70 dark:border-orange-900/60 hover:bg-orange-100 dark:hover:bg-orange-900/60 transition-all cursor-pointer shadow-sm"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/70 dark:border-orange-900/60 hover:bg-orange-100 dark:hover:bg-orange-900/60 transition-all cursor-pointer shadow-2xs"
               >
                 <Download size={14} className="text-orange-500" />
                 <span>Install App</span>
@@ -716,9 +733,10 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={toggleTheme}
-              className="p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900 hover:bg-brand-200 dark:hover:bg-brand-800 transition-all text-brand-600 dark:text-brand-400 cursor-pointer"
+              className="p-2 sm:p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900 hover:bg-brand-200 dark:hover:bg-brand-800 transition-all text-brand-600 dark:text-brand-400 cursor-pointer shadow-2xs"
+              aria-label="Toggle theme"
             >
-              {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+              {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
             </motion.button>
 
             {/* Notification Bell */}
@@ -727,9 +745,10 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowNotificationPanel(!showNotificationPanel)}
-                className="p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900 hover:bg-brand-200 dark:hover:bg-brand-800 transition-all text-brand-600 dark:text-brand-400 cursor-pointer"
+                className="p-2 sm:p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900 hover:bg-brand-200 dark:hover:bg-brand-800 transition-all text-brand-600 dark:text-brand-400 cursor-pointer shadow-2xs"
+                aria-label="View notifications"
               >
-                <Bell size={18} />
+                <Bell size={17} />
                 {notifications.length > 0 && (
                   <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
                 )}
@@ -743,7 +762,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 15, scale: 0.95 }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
-                    className="absolute right-0 mt-3 w-80 glass rounded-2xl shadow-xl border border-brand-200 dark:border-brand-900 py-3 z-50"
+                    className="absolute right-0 mt-3 w-72 sm:w-80 glass rounded-2xl shadow-xl border border-brand-200 dark:border-brand-900 py-3 z-50"
                   >
                     <div className="px-4 pb-2 border-b border-brand-200 dark:border-brand-900 flex justify-between items-center">
                       <h3 className="font-bold text-sm">Notifications</h3>
@@ -753,7 +772,6 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                         </button>
                       )}
                     </div>
-
 
                     <div className="max-h-60 overflow-y-auto">
                       {notifications.length === 0 ? (
@@ -773,23 +791,26 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             </div>
 
             {/* Profile Brief */}
-            <div className="flex items-center space-x-3 pl-2 border-l border-brand-200 dark:border-brand-900">
-              <div className="w-9 h-9 rounded-xl bg-brand-200 dark:bg-brand-900 overflow-hidden flex items-center justify-center border border-indigo-600">
+            <Link
+              to="/profile"
+              className="flex items-center space-x-2.5 pl-1.5 sm:pl-2 sm:border-l border-brand-200 dark:border-brand-900 group cursor-pointer"
+            >
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-brand-200 dark:bg-brand-900 overflow-hidden flex items-center justify-center border border-orange-500 shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
                 {user.profileImageUrl ? (
                   <img src={user.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="font-bold text-xs text-indigo-600 uppercase">{user.firstName[0]}{user.lastName[0]}</span>
+                  <span className="font-extrabold text-xs text-orange-600 uppercase">{user.firstName[0]}{user.lastName[0]}</span>
                 )}
               </div>
               <div className="hidden lg:block text-left">
                 <p className="text-xs font-bold text-brand-950 dark:text-white leading-none">
                   {user.firstName} {user.lastName}
                 </p>
-                <p className="text-[10px] text-indigo-600 font-semibold tracking-wider mt-0.5 uppercase leading-none">
+                <p className="text-[10px] text-orange-600 font-semibold tracking-wider mt-0.5 uppercase leading-none">
                   {user.role.replace('_', ' ')}
                 </p>
               </div>
-            </div>
+            </Link>
           </div>
         </header>
 
