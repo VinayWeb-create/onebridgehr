@@ -22,9 +22,9 @@ export function registerServiceWorker(onUpdateAvailable?: () => void) {
     return;
   }
 
-  window.addEventListener('load', () => {
+  const runRegister = () => {
     navigator.serviceWorker
-      .register('/sw.js')
+      .register('/sw.js', { scope: '/' })
       .then((registration) => {
         console.log('[Onebridge PWA] ServiceWorker registered with scope:', registration.scope);
 
@@ -58,7 +58,13 @@ export function registerServiceWorker(onUpdateAvailable?: () => void) {
         processOfflineQueue();
       }
     });
-  });
+  };
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    runRegister();
+  } else {
+    window.addEventListener('load', runRegister);
+  }
 
   // Automatically trigger sync when coming online
   window.addEventListener('online', () => {
@@ -123,11 +129,35 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
+const DEFAULT_VAPID_PUBLIC_KEY =
+  'BGg-yUnjTfp7wF09oSzBuOhUnYxXY0N7vBjHOb-vxVWI5Vt6BjK6-RKAU8NxkHPL0CDGEcH6UP5eHV_m--YAt4w';
+
+async function getReadyRegistration(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return null;
+  }
+
+  try {
+    const readyPromise = navigator.serviceWorker.ready;
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+    const reg = await Promise.race([readyPromise, timeoutPromise]);
+    if (reg) return reg;
+
+    // Fallback: register directly if ready timed out
+    const freshReg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    return freshReg;
+  } catch (err) {
+    console.warn('[Onebridge PWA] Error acquiring ready SW:', err);
+    return null;
+  }
+}
+
 /**
  * Subscribe the current PWA installation to Web Push Notifications
  */
 export async function subscribeToPushNotifications(): Promise<boolean> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.warn('[Onebridge PWA] Push notifications not supported on this device/browser.');
     return false;
   }
 
@@ -137,31 +167,71 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
   }
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await getReadyRegistration();
+    if (!registration) {
+      console.warn('[Onebridge PWA] No service worker registration found for push.');
+      return false;
+    }
+
+    // Determine VAPID public key with immediate fallback to avoid user-gesture timeout on mobile
+    let vapidPublicKey = DEFAULT_VAPID_PUBLIC_KEY;
+    try {
+      const cachedKey = localStorage.getItem('obi_vapid_key');
+      if (cachedKey) {
+        vapidPublicKey = cachedKey;
+      } else {
+        const res = await api.get('/notifications/vapid-public-key');
+        if (res.data?.data?.publicKey) {
+          vapidPublicKey = res.data.data.publicKey;
+          localStorage.setItem('obi_vapid_key', vapidPublicKey);
+        }
+      }
+    } catch {
+      // Use DEFAULT_VAPID_PUBLIC_KEY
+    }
+
+    const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
     let subscription = await registration.pushManager.getSubscription();
 
+    // Verify existing subscription keys; if invalid or missing, unsubscribe and re-subscribe cleanly
+    let subData = subscription ? subscription.toJSON() : null;
+    if (subscription && (!subData?.keys?.p256dh || !subData?.keys?.auth)) {
+      try {
+        await subscription.unsubscribe();
+      } catch {}
+      subscription = null;
+      subData = null;
+    }
+
     if (!subscription) {
-      // Fetch VAPID public key from backend API
-      const res = await api.get('/notifications/vapid-public-key');
-      const vapidPublicKey = res.data?.data?.publicKey;
-
-      if (!vapidPublicKey) return false;
-
-      const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: convertedVapidKey,
       });
+      subData = subscription.toJSON();
     }
 
-    if (subscription) {
-      await api.post('/notifications/push-subscription', { subscription });
-      console.log('[Onebridge PWA] Web push subscription synced with backend successfully.');
+    if (subscription && subData) {
+      const cleanPayload = {
+        endpoint: subscription.endpoint,
+        keys: {
+          p256dh: subData.keys?.p256dh,
+          auth: subData.keys?.auth,
+        },
+      };
+
+      await api.post('/notifications/push-subscription', {
+        subscription: cleanPayload,
+      });
+
+      console.log('[Onebridge PWA] Device push subscription successfully saved to backend.');
+
       // Direct local confirmation notification
       showAppNotification('🔔 Notifications Active!', {
-        body: 'You will now receive shift and attendance alerts from OneBridge HRMS.',
+        body: 'Shift check-in and check-out reminders are now active on this device.',
         tag: 'onebridge-welcome-confirmation',
       }).catch(() => {});
+
       return true;
     }
   } catch (err) {

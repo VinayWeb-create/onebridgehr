@@ -72,10 +72,49 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const [testingPush, setTestingPush] = useState(false);
   const [pushFeedback, setPushFeedback] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState(false);
+  const [devicePushStatus, setDevicePushStatus] = useState<'granted' | 'denied' | 'default' | 'unsupported'>('default');
+  const [showDevicePushBanner, setShowDevicePushBanner] = useState(false);
+  const [enablingPush, setEnablingPush] = useState(false);
 
   useEffect(() => {
     setAvatarError(false);
   }, [user?.profileImageUrl]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setDevicePushStatus('unsupported');
+      return;
+    }
+    setDevicePushStatus(Notification.permission);
+    const dismissed = sessionStorage.getItem('obi_dismiss_device_push_banner');
+    if (Notification.permission === 'default' && !dismissed) {
+      setShowDevicePushBanner(true);
+    }
+  }, []);
+
+  const handleEnableDevicePush = async () => {
+    setEnablingPush(true);
+    setPushFeedback(null);
+    try {
+      const ok = await subscribeToPushNotifications();
+      const current = typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported';
+      setDevicePushStatus(current);
+      if (ok || current === 'granted') {
+        setShowDevicePushBanner(false);
+        setPushFeedback('Notifications active on this device! 🎉');
+        sendTestPushNotification().catch(() => {});
+        setShowNotificationPanel(true);
+        setTimeout(() => setPushFeedback(null), 5000);
+      } else if (current === 'denied') {
+        setPushFeedback('Notifications blocked in browser settings. Please allow notifications.');
+        setShowNotificationPanel(true);
+      }
+    } catch {
+      setPushFeedback('Could not enable notifications. Please check device permissions.');
+    } finally {
+      setEnablingPush(false);
+    }
+  };
 
   const handleTestPush = async () => {
     setTestingPush(true);
@@ -771,17 +810,52 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                       )}
                     </div>
 
-                    {/* Quick Push Test & Status Footer */}
-                    <div className="pt-2.5 px-3 border-t border-brand-200 dark:border-brand-900 bg-brand-50/50 dark:bg-brand-950/40 rounded-b-2xl">
-                      <button
-                        type="button"
-                        onClick={handleTestPush}
-                        disabled={testingPush}
-                        className="w-full py-1.5 px-3 rounded-xl bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all text-white text-[11px] font-bold flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
-                      >
-                        <Bell size={12} />
-                        <span>{testingPush ? 'Sending Test...' : 'Send Test Push Notification'}</span>
-                      </button>
+                    {/* Device Notification Status & Actions */}
+                    <div className="pt-2.5 px-3 border-t border-brand-200 dark:border-brand-900 bg-brand-50/50 dark:bg-brand-950/40 rounded-b-2xl space-y-2">
+                      {devicePushStatus === 'granted' ? (
+                        <>
+                          <div className="flex items-center justify-between text-[11px] px-1">
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                              <CheckCircle2 size={13} className="text-emerald-500" />
+                              <span>Active on this device</span>
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleTestPush}
+                            disabled={testingPush}
+                            className="w-full py-1.5 px-3 rounded-xl bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all text-white text-[11px] font-bold flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                          >
+                            <Bell size={12} />
+                            <span>{testingPush ? 'Sending Test...' : 'Send Test Notification'}</span>
+                          </button>
+                        </>
+                      ) : devicePushStatus === 'denied' ? (
+                        <>
+                          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] leading-relaxed">
+                            ⚠️ Notifications are blocked in this browser. Tap site settings beside the URL to allow.
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleEnableDevicePush}
+                            disabled={enablingPush}
+                            className="w-full py-1.5 px-3 rounded-xl bg-brand-200 dark:bg-brand-800 text-brand-900 dark:text-white text-[11px] font-bold cursor-pointer transition-all"
+                          >
+                            <span>Check Permission Again</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleEnableDevicePush}
+                          disabled={enablingPush}
+                          className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-orange-500 to-indigo-600 hover:opacity-95 active:scale-95 transition-all text-white text-xs font-bold flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                        >
+                          <Bell size={13} />
+                          <span>{enablingPush ? 'Enabling...' : 'Enable Notifications on this Device'}</span>
+                        </button>
+                      )}
+
                       {pushFeedback && (
                         <p className="text-[10px] text-center text-emerald-600 dark:text-emerald-400 font-semibold mt-1 truncate">
                           {pushFeedback}
@@ -827,6 +901,46 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
 
         {/* Content Body */}
         <main className="flex-1 p-4 md:p-8 relative">
+          {/* Mobile / Device Enable Notifications Banner */}
+          {showDevicePushBanner && devicePushStatus === 'default' && (
+            <div className="mb-5 p-3.5 rounded-2xl bg-gradient-to-r from-orange-500/10 via-brand-50/50 to-indigo-500/10 dark:from-orange-950/30 dark:via-brand-900/40 dark:to-indigo-950/30 border border-orange-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-xl bg-orange-500 text-white shrink-0 shadow-xs">
+                  <Bell size={16} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-brand-950 dark:text-white">
+                    Enable Notifications on this Device
+                  </p>
+                  <p className="text-[11px] text-brand-600 dark:text-brand-300">
+                    Get shift check-in & check-out reminders directly on your phone/browser.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2 w-full sm:w-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={handleEnableDevicePush}
+                  disabled={enablingPush}
+                  className="flex-1 sm:flex-none px-4 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 active:scale-95 text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-1.5"
+                >
+                  <Bell size={12} />
+                  <span>{enablingPush ? 'Enabling...' : 'Enable Now'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDevicePushBanner(false);
+                    sessionStorage.setItem('obi_dismiss_device_push_banner', 'true');
+                  }}
+                  className="p-1.5 rounded-xl text-brand-400 hover:text-brand-700 dark:hover:text-white transition-all cursor-pointer"
+                  title="Dismiss"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+          )}
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
