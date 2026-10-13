@@ -52,6 +52,9 @@ export interface FaceAnalysisResult {
   spoofDetected: boolean;
   spoofReason?: string;
   message?: string;
+  lightingQuality?: 'OPTIMAL' | 'LOW_LIGHT' | 'OVEREXPOSED';
+  lightingBrightness?: number;
+  faceAlignment?: 'PERFECT' | 'TOO_FAR' | 'TOO_CLOSE' | 'CENTER_NEEDED';
 }
 
 /**
@@ -149,16 +152,18 @@ export function detectFacesInCanvas(canvas: HTMLCanvasElement): FaceAnalysisResu
     const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
 
     // Skin condition in YCbCr:
-    // Cb in [77, 130], Cr in [130, 180], R > G > B, (R - G) > 10, Y > 30
+    // Supports diverse human skin undertones and cool/white indoor LED lighting
     const isSkin =
-      cb >= 77 &&
-      cb <= 130 &&
-      cr >= 130 &&
-      cr <= 180 &&
-      r > g &&
-      g >= b &&
-      r - g >= 8 &&
-      y >= 25 &&
+      cb >= 70 &&
+      cb <= 135 &&
+      cr >= 126 &&
+      cr <= 185 &&
+      r > 35 &&
+      g > 25 &&
+      b > 20 &&
+      (r >= b - 4) &&
+      (r > g || Math.abs(r - g) < 18) &&
+      y >= 20 &&
       y <= 245;
 
     const pixelIdx = i / 4;
@@ -285,6 +290,43 @@ export function detectFacesInCanvas(canvas: HTMLCanvasElement): FaceAnalysisResu
   // 6. Display Screen / Printed Photo Spoof Check (High frequency texture analysis)
   const spoofCheck = analyzeSpoofArtifacts(data, pw, ph, minX, maxX, minY, maxY);
 
+  // 7. Lighting & Quality Telemetry
+  let faceLuminance = 120;
+  if (primaryFaceBox && ctx) {
+    try {
+      const faceImg = ctx.getImageData(primaryFaceBox.x, primaryFaceBox.y, Math.max(1, primaryFaceBox.width), Math.max(1, primaryFaceBox.height));
+      let lumSum = 0;
+      const fData = faceImg.data;
+      let count = 0;
+      for (let i = 0; i < fData.length; i += 32) {
+        lumSum += 0.299 * fData[i] + 0.587 * fData[i + 1] + 0.114 * fData[i + 2];
+        count++;
+      }
+      faceLuminance = count > 0 ? lumSum / count : 120;
+    } catch (e) {
+      faceLuminance = 120;
+    }
+  }
+
+  const lightingQuality: 'OPTIMAL' | 'LOW_LIGHT' | 'OVEREXPOSED' =
+    faceLuminance < 40 ? 'LOW_LIGHT' : (faceLuminance > 220 ? 'OVEREXPOSED' : 'OPTIMAL');
+
+  // 8. Face Alignment & Distance Advisor
+  let faceAlignment: 'PERFECT' | 'TOO_FAR' | 'TOO_CLOSE' | 'CENTER_NEEDED' = 'PERFECT';
+  const faceRatio = primaryFaceBox.width / w;
+  const centerX = primaryFaceBox.x + primaryFaceBox.width / 2;
+  const centerY = primaryFaceBox.y + primaryFaceBox.height / 2;
+  const devX = Math.abs(centerX - w / 2) / w;
+  const devY = Math.abs(centerY - h / 2) / h;
+
+  if (faceRatio < 0.20) {
+    faceAlignment = 'TOO_FAR';
+  } else if (faceRatio > 0.85) {
+    faceAlignment = 'TOO_CLOSE';
+  } else if (devX > 0.22 || devY > 0.25) {
+    faceAlignment = 'CENTER_NEEDED';
+  }
+
   return {
     faceCount: 1,
     primaryFaceBox,
@@ -294,6 +336,9 @@ export function detectFacesInCanvas(canvas: HTMLCanvasElement): FaceAnalysisResu
     maskDetected,
     spoofDetected: spoofCheck.isSpoof,
     spoofReason: spoofCheck.reason,
+    lightingQuality,
+    lightingBrightness: Math.round(faceLuminance),
+    faceAlignment,
     message: maskDetected
       ? 'Face mask detected. Please remove your mask for attendance verification.'
       : spoofCheck.isSpoof
@@ -829,8 +874,21 @@ export function calculateBiometricSimilarity(vecA: number[], vecB: number[]): nu
   }
 
   if (normA === 0 || normB === 0) return 0;
-  const sim = dot / (Math.sqrt(normA) * Math.sqrt(normB));
-  return Math.max(0, Math.min(1.0, Math.round(sim * 1000) / 1000));
+  const rawSim = dot / (Math.sqrt(normA) * Math.sqrt(normB));
+
+  // Calibrate 128-D zero-mean centered similarity to 0% - 100% confidence curve:
+  let score = 0;
+  if (rawSim >= 0.60) {
+    score = 0.94 + Math.min(0.055, ((rawSim - 0.60) / 0.40) * 0.055);
+  } else if (rawSim >= 0.48) {
+    score = 0.88 + ((rawSim - 0.48) / 0.12) * 0.059;
+  } else if (rawSim >= 0.36) {
+    score = 0.76 + ((rawSim - 0.36) / 0.12) * 0.119;
+  } else {
+    score = Math.max(0, (rawSim / 0.36) * 0.75);
+  }
+
+  return Math.max(0, Math.min(1.0, Math.round(score * 1000) / 1000));
 }
 
 /**

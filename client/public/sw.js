@@ -232,9 +232,10 @@ self.addEventListener('push', (event) => {
     badge: data.badge || '/icons/icon-96x96.png',
     vibrate: [100, 50, 100],
     data: {
-      url: data.url || '/'
+      url: data.url || '/',
+      type: data.type || 'GENERAL',
     },
-    actions: [
+    actions: data.actions || [
       { action: 'open', title: 'Open App' },
       { action: 'close', title: 'Dismiss' }
     ]
@@ -251,7 +252,10 @@ self.addEventListener('notificationclick', (event) => {
 
   if (event.action === 'close') return;
 
-  const targetUrl = event.notification.data?.url || '/';
+  let targetUrl = event.notification.data?.url || '/';
+  if (event.action === 'checkout') {
+    targetUrl = '/attendance?action=checkout';
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

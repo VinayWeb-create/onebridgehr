@@ -33,8 +33,10 @@ import ocrRoutes from './routes/ocrRoutes';
 import automationRoutes from './routes/automationRoutes';
 import aiAgentRoutes from './routes/aiAgentRoutes';
 import goalRoutes from './routes/goalRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 import { googleOAuth } from './services/googleOAuth';
 import { AiAgentOrchestrator } from './services/ai/aiAgentOrchestrator';
+import { startShiftReminderScheduler } from './services/shiftReminderScheduler';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -149,6 +151,7 @@ app.use('/api/ocr', ocrRoutes);
 app.use('/api/automations', automationRoutes);
 app.use('/api/ai', aiAgentRoutes);
 app.use('/api/goals', goalRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Fallback Route
 app.use('*', (req, res) => {
@@ -188,6 +191,7 @@ const startServer = async () => {
       console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
     });
     startOnboardingScheduler();
+    startShiftReminderScheduler();
   } catch (error) {
     console.error('Failed to start server services:', error);
     process.exit(1);

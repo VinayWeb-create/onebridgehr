@@ -135,14 +135,7 @@ export const App: React.FC = () => {
                 <Route path="/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
                 <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
                 <Route path="/attendance/enrollment" element={<ProtectedRoute><AttendanceEnrollment /></ProtectedRoute>} />
-                <Route
-                  path="/attendance/setup"
-                  element={
-                    <ProtectedRoute requiredRoles={['SUPER_ADMIN', 'HR']}>
-                      <AttendanceSetup />
-                    </ProtectedRoute>
-                  }
-                />
+                <Route path="/attendance/setup" element={<Navigate to="/attendance" replace />} />
                 <Route path="/leaves" element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
                 <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
                 <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />

@@ -110,6 +110,73 @@ export async function showAppNotification(title: string, options?: NotificationO
   }
 }
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+/**
+ * Subscribe the current PWA installation to Web Push Notifications
+ */
+export async function subscribeToPushNotifications(): Promise<boolean> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return false;
+  }
+
+  const permission = await requestNotificationPermission();
+  if (permission !== 'granted') {
+    return false;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      // Fetch VAPID public key from backend API
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch('/api/notifications/vapid-public-key', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      const vapidPublicKey = data?.data?.publicKey;
+
+      if (!vapidPublicKey) return false;
+
+      const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertedVapidKey,
+      });
+    }
+
+    if (subscription) {
+      const token = localStorage.getItem('token') || '';
+      await fetch('/api/notifications/push-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ subscription }),
+      });
+      console.log('[Onebridge PWA] Web push subscription synced with backend successfully.');
+      return true;
+    }
+  } catch (err) {
+    console.warn('[Onebridge PWA] Push subscription registration note:', err);
+  }
+  return false;
+}
+
 /**
  * Queue a failed or offline mutation request to execute when back online
  */

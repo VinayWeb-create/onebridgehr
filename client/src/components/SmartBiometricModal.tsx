@@ -16,7 +16,9 @@ import {
 import api from '../services/api';
 import { getClientDeviceInfo } from '../utils/deviceFingerprint';
 import { extractFaceEmbeddingFromCanvas, LivenessDetector, detectFacesInCanvas } from '../utils/faceBiometrics';
+import type { FaceAnalysisResult } from '../utils/faceBiometrics';
 import { getResilientPosition, getFriendlyGpsErrorMessage } from '../utils/geolocation';
+import { BiometricFaceScannerHUD } from './BiometricFaceScannerHUD';
 
 interface SmartBiometricModalProps {
   isOpen: boolean;
@@ -41,6 +43,7 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
   const [livenessScore, setLivenessScore] = useState<number>(0);
   const [livenessPassed, setLivenessPassed] = useState<boolean>(false);
   const [verifying, setVerifying] = useState<boolean>(false);
+  const [faceAnalysis, setFaceAnalysis] = useState<FaceAnalysisResult | null>(null);
 
   // Warning state from server
   const [warningData, setWarningData] = useState<{
@@ -118,6 +121,8 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
     canvas.height = 240;
     const ctx = canvas.getContext('2d');
 
+    let frameSkipCounter = 0;
+
     const checkFrame = () => {
       if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) return;
 
@@ -127,6 +132,12 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
 
         setLivenessScore(result.score);
         setLivenessStatus(result.instruction);
+
+        frameSkipCounter++;
+        if (frameSkipCounter % 3 === 0) {
+          const analysis = detectFacesInCanvas(canvas);
+          setFaceAnalysis(analysis);
+        }
 
         if (result.passed && !isVerifyingRef.current) {
           setLivenessPassed(true);
@@ -367,8 +378,8 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
           </button>
         </div>
 
-        {/* Live Camera View with Biometric Oval Guide */}
-        <div className="relative bg-black rounded-2xl overflow-hidden aspect-[4/3] border-2 border-indigo-500/40 shadow-inner flex items-center justify-center">
+        {/* Live Camera View with Pro-Level Biometric Face Tracking HUD */}
+        <div className="relative bg-black rounded-3xl overflow-hidden aspect-[4/3] border-2 border-cyan-500/40 shadow-2xl flex items-center justify-center">
           <video
             ref={videoRef}
             autoPlay
@@ -377,35 +388,21 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
             className="w-full h-full object-cover transform -scale-x-100"
           />
 
-          {/* Biometric Oval Guide */}
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div
-              className={`w-48 h-64 border-2 border-dashed rounded-[50%] flex items-center justify-center transition-all ${
-                livenessPassed
-                  ? 'border-emerald-400 shadow-[0_0_30px_rgba(52,211,153,0.5)]'
-                  : 'border-indigo-400 animate-pulse shadow-[0_0_20px_rgba(99,102,241,0.3)]'
-              }`}
-            >
-              <Crosshair
-                size={28}
-                className={livenessPassed ? 'text-emerald-400' : 'text-indigo-400/40'}
-              />
-            </div>
-          </div>
-
-          {/* Liveness Result Pill */}
-          <div className="absolute top-3 inset-x-3 flex justify-between items-center bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-xs">
-            <span className="text-[11px] font-bold text-indigo-300 truncate max-w-[220px]">
-              {livenessStatus}
-            </span>
-            <span
-              className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
-                livenessPassed ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white'
-              }`}
-            >
-              {Math.round(livenessScore * 100)}% Liveness
-            </span>
-          </div>
+          {/* Holographic Face Tracking HUD */}
+          <BiometricFaceScannerHUD
+            faceBox={faceAnalysis?.primaryFaceBox}
+            videoWidth={videoRef.current?.videoWidth || 640}
+            videoHeight={videoRef.current?.videoHeight || 480}
+            livenessPassed={livenessPassed}
+            livenessScore={livenessScore}
+            livenessStatus={livenessStatus}
+            verifying={verifying}
+            lightingQuality={faceAnalysis?.lightingQuality}
+            lightingBrightness={faceAnalysis?.lightingBrightness}
+            faceAlignment={faceAnalysis?.faceAlignment}
+            multipleFaces={faceAnalysis?.multipleFaces}
+            noFace={faceAnalysis?.noFace}
+          />
 
           {/* Success Overlay Animation */}
           <AnimatePresence>

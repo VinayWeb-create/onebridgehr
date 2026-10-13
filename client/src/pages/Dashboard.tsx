@@ -17,7 +17,7 @@ import {
   BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon, DollarSign,
   ShoppingBag, Wallet, PiggyBank, Briefcase, CalendarCheck, UserMinus, UserPlus,
   Activity, PieChart as PieIcon, Gauge, Rocket, Flame, CheckSquare, Bell, Loader2, RefreshCw, Plus,
-  Scan, AlertTriangle, AlertOctagon, ShieldCheck
+  Scan, AlertTriangle, AlertOctagon, ShieldCheck, LogOut
 } from 'lucide-react';
 import GoogleDriveCard from '../components/GoogleDriveCard';
 import SmartBiometricModal from '../components/SmartBiometricModal';
@@ -243,6 +243,7 @@ export const Dashboard: React.FC = () => {
   const [breakTimer, setBreakTimer] = useState<string>('00:00');
   const [smartModalOpen, setSmartModalOpen] = useState<boolean>(false);
   const [smartAction, setSmartAction] = useState<'CHECK_IN' | 'CHECK_OUT'>('CHECK_IN');
+  const [showCheckOutConfirmModal, setShowCheckOutConfirmModal] = useState<boolean>(false);
 
   const handleOpenSmartCheckIn = () => {
     // If first-time enrollment pending for EMPLOYEE or TEAM_LEAD:
@@ -262,8 +263,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleOpenSmartCheckOut = () => {
-    setSmartAction('CHECK_OUT');
-    setSmartModalOpen(true);
+    setShowCheckOutConfirmModal(true);
   };
 
   useEffect(() => {
@@ -1669,11 +1669,11 @@ export const Dashboard: React.FC = () => {
                 {!att.checkOut && (
                   <button
                     disabled={actionLoading !== null}
-                    onClick={handleOpenSmartCheckOut}
+                    onClick={() => setShowCheckOutConfirmModal(true)}
                     className="w-full bg-gradient-to-br from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-2xl py-3.5 font-black text-[11px] tracking-wider uppercase transition-all shadow-lg shadow-rose-500/30 flex items-center justify-center space-x-1.5 disabled:opacity-50"
                   >
-                    <Scan size={14} />
-                    <span>Check Out (Biometric)</span>
+                    <LogOut size={14} />
+                    <span>Check Out</span>
                   </button>
                 )}
                 {att.checkIn && !att.checkOut && (
@@ -2124,6 +2124,79 @@ export const Dashboard: React.FC = () => {
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Direct Check-Out Confirmation Modal (No GPS, No Face Scan) */}
+      {showCheckOutConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-950/70 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-md rounded-3xl p-6 sm:p-7 border border-brand-200 dark:border-brand-800 shadow-2xl bg-white dark:bg-brand-950 space-y-5 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center border border-rose-500/20 shadow-inner">
+              <LogOut size={30} />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-black text-brand-950 dark:text-white">
+                Confirm Shift Check-Out
+              </h3>
+              <p className="text-xs text-brand-500 leading-relaxed max-w-xs mx-auto">
+                Are you ready to clock out for today? Direct check-out confirmed &mdash; no GPS, device check, or camera scan is required.
+              </p>
+            </div>
+
+            {empData?.todayAttendance?.checkIn && (
+              <div className="p-4 rounded-2xl bg-brand-50 dark:bg-brand-900/40 border border-brand-200 dark:border-brand-800/60 text-xs space-y-2 text-left">
+                <div className="flex justify-between items-center text-brand-500">
+                  <span>Clocked In At:</span>
+                  <span className="font-bold font-mono text-brand-950 dark:text-white">
+                    {new Date(empData.todayAttendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-brand-500">
+                  <span>Clock Out Time:</span>
+                  <span className="font-bold font-mono text-rose-600 dark:text-rose-400">
+                    {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (Now)
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-brand-500 pt-1 border-t border-brand-200 dark:border-brand-800">
+                  <span>Shift Policy:</span>
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                    18:30 Shift Policy
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                disabled={actionLoading !== null}
+                onClick={() => setShowCheckOutConfirmModal(false)}
+                className="flex-1 py-3 rounded-2xl bg-brand-100 hover:bg-brand-200 dark:bg-brand-900 dark:hover:bg-brand-800 text-brand-700 dark:text-brand-300 font-bold text-xs uppercase tracking-wider transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading !== null}
+                onClick={async () => {
+                  setShowCheckOutConfirmModal(false);
+                  await handleCheckOut();
+                }}
+                className="flex-1 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-rose-600/30 transition-all flex items-center justify-center gap-2"
+              >
+                {actionLoading === 'check-out' ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" /> Clocking Out...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={14} /> Confirm Check Out
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

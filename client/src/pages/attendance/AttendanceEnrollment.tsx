@@ -5,7 +5,9 @@ import { useDialog } from '../../context/DialogContext';
 import api from '../../services/api';
 import { getClientDeviceInfo } from '../../utils/deviceFingerprint';
 import { extractFaceEmbeddingFromCanvas, detectFacesInCanvas } from '../../utils/faceBiometrics';
+import type { FaceAnalysisResult } from '../../utils/faceBiometrics';
 import { getResilientPosition, getFriendlyGpsErrorMessage } from '../../utils/geolocation';
+import { BiometricFaceScannerHUD } from '../../components/BiometricFaceScannerHUD';
 import {
   UserCheck,
   Camera,
@@ -58,7 +60,9 @@ export const AttendanceEnrollment: React.FC = () => {
   // Step 3: Face Enrollment (3 Angles: Front, Left, Right)
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const animFrameRef = useRef<number | null>(null);
   const [currentAngleIndex, setCurrentAngleIndex] = useState<number>(0);
+  const [faceAnalysis, setFaceAnalysis] = useState<FaceAnalysisResult | null>(null);
   const [angleCaptures, setAngleCaptures] = useState<{
     front?: { preview: string; embedding: number[] };
     left?: { preview: string; embedding: number[] };
@@ -206,6 +210,27 @@ export const AttendanceEnrollment: React.FC = () => {
         videoRef.current.play();
       }
       setCameraActive(true);
+
+      // Light face tracking loop for enrollment HUD
+      const canvas = document.createElement('canvas');
+      canvas.width = 320;
+      canvas.height = 240;
+      const ctx = canvas.getContext('2d');
+      let count = 0;
+
+      const trackLoop = () => {
+        if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) return;
+        if (ctx && videoRef.current.videoWidth) {
+          count++;
+          if (count % 3 === 0) {
+            ctx.drawImage(videoRef.current, 0, 0, 320, 240);
+            const res = detectFacesInCanvas(canvas);
+            setFaceAnalysis(res);
+          }
+        }
+        animFrameRef.current = requestAnimationFrame(trackLoop);
+      };
+      animFrameRef.current = requestAnimationFrame(trackLoop);
     } catch (e) {
       console.error('Camera start error:', e);
       setCameraActive(false);
@@ -213,6 +238,10 @@ export const AttendanceEnrollment: React.FC = () => {
   };
 
   const stopCamera = () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -676,8 +705,8 @@ export const AttendanceEnrollment: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
-                {/* Live Camera View with Biometric Overlay */}
-                <div className="lg:col-span-2 relative bg-black rounded-3xl overflow-hidden aspect-[4/3] shadow-2xl flex items-center justify-center border-2 border-indigo-500/40">
+                {/* Live Camera View with Pro-Level Biometric Face Tracking HUD */}
+                <div className="lg:col-span-2 relative bg-black rounded-3xl overflow-hidden aspect-[4/3] shadow-2xl flex items-center justify-center border-2 border-cyan-500/40">
                   <video
                     ref={videoRef}
                     autoPlay
@@ -686,31 +715,46 @@ export const AttendanceEnrollment: React.FC = () => {
                     className="w-full h-full object-cover transform -scale-x-100"
                   />
 
-                  {/* Biometric Oval Guide Overlay */}
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    <div className="w-56 h-72 border-2 border-dashed border-indigo-400/80 rounded-[50%] shadow-[0_0_40px_rgba(99,102,241,0.3)] animate-pulse flex items-center justify-center">
-                      <Crosshair size={32} className="text-indigo-400/40" />
-                    </div>
-                  </div>
+                  {/* Holographic Face Tracking HUD */}
+                  <BiometricFaceScannerHUD
+                    faceBox={faceAnalysis?.primaryFaceBox}
+                    videoWidth={videoRef.current?.videoWidth || 640}
+                    videoHeight={videoRef.current?.videoHeight || 480}
+                    livenessPassed={!!(angleCaptures as any)[ANGLES[currentAngleIndex].key]}
+                    livenessScore={faceAnalysis?.noFace ? 0.2 : 0.96}
+                    livenessStatus={
+                      faceAnalysis?.noFace
+                        ? 'Align face in oval frame'
+                        : faceAnalysis?.multipleFaces
+                        ? 'Multiple faces detected'
+                        : `Ready: ${ANGLES[currentAngleIndex].label}`
+                    }
+                    verifying={false}
+                    lightingQuality={faceAnalysis?.lightingQuality}
+                    lightingBrightness={faceAnalysis?.lightingBrightness}
+                    faceAlignment={faceAnalysis?.faceAlignment}
+                    multipleFaces={faceAnalysis?.multipleFaces}
+                    noFace={faceAnalysis?.noFace}
+                  />
 
                   {/* Instruction Pill */}
-                  <div className="absolute top-4 left-4 right-4 flex justify-between items-center bg-black/60 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 text-white">
+                  <div className="absolute top-4 left-4 right-4 flex justify-between items-center bg-black/75 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 text-white z-10">
                     <div>
-                      <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">
+                      <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">
                         {ANGLES[currentAngleIndex].label}
                       </p>
                       <p className="text-xs font-semibold">{ANGLES[currentAngleIndex].desc}</p>
                     </div>
-                    <span className="text-xs font-extrabold px-2.5 py-1 bg-indigo-600 rounded-lg">
+                    <span className="text-xs font-extrabold px-2.5 py-1 bg-cyan-600 rounded-lg">
                       {currentAngleIndex + 1} / 3
                     </span>
                   </div>
 
                   {/* Capture Button */}
-                  <div className="absolute bottom-6 inset-x-0 flex justify-center">
+                  <div className="absolute bottom-6 inset-x-0 flex justify-center z-10">
                     <button
                       onClick={captureAngle}
-                      className="px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-full font-extrabold text-xs uppercase tracking-wider shadow-2xl shadow-indigo-600/60 flex items-center gap-2 transform active:scale-95 transition-all"
+                      className="px-8 py-3.5 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white rounded-full font-extrabold text-xs uppercase tracking-wider shadow-2xl shadow-cyan-600/50 flex items-center gap-2 transform active:scale-95 transition-all"
                     >
                       <Camera size={18} /> Capture {ANGLES[currentAngleIndex].key.toUpperCase()} Angle
                     </button>

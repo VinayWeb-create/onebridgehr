@@ -9,9 +9,14 @@ import { getResilientPosition, getFriendlyGpsErrorMessage } from '../utils/geolo
 import {
   Calendar, CheckCircle, Clock, MapPin, AlertCircle, AlertTriangle, Coffee, Play, Download,
   FileText, Users, Code, Key, LogOut, Activity, ShieldCheck, Camera, Smartphone, Scan,
-  RotateCcw, Sliders, ChevronRight, CheckCircle2, Crosshair, Sparkles, Filter, ExternalLink
+  RotateCcw, Sliders, ChevronRight, CheckCircle2, Crosshair, Sparkles, Filter, ExternalLink,
+  GraduationCap, BarChart3, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { SmartBiometricModal } from '../components/SmartBiometricModal';
+import { MonthlyAttendanceMatrix } from '../components/MonthlyAttendanceMatrix';
+import { AdminEmployeeAttendanceCatalog } from '../components/AdminEmployeeAttendanceCatalog';
+import { subscribeToPushNotifications } from '../registerServiceWorker';
 
 interface BreakSession {
   start: string;
@@ -47,8 +52,11 @@ export const Attendance: React.FC = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locError, setLocError] = useState('');
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState<'MY_ATTENDANCE' | 'ADMIN_DASHBOARD'>('MY_ATTENDANCE');
+  // Tab State (Admins default to ADMIN_DASHBOARD; Employees default to MY_ATTENDANCE)
+  const [activeTab, setActiveTab] = useState<'MY_ATTENDANCE' | 'ADMIN_DASHBOARD'>(
+    user?.role === 'SUPER_ADMIN' || user?.role === 'HR' ? 'ADMIN_DASHBOARD' : 'MY_ATTENDANCE'
+  );
+  const [myAttendanceSubTab, setMyAttendanceSubTab] = useState<'DAILY_CLOCKIN' | 'MONTHLY_PERCENTAGE'>('DAILY_CLOCKIN');
   const [checkInCode, setCheckInCode] = useState('');
   const [adminStats, setAdminStats] = useState<any>(null);
   const [dailyCode, setDailyCode] = useState<any>(null);
@@ -77,6 +85,10 @@ export const Attendance: React.FC = () => {
   const [logFilterStatus, setLogFilterStatus] = useState<string>('ALL');
   const [clearingAllToday, setClearingAllToday] = useState<boolean>(false);
 
+  // Check-Out Confirmation Modal State (Direct Check-Out without GPS/Biometrics)
+  const [showCheckOutConfirmModal, setShowCheckOutConfirmModal] = useState<boolean>(false);
+  const [checkingOut, setCheckingOut] = useState<boolean>(false);
+
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'HR';
 
   useEffect(() => {
@@ -91,6 +103,16 @@ export const Attendance: React.FC = () => {
       (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       (err) => setLocError(getFriendlyGpsErrorMessage(err))
     );
+
+    // Sync PWA Push Notification permissions seamlessly
+    subscribeToPushNotifications().catch(() => {});
+
+    // Check if user clicked notification action 'checkout'
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('action') === 'checkout') {
+      setShowCheckOutConfirmModal(true);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, [isAdmin]);
 
   const fetchEnrollmentStatus = async () => {
@@ -202,15 +224,6 @@ export const Attendance: React.FC = () => {
   const startSmartVerification = (action: 'CHECK_IN' | 'CHECK_OUT') => {
     setVerificationAction(action);
     setSmartModalOpen(true);
-    setLivenessStatus('Starting biometric scanner...');
-    setLivenessScore(0);
-    setLivenessPassed(false);
-    livenessDetectorRef.current.reset();
-
-    // Start video stream
-    setTimeout(() => {
-      openCamera();
-    }, 100);
   };
 
   const openCamera = async () => {
@@ -442,14 +455,30 @@ export const Attendance: React.FC = () => {
     }
   };
 
-  const handleCheckOut = async () => {
+  const handleConfirmCheckOut = async () => {
     try {
+      setCheckingOut(true);
       await api.post('/attendance/check-out');
-      alert({ title: 'Notification', message: 'Checked out successfully!', variant: 'info' });
+      alert({
+        title: 'Checked Out Successfully',
+        message: 'Your shift has been successfully concluded. Have a wonderful evening!',
+        variant: 'info',
+      });
+      setShowCheckOutConfirmModal(false);
       fetchAttendance();
     } catch (err: any) {
-      alert({ title: 'Error', message: err.response?.data?.message || 'Failed to check out', variant: 'error' });
+      alert({
+        title: 'Check-Out Notice',
+        message: err.response?.data?.message || 'Failed to complete check out',
+        variant: 'error',
+      });
+    } finally {
+      setCheckingOut(false);
     }
+  };
+
+  const handleCheckOut = () => {
+    setShowCheckOutConfirmModal(true);
   };
 
   const handleStartBreak = async () => {
@@ -529,26 +558,7 @@ export const Attendance: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {isAdmin && (
-            <Link
-              to="/attendance/setup"
-              className="px-4 py-2 bg-indigo-600/40 hover:bg-indigo-600 border border-indigo-500/50 text-white text-xs font-bold rounded-xl flex items-center gap-2 transition-all shadow-md"
-            >
-              <Sliders size={14} /> Attendance Setup
-            </Link>
-          )}
-
           <div className="flex bg-brand-800/60 p-1 rounded-xl w-fit border border-brand-700">
-            <button
-              onClick={() => setActiveTab('MY_ATTENDANCE')}
-              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-                activeTab === 'MY_ATTENDANCE'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-brand-300 hover:text-white'
-              }`}
-            >
-              My Attendance
-            </button>
             {isAdmin && (
               <button
                 onClick={() => setActiveTab('ADMIN_DASHBOARD')}
@@ -561,12 +571,22 @@ export const Attendance: React.FC = () => {
                 <Users size={14} /> Admin Dashboard
               </button>
             )}
+            <button
+              onClick={() => setActiveTab('MY_ATTENDANCE')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                activeTab === 'MY_ATTENDANCE'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-brand-300 hover:text-white'
+              }`}
+            >
+              My Attendance
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ENROLLMENT PENDING WARNING BANNER */}
-      {enrollmentChecked && !isEnrolled && (
+      {/* ENROLLMENT PENDING WARNING BANNER (Enforced strictly for regular Employees & Team Leads; Admins are exempt) */}
+      {enrollmentChecked && !isEnrolled && !isAdmin && (
         <div className="p-6 rounded-3xl bg-amber-500/10 border-2 border-amber-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-amber-500 text-white rounded-2xl shadow-lg shadow-amber-500/30 flex-shrink-0">
@@ -594,9 +614,63 @@ export const Attendance: React.FC = () => {
          TAB 1: MY ATTENDANCE WORKFLOW
       ============================================================= */}
       {activeTab === 'MY_ATTENDANCE' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Smart Biometric Console */}
-          <div className="glass rounded-3xl p-6 border border-brand-200 dark:border-brand-900 shadow-xl h-fit space-y-6">
+        <div className="space-y-6">
+          {/* Administrative Attendance Exemption Notice for Super Admins / HR */}
+          {isAdmin && (
+            <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-indigo-600 text-white shrink-0">
+                  <ShieldCheck size={16} />
+                </span>
+                <div>
+                  <p className="font-extrabold text-indigo-700 dark:text-indigo-300">
+                    Administrative Leadership Exemption
+                  </p>
+                  <p className="text-[11px] text-brand-600 dark:text-brand-400">
+                    Super Admins and Administrative HR leaders are not required to record daily attendance. Daily attendance tracking is strictly enforced for Employees and Team Leads.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab('ADMIN_DASHBOARD')}
+                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 text-white font-bold text-[11px] shrink-0 hover:bg-indigo-700 transition-colors shadow-sm"
+              >
+                Go to Admin Dashboard &rarr;
+              </button>
+            </div>
+          )}
+
+          {/* Sub Navigation: Biometric Clock-In (First / High Priority) vs Monthly Attendance % Matrix */}
+          <div className="flex bg-brand-100/60 dark:bg-brand-900/40 p-1.5 rounded-2xl border border-brand-200 dark:border-brand-800 shadow-sm w-fit gap-1">
+            <button
+              onClick={() => setMyAttendanceSubTab('DAILY_CLOCKIN')}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 ${
+                myAttendanceSubTab === 'DAILY_CLOCKIN'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                  : 'text-brand-600 dark:text-brand-400 hover:text-brand-950 dark:hover:text-white'
+              }`}
+            >
+              <Scan size={15} />
+              Biometric Clock-In & Recent Logs
+            </button>
+            <button
+              onClick={() => setMyAttendanceSubTab('MONTHLY_PERCENTAGE')}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 ${
+                myAttendanceSubTab === 'MONTHLY_PERCENTAGE'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                  : 'text-brand-600 dark:text-brand-400 hover:text-brand-950 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 size={15} />
+              Monthly Attendance % Matrix
+            </button>
+          </div>
+
+          {/* VIEW 1: Biometric Clock-In Console & Daily Logs (Primary / Default) */}
+          {myAttendanceSubTab === 'DAILY_CLOCKIN' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Smart Biometric Console */}
+              <div className="glass rounded-3xl p-6 border border-brand-200 dark:border-brand-900 shadow-xl h-fit space-y-6">
             <div className="flex justify-between items-center pb-4 border-b border-brand-100 dark:border-brand-900">
               <div>
                 <h3 className="font-bold text-sm uppercase tracking-wider text-brand-950 dark:text-white">
@@ -721,6 +795,29 @@ export const Attendance: React.FC = () => {
                     )}
                   </div>
 
+                  {/* 18:30 Shift Policy Check-Out Prompt */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-emerald-500/10 border border-amber-500/30 flex items-center justify-between gap-2 shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+                        <Clock size={16} />
+                      </div>
+                      <div>
+                        <h4 className="text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                          18:30 Shift Policy
+                        </h4>
+                        <p className="text-[10px] text-brand-600 dark:text-brand-300">
+                          Direct checkout available anytime &mdash; no GPS or face scan needed.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowCheckOutConfirmModal(true)}
+                      className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1 shadow-sm whitespace-nowrap"
+                    >
+                      <LogOut size={12} /> Check Out
+                    </button>
+                  </div>
+
                   <div className="flex space-x-3">
                     {!activeBreak ? (
                       <button
@@ -739,10 +836,10 @@ export const Attendance: React.FC = () => {
                     )}
 
                     <button
-                      onClick={() => startSmartVerification('CHECK_OUT')}
+                      onClick={() => setShowCheckOutConfirmModal(true)}
                       className="flex-1 py-3 rounded-xl font-bold uppercase tracking-wider text-xs transition-all bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 flex items-center justify-center gap-2"
                     >
-                      <LogOut size={14} /> Clock Out (Smart)
+                      <LogOut size={14} /> Check Out
                     </button>
                   </div>
                 </div>
@@ -846,6 +943,13 @@ export const Attendance: React.FC = () => {
               </table>
             </div>
           </div>
+            </div>
+          )}
+
+          {/* VIEW 2: Month-by-Month Percentage Performance Module */}
+          {myAttendanceSubTab === 'MONTHLY_PERCENTAGE' && (
+            <MonthlyAttendanceMatrix showTitle={false} />
+          )}
         </div>
       )}
 
@@ -916,6 +1020,9 @@ export const Attendance: React.FC = () => {
               </p>
             </div>
           </div>
+
+          {/* Super Admin Employee Attendance Catalog & Filter Breakdown */}
+          <AdminEmployeeAttendanceCatalog />
 
           {/* Real-time Verification Audit Logs Table */}
           <div className="glass rounded-3xl p-6 border border-brand-200 dark:border-brand-900 shadow-xl bg-white dark:bg-brand-950 space-y-4">
@@ -1069,100 +1176,92 @@ export const Attendance: React.FC = () => {
       )}
 
       {/* =============================================================
-         SMART BIOMETRIC SCANNER POPUP MODAL
+          DIRECT CHECK-OUT CONFIRMATION MODAL (NO GPS, NO FACE SCAN)
       ============================================================= */}
-      {smartModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-brand-950 text-white rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-indigo-500/40 shadow-2xl relative space-y-6"
-          >
-            <div className="flex justify-between items-center pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-indigo-600 rounded-xl">
-                  <Scan size={18} />
+      {showCheckOutConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-950/70 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-md rounded-3xl p-6 sm:p-7 border border-brand-200 dark:border-brand-800 shadow-2xl bg-white dark:bg-brand-950 space-y-5 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center border border-rose-500/20 shadow-inner">
+              <LogOut size={30} />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-black text-brand-950 dark:text-white">
+                Confirm Shift Check-Out
+              </h3>
+              <p className="text-xs text-brand-500 leading-relaxed max-w-xs mx-auto">
+                Are you ready to clock out for today? Direct check-out confirmed &mdash; no GPS, device check, or camera scan is required.
+              </p>
+            </div>
+
+            {todayLog?.checkIn && (
+              <div className="p-4 rounded-2xl bg-brand-50 dark:bg-brand-900/40 border border-brand-200 dark:border-brand-800/60 text-xs space-y-2 text-left">
+                <div className="flex justify-between items-center text-brand-500">
+                  <span>Clocked In At:</span>
+                  <span className="font-bold font-mono text-brand-950 dark:text-white">
+                    {new Date(todayLog.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
-                <div>
-                  <h3 className="text-base font-extrabold">
-                    {verificationAction === 'CHECK_IN' ? 'Clock In Biometric Scan' : 'Clock Out Biometric Scan'}
-                  </h3>
-                  <p className="text-[11px] text-brand-400">{assignedOffice?.name || 'Office Geofence'}</p>
+                <div className="flex justify-between items-center text-brand-500">
+                  <span>Clock Out Time:</span>
+                  <span className="font-bold font-mono text-rose-600 dark:text-rose-400">
+                    {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (Now)
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-brand-500 pt-1 border-t border-brand-200 dark:border-brand-800">
+                  <span>Shift Policy:</span>
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                    18:30 Shift Policy
+                  </span>
                 </div>
               </div>
-              <button onClick={closeSmartModal} className="text-brand-400 hover:text-white p-1">
-                ✕
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                disabled={checkingOut}
+                onClick={() => setShowCheckOutConfirmModal(false)}
+                className="flex-1 py-3 rounded-2xl bg-brand-100 hover:bg-brand-200 dark:bg-brand-900 dark:hover:bg-brand-800 text-brand-700 dark:text-brand-300 font-bold text-xs uppercase tracking-wider transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={checkingOut}
+                onClick={handleConfirmCheckOut}
+                className="flex-1 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-rose-600/30 transition-all flex items-center justify-center gap-2"
+              >
+                {checkingOut ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" /> Clocking Out...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={14} /> Confirm Check Out
+                  </>
+                )}
               </button>
             </div>
-
-            {/* Live Camera View with Biometric Oval Guide */}
-            <div className="relative bg-black rounded-2xl overflow-hidden aspect-[4/3] border-2 border-indigo-500/40 shadow-inner flex items-center justify-center">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover transform -scale-x-100"
-              />
-
-              {/* Biometric Oval Frame Guide */}
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                <div
-                  className={`w-48 h-64 border-2 border-dashed rounded-[50%] flex items-center justify-center transition-all ${
-                    livenessPassed
-                      ? 'border-emerald-400 shadow-[0_0_30px_rgba(52,211,153,0.5)]'
-                      : 'border-indigo-400 animate-pulse shadow-[0_0_20px_rgba(99,102,241,0.3)]'
-                  }`}
-                >
-                  <Crosshair
-                    size={28}
-                    className={livenessPassed ? 'text-emerald-400' : 'text-indigo-400/40'}
-                  />
-                </div>
-              </div>
-
-              {/* Liveness Result Pill */}
-              <div className="absolute top-3 inset-x-3 flex justify-between items-center bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-xs">
-                <span className="text-[11px] font-bold text-indigo-300 truncate max-w-[220px]">
-                  {livenessStatus}
-                </span>
-                <span className="text-[10px] font-black px-2 py-0.5 bg-indigo-600 rounded-md">
-                  {Math.round(livenessScore * 100)}% Liveness
-                </span>
-              </div>
-            </div>
-
-            {/* Progress / Action Status */}
-            <div className="space-y-3">
-              <div className="h-1.5 w-full bg-brand-900 rounded-full overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-300 ${
-                    livenessPassed ? 'bg-emerald-500' : 'bg-indigo-500'
-                  }`}
-                  style={{ width: `${Math.min(100, Math.round(livenessScore * 100))}%` }}
-                />
-              </div>
-
-              <div className="flex justify-between items-center text-xs text-brand-400">
-                <span>Hold face steady in oval frame</span>
-                {verifying && (
-                  <span className="text-indigo-400 font-bold flex items-center gap-1.5">
-                    <span className="w-3 h-3 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
-                    Validating GPS & Biometrics...
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <button
-              onClick={closeSmartModal}
-              className="w-full py-2.5 rounded-xl border border-white/10 text-brand-400 hover:text-white text-xs font-bold"
-            >
-              Cancel Verification
-            </button>
-          </motion.div>
+          </div>
         </div>
       )}
+
+      {/* =============================================================
+         PRO-LEVEL SMART BIOMETRIC SCANNER MODAL
+      ============================================================= */}
+      <SmartBiometricModal
+        isOpen={smartModalOpen}
+        onClose={() => setSmartModalOpen(false)}
+        action={verificationAction}
+        officeName={assignedOffice?.name || 'OneBridge Infotech HQ'}
+        onSuccess={() => {
+          fetchAttendance();
+        }}
+        onViolationLocked={() => {
+          fetchAttendance();
+        }}
+      />
     </div>
   );
 };

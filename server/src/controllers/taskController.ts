@@ -5,6 +5,7 @@ import { taskSchema, taskUpdateSchema } from '../models/validators';
 import { logActivity } from '../middleware/auditLogger';
 import { socketService } from '../services/socketService';
 import { emailService } from '../services/emailService';
+import { WebPushService } from '../services/webPushService';
 
 const markOverdueTasks = async () => {
   const now = new Date();
@@ -157,26 +158,27 @@ const sendTaskAssignmentNotificationInternal = async (taskId: string) => {
     employeeId: task.employee.employeeId,
     title: 'New Task Assigned',
     message: `Task: ${task.title}`,
+    actionUrl: '/tasks',
+    taskId: task.id,
   };
 
-  // Notify the assigned employee
+  // Notify ONLY the assigned employee (User directive: only the assigned employee receives the quick reminder notification)
   socketService.sendNotification(task.employee.employeeId, 'notification', notificationPayload);
 
-  // Notify SUPER_ADMINs
-  try {
-    const superAdmins = await prisma.user.findMany({
-      where: { role: 'SUPER_ADMIN' },
-      select: { employeeId: true }
-    });
-    
-    for (const admin of superAdmins) {
-      if (admin.employeeId !== task.employee.employeeId) {
-        socketService.sendNotification(admin.employeeId, 'notification', notificationPayload);
-      }
-    }
-  } catch (err) {
-    console.error('Failed to notify super admins:', err);
-  }
+  // Send PWA Push Notification (Executes natively on device/desktop even if the app is closed!)
+  WebPushService.sendPushToEmployee(task.employee.employeeId, {
+    title: '📌 New Task Assigned',
+    body: `"${task.title}" assigned by ${assignedByName}. Deadline: ${deadline}`,
+    url: '/tasks',
+    type: 'TASK_ASSIGNED',
+    tag: `task-assignment-${task.id}`,
+    actions: [
+      { action: 'open', title: 'View Task' },
+      { action: 'close', title: 'Dismiss' },
+    ],
+  }).catch((pushErr: any) => {
+    console.warn(`[WebPush] Failed sending task assignment push to ${task.employee.employeeId}:`, pushErr?.message || pushErr);
+  });
 };
 
 export const sendTaskAssignmentNotification = async (req: Request, res: Response, next: NextFunction) => {

@@ -385,6 +385,19 @@ model Notification {
   createdAt  DateTime @default(now())
 }
 
+model PushSubscription {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([employeeId])
+}
+
 model AttendanceCode {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   code      String   @unique

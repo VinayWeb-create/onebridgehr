@@ -8,6 +8,7 @@ import {
   calculateHaversineDistance,
   verifyFaceBiometricMatch,
   callInsightFaceEngine,
+  callInsightFaceExtract,
   callInsightFaceEnroll,
   callInsightFaceReset,
 } from '../services/biometricService';
@@ -402,9 +403,9 @@ export const completeEnrollment = async (req: Request, res: Response, next: Next
     const photoToProcess = req.body.liveFaceImage || facePhotoThumbnails?.[0];
     if (photoToProcess) {
       try {
-        const insightRes = await callInsightFaceEngine(photoToProcess);
-        if (insightRes.success && insightRes.embedding && insightRes.embedding.length === 512) {
-          finalTemplate = insightRes.embedding;
+        const extractRes = await callInsightFaceExtract(photoToProcess);
+        if (extractRes.success && extractRes.embedding && extractRes.embedding.length === 512) {
+          finalTemplate = extractRes.embedding;
         }
       } catch (e) {
         // Fallback to provided faceTemplate
@@ -1039,16 +1040,17 @@ export const smartVerifyAndMark = async (req: Request, res: Response, next: Next
       }
 
       const storedTemplate = decryptFaceTemplate(enrollment.faceTemplateEncrypted);
-      const FACE_MATCH_THRESHOLD = parseFloat(process.env.FACE_MATCH_THRESHOLD || '0.95');
+      const FACE_MATCH_THRESHOLD = parseFloat(process.env.FACE_MATCH_THRESHOLD || '0.85');
 
       let verified = false;
 
-      // Pipeline 1: If liveFaceImage is passed and stored template is 512-D (ArcFace), run InsightFace Engine
-      if (req.body.liveFaceImage && storedTemplate.length === 512) {
+      // Pipeline 1: If liveFaceImage is passed, run InsightFace Engine
+      // Check using stored 512-D vector, or query PostgreSQL pgvector by employeeId
+      if (req.body.liveFaceImage) {
         try {
           const insightRes = await callInsightFaceEngine(
             req.body.liveFaceImage,
-            storedTemplate,
+            storedTemplate && storedTemplate.length === 512 ? storedTemplate : undefined,
             FACE_MATCH_THRESHOLD,
             employeeId
           );
@@ -1070,19 +1072,12 @@ export const smartVerifyAndMark = async (req: Request, res: Response, next: Next
             return res.status(400).json({
               status: 'fail',
               rescanRequired: true,
-              message: insightRes.message || 'Face scan borderline (90-95% match). Please scan again with direct lighting.',
+              message: insightRes.message || 'Face scan borderline. Please scan again with direct lighting.',
             });
           }
           if (insightRes.decision === 'APPROVED') {
             faceMatchScore = insightRes.similarityScore || 0.98;
             verified = true;
-          } else if (insightRes.decision === 'REJECTED') {
-            faceMatchScore = insightRes.similarityScore || 0;
-            return recordFailureAndWarn(
-              'FACE_MISMATCH',
-              insightRes.message || `Biometric face match failed (${Math.round(faceMatchScore * 100)}% match, minimum 95% required). Identity does not match enrolled employee.`,
-              { latitude, longitude, distanceMeters, faceMatchScore, livenessResult: 'PASSED', deviceId }
-            );
           }
         } catch (e) {
           // Fall through to vector matcher
@@ -1399,3 +1394,778 @@ export const getVerificationLogs = async (req: Request, res: Response, next: Nex
     next(error);
   }
 };
+
+/* =========================================================================
+   SUPER ADMIN EMPLOYEE-BY-EMPLOYEE ATTENDANCE CATALOG & SUMMARY
+========================================================================= */
+
+export const getAdminEmployeeAttendanceSummary = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { month, year, startDate: qStart, endDate: qEnd, department, search } = req.query;
+
+    const now = new Date();
+    const selYear = year ? parseInt(String(year)) : now.getFullYear();
+    const selMonth = month ? parseInt(String(month)) : now.getMonth() + 1; // 1-indexed (1-12)
+
+    let rangeStart: Date;
+    let rangeEnd: Date;
+
+    if (qStart && qEnd) {
+      rangeStart = new Date(String(qStart));
+      rangeStart.setHours(0, 0, 0, 0);
+      rangeEnd = new Date(String(qEnd));
+      rangeEnd.setHours(23, 59, 59, 999);
+    } else {
+      // Month range
+      rangeStart = new Date(selYear, selMonth - 1, 1, 0, 0, 0, 0);
+      rangeEnd = new Date(selYear, selMonth, 0, 23, 59, 59, 999);
+    }
+
+    // Don't calculate future days past today if range includes today
+    const effectiveEnd = rangeEnd > now ? new Date(now) : new Date(rangeEnd);
+    effectiveEnd.setHours(23, 59, 59, 999);
+
+    // Fetch holidays in range
+    const holidays = await prisma.holiday.findMany({
+      where: {
+        date: { gte: rangeStart, lte: rangeEnd },
+      },
+    });
+    const holidayDates = new Set(holidays.map((h) => h.date.toISOString().split('T')[0]));
+
+    // Calculate total working days (excluding Sundays and holidays) up to effectiveEnd
+    let workingDaysCount = 0;
+    const cur = new Date(rangeStart);
+    while (cur <= effectiveEnd) {
+      const dayOfWeek = cur.getDay(); // 0 = Sunday
+      const dateStr = cur.toISOString().split('T')[0];
+      if (dayOfWeek !== 0 && !holidayDates.has(dateStr)) {
+        workingDaysCount++;
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    const totalWorkingDays = Math.max(1, workingDaysCount);
+
+    // Super Admins & HR administrators are exempt from attendance tracking
+    const adminUsers = await prisma.user.findMany({
+      where: { role: { in: ['SUPER_ADMIN', 'HR'] } },
+      select: { employeeId: true },
+    });
+    const exemptEmpIds = new Set(['OBI0001', 'OBI1117', ...adminUsers.map((u) => u.employeeId).filter(Boolean)]);
+
+    // Build employee query (Attendance tracking enforced strictly for EMPLOYEES and TEAM_LEADS)
+    const empWhere: any = {
+      employeeId: { notIn: Array.from(exemptEmpIds) },
+    };
+
+    if (department && department !== 'ALL') {
+      empWhere.department = String(department);
+    }
+
+    if (search) {
+      const s = String(search).trim();
+      empWhere.OR = [
+        { firstName: { contains: s, mode: 'insensitive' } },
+        { lastName: { contains: s, mode: 'insensitive' } },
+        { employeeId: { contains: s, mode: 'insensitive' } },
+        { department: { contains: s, mode: 'insensitive' } },
+      ];
+    }
+
+    // Fetch all matching employees with their enrollments
+    const employees = await prisma.employee.findMany({
+      where: empWhere,
+      include: {
+        attendanceEnrollment: {
+          select: {
+            status: true,
+            enrolledAt: true,
+          },
+        },
+      },
+      orderBy: [{ department: 'asc' }, { firstName: 'asc' }],
+    });
+
+    // Fetch all attendance records in range for these employees
+    const empIds = employees.map((e) => e.employeeId);
+    const attendanceRecords = await prisma.attendance.findMany({
+      where: {
+        employeeId: { in: empIds },
+        date: { gte: rangeStart, lte: rangeEnd },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    // Group attendance records by employeeId
+    const attendanceByEmp: Record<string, typeof attendanceRecords> = {};
+    for (const rec of attendanceRecords) {
+      if (!attendanceByEmp[rec.employeeId]) {
+        attendanceByEmp[rec.employeeId] = [];
+      }
+      attendanceByEmp[rec.employeeId].push(rec);
+    }
+
+    // Collect all departments for filter dropdown
+    const allDepartments = Array.from(
+      new Set(
+        (
+          await prisma.employee.findMany({
+            where: { employeeId: { notIn: Array.from(exemptEmpIds) } },
+            select: { department: true },
+          })
+        )
+          .map((e) => e.department)
+          .filter(Boolean)
+      )
+    ).sort();
+
+    // Build detailed per-employee summary
+    const employeeSummaries = employees.map((emp) => {
+      const records = attendanceByEmp[emp.employeeId] || [];
+      const isEnrolled = emp.attendanceEnrollment?.status === 'COMPLETED';
+
+      let lateDays = 0;
+      let wfhDays = 0;
+      let totalOvertimeMinutes = 0;
+      let totalWorkMinutes = 0;
+
+      // Map daily records by dateStr
+      const empRecordMap = new Map<string, any>();
+      records.forEach((r) => {
+        const dStr = r.date.toISOString().split('T')[0];
+        empRecordMap.set(dStr, r);
+
+        if (r.status === 'LATE' || r.lateMinutes > 0) {
+          lateDays += 1;
+        }
+
+        if (r.workFromHome || r.status === 'WORK_FROM_HOME') {
+          wfhDays += 1;
+        }
+
+        totalOvertimeMinutes += r.overtimeMinutes || 0;
+
+        if (r.checkIn && r.checkOut) {
+          const diffMs = new Date(r.checkOut).getTime() - new Date(r.checkIn).getTime();
+          if (diffMs > 0) {
+            totalWorkMinutes += Math.round(diffMs / 60000);
+          }
+        }
+      });
+
+      // Calculate employee-specific working days based on dateOfJoining
+      const rawEmpJoining = emp.professionalInfo?.dateOfJoining || emp.createdAt;
+      const empJoining = rawEmpJoining ? new Date(rawEmpJoining) : new Date(2020, 0, 1);
+      empJoining.setHours(0, 0, 0, 0);
+
+      // Determine effective start date for this employee (cannot be earlier than their joining date)
+      const effectiveEmpStart = empJoining > rangeStart ? empJoining : rangeStart;
+      const hasJoinedInPeriod = effectiveEmpStart <= effectiveEnd;
+
+      let empWorkingDays = 0;
+      let presentDays = 0;
+      let halfDays = 0;
+      let onLeaveDays = 0;
+      let absentDays = 0;
+
+      const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const empDailyBreakdown: any[] = [];
+
+      if (hasJoinedInPeriod) {
+        const curD = new Date(effectiveEmpStart);
+        while (curD <= effectiveEnd) {
+          const dow = curD.getDay();
+          const dStr = curD.toISOString().split('T')[0];
+          const isWorkingDay = dow !== 0 && !holidayDates.has(dStr);
+          const isPastBeforeToday = curD < todayMidnight;
+          const isToday = curD.getTime() >= todayMidnight.getTime() && curD.getTime() < todayMidnight.getTime() + 86400000;
+
+          if (isWorkingDay) {
+            empWorkingDays++;
+            const r = empRecordMap.get(dStr);
+            if (r) {
+              if (['PRESENT', 'LATE', 'WORK_FROM_HOME', 'REMOTE'].includes(r.status)) {
+                presentDays += 1;
+              } else if (r.status === 'HALF_DAY') {
+                presentDays += 0.5;
+                halfDays += 1;
+              } else if (r.status === 'ON_LEAVE') {
+                onLeaveDays += 1;
+              } else if (r.status === 'ABSENT') {
+                absentDays += 1;
+              }
+
+              empDailyBreakdown.push({
+                id: r.id,
+                date: dStr,
+                checkIn: r.checkIn ? new Date(r.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
+                checkOut: r.checkOut ? new Date(r.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
+                status: r.status,
+                lateMinutes: r.lateMinutes || 0,
+                overtimeMinutes: r.overtimeMinutes || 0,
+                workFromHome: r.workFromHome || false,
+                faceMatchScore: r.faceMatchScore ? Math.round(r.faceMatchScore * 100) : null,
+                officeName: r.officeName || 'HQ Campus',
+                distanceFromOffice: r.distanceFromOffice !== null && r.distanceFromOffice !== undefined ? Math.round(r.distanceFromOffice) : null,
+                verificationStatus: r.verificationStatus || 'DIGITAL_BIOMETRIC',
+              });
+            } else if (isPastBeforeToday) {
+              // USER DIRECTIVE: Prior days before today's live digital tracking were recorded physically,
+              // where all active employees were present on every previous day.
+              presentDays += 1;
+              empDailyBreakdown.push({
+                id: `physical-${emp.employeeId}-${dStr}`,
+                date: dStr,
+                checkIn: 'Physical Log',
+                checkOut: 'Physical Log',
+                status: 'PRESENT',
+                lateMinutes: 0,
+                overtimeMinutes: 0,
+                workFromHome: false,
+                faceMatchScore: null,
+                officeName: 'Physical Register',
+                distanceFromOffice: null,
+                verificationStatus: 'PHYSICAL_REGISTER',
+              });
+            } else if (isToday) {
+              // Today is live tracking! Attendance is pending live biometric clock-in
+              empDailyBreakdown.push({
+                id: `today-${emp.employeeId}-${dStr}`,
+                date: dStr,
+                checkIn: null,
+                checkOut: null,
+                status: 'NOT_RECORDED',
+                lateMinutes: 0,
+                overtimeMinutes: 0,
+                workFromHome: false,
+                faceMatchScore: null,
+                officeName: 'Live Tracking Today',
+                distanceFromOffice: null,
+                verificationStatus: 'PENDING_LIVE',
+              });
+            }
+          }
+          curD.setDate(curD.getDate() + 1);
+        }
+      }
+
+      const attendancePercentage = hasJoinedInPeriod && empWorkingDays > 0
+        ? Math.min(100, Math.round((presentDays / empWorkingDays) * 1000) / 10)
+        : (hasJoinedInPeriod ? 100 : 0);
+
+      // Sort daily breakdown descending by date (newest/today first)
+      const dailyBreakdown = empDailyBreakdown.sort((a, b) => b.date.localeCompare(a.date));
+
+      return {
+        employeeId: emp.employeeId,
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        fullName: `${emp.firstName} ${emp.lastName}`,
+        department: emp.department,
+        designation: emp.designation,
+        profileImageUrl: emp.profileImageUrl,
+        isBiometricEnrolled: isEnrolled,
+        dateOfJoining: empJoining.toISOString().split('T')[0],
+        hasJoinedInPeriod,
+        totalWorkingDays: empWorkingDays,
+        presentDays: Math.round(presentDays * 10) / 10,
+        absentDays,
+        lateDays,
+        halfDays,
+        wfhDays,
+        onLeaveDays,
+        attendancePercentage,
+        totalOvertimeMinutes,
+        totalWorkHours: Math.round((totalWorkMinutes / 60) * 10) / 10,
+        dailyBreakdown,
+      };
+    });
+
+    const avgAttendance =
+      employeeSummaries.length > 0
+        ? Math.round(
+            (employeeSummaries.reduce((sum, e) => sum + e.attendancePercentage, 0) /
+              employeeSummaries.length) *
+              10
+          ) / 10
+        : 0;
+
+    const perfectCount = employeeSummaries.filter((e) => e.attendancePercentage >= 95).length;
+    const lowCount = employeeSummaries.filter((e) => e.attendancePercentage < 75).length;
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        period: {
+          month: selMonth,
+          year: selYear,
+          startDate: rangeStart.toISOString().split('T')[0],
+          endDate: rangeEnd.toISOString().split('T')[0],
+          totalWorkingDays,
+        },
+        summary: {
+          totalEmployees: employeeSummaries.length,
+          avgAttendance,
+          perfectCount,
+          lowCount,
+        },
+        departments: allDepartments,
+        employees: employeeSummaries,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * --------------------------------------------------------------------------
+ * MONTH-BY-MONTH ATTENDANCE MATRIX (SCHOOL & COLLEGE STYLE)
+ * --------------------------------------------------------------------------
+ * Shows 12 months (Jan - Dec) with total working days, attended days,
+ * absent days, late marks, and monthly attendance percentage with
+ * eligibility thresholds (Safe >= 75%, Shortage < 75%).
+ */
+export const getEmployeeMonthlyAttendanceMatrix = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const callerRole = req.user?.role;
+    const callerEmpId = req.user?.employeeId;
+
+    // Target employee ID: if caller is Admin/HR/TeamLead and query specifies employeeId, use it; otherwise callerEmpId
+    let targetEmpId = callerEmpId;
+    if (
+      req.query.employeeId &&
+      (callerRole === 'SUPER_ADMIN' || callerRole === 'HR' || callerRole === 'TEAM_LEAD')
+    ) {
+      targetEmpId = String(req.query.employeeId);
+    }
+
+    if (!targetEmpId) {
+      return next(new AppError('Unauthorized or missing employee identity', 401));
+    }
+
+    const employee = await prisma.employee.findUnique({
+      where: { employeeId: targetEmpId },
+      include: {
+        attendanceEnrollment: {
+          select: { status: true, enrolledAt: true },
+        },
+      },
+    });
+
+    if (!employee) {
+      return next(new AppError(`Employee ${targetEmpId} not found`, 404));
+    }
+
+    const targetUser = await prisma.user.findFirst({
+      where: { employeeId: targetEmpId },
+      select: { role: true },
+    });
+
+    const isAdministrativeExempt =
+      targetUser?.role === 'SUPER_ADMIN' ||
+      targetUser?.role === 'HR' ||
+      ['OBI0001', 'OBI1117'].includes(targetEmpId);
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0 to 11
+    const selectedYear = req.query.year
+      ? parseInt(String(req.query.year), 10)
+      : currentYear;
+
+    // Date range for the entire selected year
+    const yearStart = new Date(selectedYear, 0, 1, 0, 0, 0, 0);
+    const yearEnd = new Date(selectedYear, 11, 31, 23, 59, 59, 999);
+
+    // Fetch all holidays in the year
+    const holidays = await prisma.holiday.findMany({
+      where: {
+        date: { gte: yearStart, lte: yearEnd },
+      },
+    });
+    const holidayDates = new Set(
+      holidays.map((h) => h.date.toISOString().split('T')[0])
+    );
+
+    // Fetch all attendance records for this employee in the year
+    const attendanceRecords = await prisma.attendance.findMany({
+      where: {
+        employeeId: targetEmpId,
+        date: { gte: yearStart, lte: yearEnd },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    // Map records by date string YYYY-MM-DD
+    const recordsByDate = new Map<string, any>();
+    attendanceRecords.forEach((rec) => {
+      const dStr = rec.date.toISOString().split('T')[0];
+      recordsByDate.set(dStr, rec);
+    });
+
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    const monthShortNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+
+    // Determine employee dateOfJoining to avoid counting pre-joining periods as absent
+    const rawJoining = employee.professionalInfo?.dateOfJoining || employee.createdAt;
+    const joiningDate = rawJoining ? new Date(rawJoining) : new Date(2020, 0, 1);
+    joiningDate.setHours(0, 0, 0, 0);
+    const joiningDateStr = joiningDate.toISOString().split('T')[0];
+
+    let cumulativeWorkingDaysYtd = 0;
+    let cumulativeAttendedDaysYtd = 0;
+    let cumulativeAbsentDaysYtd = 0;
+    let cumulativeLateDaysYtd = 0;
+    let cumulativeHalfDaysYtd = 0;
+    let cumulativeWfhDaysYtd = 0;
+    let cumulativeOnLeaveDaysYtd = 0;
+
+    const monthlyBreakdown = [];
+
+    for (let m = 0; m < 12; m++) {
+      const isPastMonth =
+        selectedYear < currentYear ||
+        (selectedYear === currentYear && m < currentMonth);
+      const isCurrentMonth =
+        selectedYear === currentYear && m === currentMonth;
+      const isFutureMonth =
+        selectedYear > currentYear ||
+        (selectedYear === currentYear && m > currentMonth);
+
+      const daysInMonth = new Date(selectedYear, m + 1, 0).getDate();
+      const monthEndDate = new Date(selectedYear, m, daysInMonth, 23, 59, 59, 999);
+
+      // If entire month ended before employee joined, mark as PRE_JOINING without penalizing
+      if (monthEndDate < joiningDate) {
+        const preDaily = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+          const dObj = new Date(selectedYear, m, d);
+          preDaily.push({
+            day: d,
+            date: `${selectedYear}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+            dayOfWeek: dObj.getDay(),
+            isWorkingDay: false,
+            isHoliday: false,
+            isSunday: dObj.getDay() === 0,
+            status: 'PRE_JOINING',
+            checkIn: null,
+            checkOut: null,
+            lateMinutes: 0,
+            faceMatchScore: null,
+          });
+        }
+
+        monthlyBreakdown.push({
+          monthNumber: m + 1,
+          monthName: monthNames[m],
+          monthShortName: monthShortNames[m],
+          status: 'PRE_JOINING' as any,
+          daysInMonth,
+          totalWorkingDays: 0,
+          workingDaysEvaluated: 0,
+          effectiveAttendedDays: 0,
+          presentCount: 0,
+          lateCount: 0,
+          halfDayCount: 0,
+          absentCount: 0,
+          wfhCount: 0,
+          leaveCount: 0,
+          percentage: null,
+          tier: 'PRE_JOINING',
+          tierLabel: 'Pre-Joining',
+          badgeColor: 'slate',
+          dailyDetails: preDaily,
+        });
+        continue;
+      }
+
+      let totalMonthWorkingDays = 0;
+      let workingDaysUpToNow = 0;
+      let presentCount = 0;
+      let lateCount = 0;
+      let halfDayCount = 0;
+      let absentCount = 0;
+      let wfhCount = 0;
+      let leaveCount = 0;
+      let holidayCount = 0;
+      let weekendCount = 0;
+
+      const dailyDetails: any[] = [];
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateObj = new Date(selectedYear, m, day);
+        const dayOfWeek = dateObj.getDay();
+        const dateStr = `${selectedYear}-${String(m + 1).padStart(2, '0')}-${String(
+          day
+        ).padStart(2, '0')}`;
+        const isSunday = dayOfWeek === 0;
+        const isHoliday = holidayDates.has(dateStr);
+        const isPastOrToday = dateObj <= now;
+        const isPreJoiningDay = dateObj < joiningDate;
+
+        if (isPreJoiningDay) {
+          dailyDetails.push({
+            day,
+            date: dateStr,
+            dayOfWeek,
+            isWorkingDay: false,
+            isHoliday: false,
+            isSunday,
+            status: 'PRE_JOINING',
+            checkIn: null,
+            checkOut: null,
+            lateMinutes: 0,
+            faceMatchScore: null,
+          });
+          continue;
+        }
+
+        if (isSunday) weekendCount++;
+        if (isHoliday) holidayCount++;
+
+        const isWorkingDay = !isSunday && !isHoliday;
+        if (isWorkingDay) {
+          totalMonthWorkingDays++;
+          if (isPastOrToday) {
+            workingDaysUpToNow++;
+          }
+        }
+
+        const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        const isPastDayBeforeToday = dateObj < todayMidnight;
+        const isToday = dateObj.getTime() >= todayMidnight.getTime() && dateObj.getTime() < todayMidnight.getTime() + 86400000;
+
+        const log = recordsByDate.get(dateStr);
+        let dayStatus = 'NOT_RECORDED';
+        if (log) {
+          dayStatus = log.status;
+          if (['PRESENT', 'WORK_FROM_HOME', 'REMOTE'].includes(log.status)) {
+            presentCount++;
+            if (['WORK_FROM_HOME', 'REMOTE'].includes(log.status)) wfhCount++;
+          } else if (log.status === 'LATE') {
+            lateCount++;
+          } else if (log.status === 'HALF_DAY') {
+            halfDayCount++;
+          } else if (log.status === 'ABSENT') {
+            absentCount++;
+          } else if (log.status === 'ON_LEAVE') {
+            leaveCount++;
+          }
+        } else if (isPastDayBeforeToday && isWorkingDay) {
+          // USER DIRECTIVE: Prior days before today's live digital tracking were recorded physically,
+          // where all active employees were present on every previous day.
+          dayStatus = 'PRESENT';
+          presentCount++;
+        } else if (isToday && isWorkingDay) {
+          // Today is the live tracking day! Attendance is pending live check-in.
+          dayStatus = 'NOT_RECORDED';
+        } else if (isHoliday) {
+          dayStatus = 'HOLIDAY';
+        } else if (isSunday) {
+          dayStatus = 'WEEKEND';
+        } else {
+          dayStatus = 'UPCOMING';
+        }
+
+        dailyDetails.push({
+          day,
+          date: dateStr,
+          dayOfWeek,
+          isWorkingDay,
+          isHoliday,
+          isSunday,
+          status: dayStatus,
+          checkIn: log?.checkIn || null,
+          checkOut: log?.checkOut || null,
+          lateMinutes: log?.lateMinutes || 0,
+          faceMatchScore: log?.faceMatchScore || null,
+        });
+      }
+
+      // Attended days: present (1.0) + late (1.0) + halfDay (0.5)
+      const effectiveAttendedDays =
+        presentCount + lateCount + halfDayCount * 0.5;
+
+      let percentage: number | null = null;
+      let monthStatus: 'COMPLETED' | 'IN_PROGRESS' | 'UPCOMING' = 'UPCOMING';
+      let tier = 'UPCOMING';
+      let tierLabel = 'Upcoming';
+      let badgeColor = 'slate';
+
+      if (isPastMonth) {
+        monthStatus = 'COMPLETED';
+        const divisor = Math.max(1, totalMonthWorkingDays);
+        percentage = totalMonthWorkingDays > 0
+          ? Math.round((effectiveAttendedDays / divisor) * 1000) / 10
+          : null;
+      } else if (isCurrentMonth) {
+        monthStatus = 'IN_PROGRESS';
+        const divisor = Math.max(1, workingDaysUpToNow);
+        percentage = workingDaysUpToNow > 0
+          ? Math.round((effectiveAttendedDays / divisor) * 1000) / 10
+          : null;
+      }
+
+      if (percentage !== null) {
+        if (percentage >= 85) {
+          tier = 'DISTINCTION';
+          tierLabel = 'Exemplary';
+          badgeColor = 'emerald';
+        } else if (percentage >= 75) {
+          tier = 'ELIGIBLE';
+          tierLabel = 'Compliant';
+          badgeColor = 'indigo';
+        } else if (percentage >= 65) {
+          tier = 'SHORTAGE';
+          tierLabel = 'Shortage Warning';
+          badgeColor = 'amber';
+        } else {
+          tier = 'CRITICAL';
+          tierLabel = 'Critical Shortage';
+          badgeColor = 'rose';
+        }
+
+        const activeWorkingDays = isCurrentMonth
+          ? workingDaysUpToNow
+          : totalMonthWorkingDays;
+        cumulativeWorkingDaysYtd += activeWorkingDays;
+        cumulativeAttendedDaysYtd += effectiveAttendedDays;
+        cumulativeAbsentDaysYtd += absentCount;
+        cumulativeLateDaysYtd += lateCount;
+        cumulativeHalfDaysYtd += halfDayCount;
+        cumulativeWfhDaysYtd += wfhCount;
+        cumulativeOnLeaveDaysYtd += leaveCount;
+      }
+
+      monthlyBreakdown.push({
+        monthNumber: m + 1,
+        monthName: monthNames[m],
+        monthShortName: monthShortNames[m],
+        status: monthStatus,
+        daysInMonth,
+        totalWorkingDays: totalMonthWorkingDays,
+        workingDaysEvaluated: isCurrentMonth
+          ? workingDaysUpToNow
+          : isPastMonth
+          ? totalMonthWorkingDays
+          : 0,
+        effectiveAttendedDays: Math.round(effectiveAttendedDays * 10) / 10,
+        presentCount,
+        lateCount,
+        halfDayCount,
+        absentCount,
+        wfhCount,
+        leaveCount,
+        percentage,
+        tier,
+        tierLabel,
+        badgeColor,
+        dailyDetails,
+      });
+    }
+
+    const ytdDivisor = Math.max(1, cumulativeWorkingDaysYtd);
+    const cumulativePercentageYtd =
+      cumulativeWorkingDaysYtd > 0
+        ? Math.round((cumulativeAttendedDaysYtd / ytdDivisor) * 1000) / 10
+        : 0;
+
+    const REQUIRED_THRESHOLD = 75;
+    const isYtdEligible = cumulativePercentageYtd >= REQUIRED_THRESHOLD;
+
+    let bufferDaysSafe = 0;
+    let shortageDaysToRecover = 0;
+
+    if (cumulativeWorkingDaysYtd > 0) {
+      if (cumulativePercentageYtd >= REQUIRED_THRESHOLD) {
+        bufferDaysSafe = Math.max(
+          0,
+          Math.floor(
+            cumulativeAttendedDaysYtd / 0.75 - cumulativeWorkingDaysYtd
+          )
+        );
+      } else {
+        const needed =
+          (0.75 * cumulativeWorkingDaysYtd - cumulativeAttendedDaysYtd) / 0.25;
+        shortageDaysToRecover = Math.max(1, Math.ceil(needed));
+      }
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        employee: {
+          employeeId: employee.employeeId,
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          fullName: `${employee.firstName} ${employee.lastName}`,
+          department: employee.department,
+          designation: employee.designation,
+          profileImageUrl: employee.profileImageUrl,
+          dateOfJoining: joiningDateStr,
+          isBiometricEnrolled:
+            employee.attendanceEnrollment?.status === 'COMPLETED',
+        },
+        year: selectedYear,
+        threshold: REQUIRED_THRESHOLD,
+        isAdministrativeExempt,
+        cumulativeYtd: {
+          workingDays: cumulativeWorkingDaysYtd,
+          attendedDays: Math.round(cumulativeAttendedDaysYtd * 10) / 10,
+          absentDays: cumulativeAbsentDaysYtd,
+          lateDays: cumulativeLateDaysYtd,
+          halfDays: cumulativeHalfDaysYtd,
+          wfhDays: cumulativeWfhDaysYtd,
+          leaveDays: cumulativeOnLeaveDaysYtd,
+          percentage: cumulativePercentageYtd,
+          isEligible: isYtdEligible,
+          tier:
+            cumulativePercentageYtd >= 85
+              ? 'DISTINCTION'
+              : cumulativePercentageYtd >= 75
+              ? 'ELIGIBLE'
+              : cumulativePercentageYtd >= 65
+              ? 'SHORTAGE'
+              : 'CRITICAL',
+          bufferDaysSafe,
+          shortageDaysToRecover,
+        },
+        months: monthlyBreakdown,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

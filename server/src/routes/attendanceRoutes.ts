@@ -31,6 +31,8 @@ import {
   smartVerifyAndMark,
   getSmartAttendanceDashboard,
   getVerificationLogs,
+  getAdminEmployeeAttendanceSummary,
+  getEmployeeMonthlyAttendanceMatrix,
 } from '../controllers/smartAttendanceController';
 import { protect, restrictTo } from '../middleware/auth';
 
@@ -69,6 +71,8 @@ router.post('/smart/verify-and-mark', smartVerifyAndMark);
 // 6. Smart Attendance Dashboard & Logs (Admin / HR)
 router.get('/smart/dashboard', restrictTo('SUPER_ADMIN', 'HR'), getSmartAttendanceDashboard);
 router.get('/smart/logs', restrictTo('SUPER_ADMIN', 'HR'), getVerificationLogs);
+router.get('/admin/employee-summary', restrictTo('SUPER_ADMIN', 'HR'), getAdminEmployeeAttendanceSummary);
+router.get('/monthly-matrix', getEmployeeMonthlyAttendanceMatrix);
 
 // -------------------------------------------------------------
 // LEGACY / EXISTING ATTENDANCE ROUTES (PRESERVED)

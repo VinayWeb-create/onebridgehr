@@ -149,12 +149,6 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       roles: ['SUPER_ADMIN', 'HR', 'TEAM_LEAD', 'EMPLOYEE'],
     },
     {
-      name: 'Attendance Setup',
-      path: '/attendance/setup',
-      icon: Sliders,
-      roles: ['SUPER_ADMIN', 'HR'],
-    },
-    {
       name: 'Leaves',
       path: '/leaves',
       icon: FileCheck,

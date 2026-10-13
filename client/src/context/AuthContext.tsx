@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
+import { subscribeToPushNotifications } from '../registerServiceWorker';
 
 interface User {
   id: string;
@@ -60,6 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             };
             setUser(freshUser);
             localStorage.setItem('user', JSON.stringify(freshUser));
+            subscribeToPushNotifications().catch(() => {});
           }
         } catch (err) {
           console.warn('Session verification failed, using local cache:', err);
@@ -77,6 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
     setUser(userData);
+    subscribeToPushNotifications().catch(() => {});
   };
 
   const logout = async () => {
