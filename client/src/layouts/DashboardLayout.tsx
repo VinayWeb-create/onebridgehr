@@ -47,7 +47,16 @@ import {
   Sliders,
   Download,
   CheckCircle2,
+  Smartphone,
+  Send,
+  Radio,
+  BellRing,
 } from 'lucide-react';
+import api from '../services/api';
+import {
+  subscribeToPushNotifications,
+  sendTestPushNotification,
+} from '../registerServiceWorker';
 import { triggerPwaInstall, usePwaInstall } from '../components/PwaInstallPrompt';
 
 interface NotificationToast {
@@ -68,7 +77,14 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const [notifications, setNotifications] = useState<NotificationToast[]>([]);
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
 
-  // Socket Connection for Realtime Notifications
+  const [pushPermission, setPushPermission] = useState<string>(
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
+  );
+  const [pushSyncing, setPushSyncing] = useState(false);
+  const [pushStatusMessage, setPushStatusMessage] = useState<string | null>(null);
+  const [dismissedPushBanner, setDismissedPushBanner] = useState(false);
+
+  // Strict Single Active Device Policy & Push Status Sync
   useEffect(() => {
     if (!user) return;
     
@@ -78,17 +94,21 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       socket.emit('register', user.employeeId);
     });
 
-    // Single active device session terminated remotely by another device
-    socket.on('SESSION_TERMINATED', (data: { message?: string; newDevice?: string }) => {
+    const terminateSessionLocally = (msg?: string) => {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
       sessionStorage.setItem(
         'logout_reason',
-        data.message ||
-          'Your session was ended because this account was logged into from another device. Only one active device is permitted.'
+        msg ||
+          'Your session was ended because this account was logged into from another device. Only one active device is allowed at a time.'
       );
       window.location.href = '/login?reason=session_terminated';
+    };
+
+    // Realtime remote termination event from socket
+    socket.on('SESSION_TERMINATED', (data: { message?: string; newDevice?: string }) => {
+      terminateSessionLocally(data.message);
     });
 
     // Realtime energetic greetings (morning, afternoon, evening)
@@ -121,10 +141,67 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       }, 6000);
     });
 
+    // Periodic Heartbeat & Window Focus validation (guarantees device cannot remain logged in)
+    const checkActiveSession = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        await api.get('/auth/validate-session');
+      } catch (err: any) {
+        if (err.response?.status === 401 && err.response?.data?.code === 'SESSION_TERMINATED') {
+          terminateSessionLocally(err.response?.data?.message);
+        }
+      }
+    };
+
+    const heartbeatInterval = setInterval(checkActiveSession, 10000);
+    const onFocus = () => { checkActiveSession(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+
     return () => {
+      clearInterval(heartbeatInterval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
       socket.disconnect();
     };
   }, [user]);
+
+  const handleEnablePushNotifications = async () => {
+    setPushSyncing(true);
+    setPushStatusMessage(null);
+    try {
+      const granted = await subscribeToPushNotifications();
+      if ('Notification' in window) {
+        setPushPermission(Notification.permission);
+      }
+      if (granted) {
+        setPushStatusMessage('🎉 Phone push notifications active! Sending test lock screen alert...');
+        const testRes = await sendTestPushNotification();
+        setPushStatusMessage(testRes.message);
+      } else {
+        setPushStatusMessage('Notification permission not granted or blocked in browser settings.');
+      }
+    } catch (e: any) {
+      setPushStatusMessage(e?.message || 'Failed to enable notifications');
+    } finally {
+      setPushSyncing(false);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    setPushSyncing(true);
+    setPushStatusMessage(null);
+    try {
+      const res = await sendTestPushNotification();
+      setPushStatusMessage(res.message);
+      setTimeout(() => setPushStatusMessage(null), 6000);
+    } catch (e: any) {
+      setPushStatusMessage('Error sending test notification');
+    } finally {
+      setPushSyncing(false);
+    }
+  };
 
   if (!user) return null;
 
@@ -754,6 +831,52 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                         </button>
                       )}
                     </div>
+
+                    {/* Native Phone Push Notification Controller (Like Swiggy) */}
+                    <div className="p-3 bg-brand-50/80 dark:bg-brand-900/40 border-b border-brand-200 dark:border-brand-800">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-bold flex items-center gap-1.5 text-brand-900 dark:text-brand-100">
+                          <Smartphone size={13} className="text-orange-500" />
+                          <span>Phone Lockscreen Alerts</span>
+                        </span>
+                        <span
+                          className={`text-[9px] px-2 py-0.5 rounded font-extrabold uppercase tracking-wider ${
+                            pushPermission === 'granted'
+                              ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                              : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
+                          }`}
+                        >
+                          {pushPermission === 'granted' ? 'Active' : 'Disabled'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-brand-600 dark:text-brand-400 mb-2 leading-relaxed">
+                        Real notifications outside the app (morning, afternoon & evening energetic boosts) like Swiggy & Zomato.
+                      </p>
+                      {pushPermission !== 'granted' ? (
+                        <button
+                          onClick={handleEnablePushNotifications}
+                          disabled={pushSyncing}
+                          className="w-full py-1.5 px-2.5 rounded-lg text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                        >
+                          <Radio size={13} className={pushSyncing ? 'animate-spin' : ''} />
+                          <span>{pushSyncing ? 'Enabling...' : 'Enable Phone Notifications'}</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleSendTestPush}
+                          disabled={pushSyncing}
+                          className="w-full py-1.5 px-2.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                        >
+                          <Send size={12} className={pushSyncing ? 'animate-pulse' : ''} />
+                          <span>{pushSyncing ? 'Sending Alert...' : '⚡ Test Phone Notification'}</span>
+                        </button>
+                      )}
+                      {pushStatusMessage && (
+                        <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1.5 text-center leading-snug">
+                          {pushStatusMessage}
+                        </p>
+                      )}
+                    </div>
                     <div className="max-h-60 overflow-y-auto">
                       {notifications.length === 0 ? (
                         <p className="text-center py-6 text-xs text-brand-500">No new alerts</p>
@@ -791,6 +914,40 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             </div>
           </div>
         </header>
+
+        {/* Push Notification Activation Banner (Shows on mobile/desktop if lock screen notifications are not yet enabled) */}
+        {pushPermission !== 'granted' && !dismissedPushBanner && (
+          <div className="bg-gradient-to-r from-orange-500/15 via-amber-500/10 to-orange-500/15 border-b border-orange-500/20 px-4 py-2.5 flex items-center justify-between text-xs animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <span className="text-base">🔔</span>
+              <div>
+                <span className="font-extrabold text-orange-950 dark:text-orange-200">
+                  Enable Real Phone Alerts:
+                </span>{' '}
+                <span className="text-brand-700 dark:text-brand-300 hidden sm:inline">
+                  Get energetic morning, afternoon & evening boosts directly on your mobile lock screen (outside the browser).
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleEnablePushNotifications}
+                disabled={pushSyncing}
+                className="px-3 py-1 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap"
+              >
+                {pushSyncing ? 'Enabling...' : 'Enable Now'}
+              </button>
+              <button
+                onClick={() => setDismissedPushBanner(true)}
+                className="p-1 rounded text-brand-400 hover:text-brand-700 dark:hover:text-white cursor-pointer"
+                title="Dismiss"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
 
         {/* Content Body */}
         <main className="flex-1 p-4 md:p-8 relative">

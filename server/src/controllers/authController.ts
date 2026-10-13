@@ -78,14 +78,15 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const forceContinue = Boolean(parsed.forceContinue);
 
     const hasActiveSession = Boolean(user.activeSessionId);
-    const isDifferentDevice = Boolean(
+    // Exact same device match: only if both IDs are known and equal
+    const isSameDevice = Boolean(
       user.activeDeviceId &&
       incomingDeviceId &&
-      user.activeDeviceId !== incomingDeviceId
+      user.activeDeviceId === incomingDeviceId
     );
 
-    // If another device is already active and user has not confirmed forceContinue
-    if (hasActiveSession && isDifferentDevice && !forceContinue) {
+    // If another device is already active and user has not explicitly confirmed forceContinue
+    if (hasActiveSession && !isSameDevice && !forceContinue) {
       return res.status(409).json({
         status: 'conflict',
         code: 'ACTIVE_SESSION_EXISTS',
@@ -108,12 +109,12 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       });
     }
 
-    // If user confirmed to switch to this device, notify previous device to terminate session
-    if (hasActiveSession && isDifferentDevice && forceContinue) {
+    // If continuing from this device, notify previous device(s) via real-time socket to immediately kick out
+    if (hasActiveSession && !isSameDevice) {
       socketService.sendNotification(user.employeeId, 'SESSION_TERMINATED', {
         reason: 'NEW_DEVICE_LOGIN',
         newDevice: incomingDeviceName,
-        message: `Your session was ended because you logged in from another device (${incomingDeviceName}). Only one active device is allowed.`,
+        message: `Your session was ended because this account was logged into from another device (${incomingDeviceName}). Only one active device is allowed at a time.`,
       });
     }
 
@@ -344,3 +345,47 @@ export const changePassword = async (req: Request, res: Response, next: NextFunc
     next(error);
   }
 };
+
+/**
+ * Validate that the current caller's session is still the single active session in the database
+ */
+export const validateSession = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user?.id },
+      select: {
+        id: true,
+        employeeId: true,
+        activeSessionId: true,
+        activeDeviceId: true,
+        activeDeviceName: true,
+      },
+    });
+
+    if (!user) {
+      return next(new AppError('User not found', 404));
+    }
+
+    if (user.activeSessionId && req.user?.sessionId && user.activeSessionId !== req.user.sessionId) {
+      return next(
+        new AppError(
+          'Your session has ended because this account was accessed from another device.',
+          401,
+          'SESSION_TERMINATED'
+        )
+      );
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        valid: true,
+        activeSessionId: user.activeSessionId,
+        activeDeviceId: user.activeDeviceId,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

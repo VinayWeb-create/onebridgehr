@@ -10,7 +10,7 @@
  *  - Web Push notifications scaffold for HRMS events (attendance, leaves, payroll)
  */
 
-const CACHE_VERSION = 'onebridge-hrms-v1.1.0';
+const CACHE_VERSION = 'onebridge-hrms-v1.2.0';
 const STATIC_CACHE = `onebridge-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `onebridge-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `onebridge-api-${CACHE_VERSION}`;
@@ -230,13 +230,18 @@ self.addEventListener('push', (event) => {
     body: data.body,
     icon: data.icon || '/icons/icon-192x192.png',
     badge: data.badge || '/icons/icon-96x96.png',
-    vibrate: [100, 50, 100],
+    image: data.image,
+    vibrate: [200, 100, 200, 100, 200],
+    tag: data.tag || ('onebridge-' + Date.now()),
+    renotify: true,
+    requireInteraction: false,
+    silent: false,
     data: {
       url: data.url || '/',
       type: data.type || 'GENERAL',
     },
     actions: data.actions || [
-      { action: 'open', title: 'Open App' },
+      { action: 'open', title: 'Open HRMS' },
       { action: 'close', title: 'Dismiss' }
     ]
   };

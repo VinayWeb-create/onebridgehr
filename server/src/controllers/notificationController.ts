@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../config/db';
 import { WebPushService } from '../services/webPushService';
 import { triggerShiftCheckOutReminders } from '../services/shiftReminderScheduler';
 import { AppError } from '../middleware/errorHandler';
@@ -55,19 +56,33 @@ export const testPushNotification = async (req: Request, res: Response, next: Ne
     const employeeId = req.user?.employeeId;
     if (!employeeId) return next(new AppError('Unauthorized', 401));
 
+    const employee = await prisma.employee.findUnique({
+      where: { employeeId },
+      select: { firstName: true },
+    });
+    const name = employee?.firstName || 'Champion';
+
     const result = await WebPushService.sendPushToEmployee(employeeId, {
-      title: '✅ OneBridge PWA Notification Active',
-      body: 'PWA native background push notifications are configured and active!',
-      url: '/attendance',
+      title: `⚡ Real Phone Notification Active, ${name}!`,
+      body: `You will now receive real outside-the-app mobile notifications (like Swiggy) for morning, afternoon & evening energetic boosts! 🚀`,
+      url: '/dashboard',
       actions: [
         { action: 'open', title: 'Open HRMS' },
         { action: 'close', title: 'Dismiss' },
       ],
     });
 
+    if (result.sent === 0) {
+      return res.status(200).json({
+        status: 'warning',
+        message: 'No push subscription found for this phone yet. Please tap "Enable Notifications" on this device first.',
+        data: result,
+      });
+    }
+
     res.status(200).json({
       status: 'success',
-      message: 'Test notification triggered',
+      message: `Real mobile push notification sent to ${result.sent} subscribed device(s)! Check your phone lock screen or notification tray.`,
       data: result,
     });
   } catch (error) {

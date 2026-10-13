@@ -166,6 +166,25 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
 }
 
 /**
+ * Trigger a real native push notification test to the current user's device
+ */
+export async function sendTestPushNotification(): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await api.post('/notifications/test-push');
+    return {
+      success: true,
+      message: res.data?.message || 'Native phone notification sent! Check your notification tray.',
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.response?.data?.message || 'Could not send test notification.',
+    };
+  }
+}
+
+
+/**
  * Queue a failed or offline mutation request to execute when back online
  */
 export function enqueueOfflineAction(url: string, method: string, body: any) {
