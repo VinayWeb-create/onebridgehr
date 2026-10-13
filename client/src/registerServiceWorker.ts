@@ -2,6 +2,8 @@
  * Onebridge HRMS - Service Worker Registration & PWA Utilities
  */
 
+import api from './services/api';
+
 interface OfflineAction {
   id: string;
   url: string;
@@ -140,14 +142,8 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
 
     if (!subscription) {
       // Fetch VAPID public key from backend API
-      const token = localStorage.getItem('token') || '';
-      const res = await fetch('/api/notifications/vapid-public-key', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await res.json();
-      const vapidPublicKey = data?.data?.publicKey;
+      const res = await api.get('/notifications/vapid-public-key');
+      const vapidPublicKey = res.data?.data?.publicKey;
 
       if (!vapidPublicKey) return false;
 
@@ -159,15 +155,7 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
     }
 
     if (subscription) {
-      const token = localStorage.getItem('token') || '';
-      await fetch('/api/notifications/push-subscription', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ subscription }),
-      });
+      await api.post('/notifications/push-subscription', { subscription });
       console.log('[Onebridge PWA] Web push subscription synced with backend successfully.');
       return true;
     }
