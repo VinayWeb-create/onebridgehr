@@ -4,6 +4,11 @@ export const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters long'),
   rememberMe: z.boolean().optional(),
+  deviceId: z.string().optional(),
+  deviceName: z.string().optional(),
+  browser: z.string().optional(),
+  os: z.string().optional(),
+  forceContinue: z.boolean().optional(),
 });
 
 export const personalInfoSchema = z.object({

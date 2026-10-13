@@ -74,7 +74,7 @@ async function getOrCreateDefaultPolicy() {
         graceTimeMinutes: 15,
         lateThresholdMinutes: 30,
         halfDayHours: 4.5,
-        fullDayHours: 8.5,
+        fullDayHours: 9.0,
         workingHoursStart: '09:30',
         workingHoursEnd: '18:30',
         shifts: [
@@ -279,7 +279,7 @@ export const saveAttendancePolicy = async (req: Request, res: Response, next: Ne
           graceTimeMinutes: graceTimeMinutes ? parseInt(graceTimeMinutes) : 15,
           lateThresholdMinutes: lateThresholdMinutes ? parseInt(lateThresholdMinutes) : 30,
           halfDayHours: halfDayHours ? parseFloat(halfDayHours) : 4.5,
-          fullDayHours: fullDayHours ? parseFloat(fullDayHours) : 8.5,
+          fullDayHours: fullDayHours ? parseFloat(fullDayHours) : 9.0,
           workingHoursStart: workingHoursStart || '09:30',
           workingHoursEnd: workingHoursEnd || '18:30',
           shifts: shifts || undefined,
@@ -300,7 +300,7 @@ export const saveAttendancePolicy = async (req: Request, res: Response, next: Ne
           graceTimeMinutes: graceTimeMinutes ? parseInt(graceTimeMinutes) : 15,
           lateThresholdMinutes: lateThresholdMinutes ? parseInt(lateThresholdMinutes) : 30,
           halfDayHours: halfDayHours ? parseFloat(halfDayHours) : 4.5,
-          fullDayHours: fullDayHours ? parseFloat(fullDayHours) : 8.5,
+          fullDayHours: fullDayHours ? parseFloat(fullDayHours) : 9.0,
           workingHoursStart: workingHoursStart || '09:30',
           workingHoursEnd: workingHoursEnd || '18:30',
           shifts: shifts || undefined,
@@ -1420,17 +1420,31 @@ export const smartVerifyAndMark = async (req: Request, res: Response, next: Next
 
       // Calculate overtime or working hours if applicable
       const totalWorkMs = now.getTime() - new Date(existingRecord.checkIn).getTime();
-      const totalWorkHours = totalWorkMs / (1000 * 60 * 60);
+      let breakMs = 0;
+      if (Array.isArray(existingRecord.breaks)) {
+        existingRecord.breaks.forEach((b: any) => {
+          const bStart = new Date(b.start).getTime();
+          const bEnd = b.end ? new Date(b.end).getTime() : now.getTime();
+          if (bEnd > bStart) breakMs += bEnd - bStart;
+        });
+      }
+      const netWorkMs = Math.max(0, totalWorkMs - breakMs);
+      const totalWorkHours = netWorkMs / (1000 * 60 * 60);
+
+      const requiredFullHours = policy.fullDayHours || 9.0;
+      const requiredHalfHours = policy.halfDayHours || 4.5;
 
       let finalStatus: any = existingRecord.status;
-      if (totalWorkHours < policy.halfDayHours) {
+      if (totalWorkHours < requiredHalfHours) {
         finalStatus = 'HALF_DAY';
       }
 
-      const standardHoursMs = policy.fullDayHours * 60 * 60 * 1000;
+      // Standard shift: 9:30 AM to 18:30 PM (9.0 hours = 540 min)
+      // Extra hours (overtime) credited when net work exceeds 9.0 hours:
+      const standardHoursMs = requiredFullHours * 60 * 60 * 1000;
       const overtimeMinutes =
-        totalWorkMs > standardHoursMs
-          ? Math.round((totalWorkMs - standardHoursMs) / (60 * 1000))
+        netWorkMs > standardHoursMs
+          ? Math.round((netWorkMs - standardHoursMs) / (60 * 1000))
           : 0;
 
       updatedAttendance = await prisma.attendance.update({
@@ -1577,6 +1591,7 @@ export const getSmartAttendanceDashboard = async (
     const lateCount = todayAttendances.filter((r) => r.status === 'LATE').length;
     const absentCount = Math.max(0, totalEmployees - presentCount);
     const pendingEnrollment = Math.max(0, totalEmployees - enrolledCount);
+    const extraHoursMinutesToday = todayAttendances.reduce((acc, r) => acc + (r.overtimeMinutes || 0), 0);
 
     res.status(200).json({
       status: 'success',
@@ -1590,6 +1605,7 @@ export const getSmartAttendanceDashboard = async (
           geofenceBreachesToday,
           failedAttemptsToday,
           enrolledCount,
+          extraHoursMinutesToday,
         },
         todayAttendances,
         recentLogs,

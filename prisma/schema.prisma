@@ -105,6 +105,12 @@ model User {
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
   refreshToken        String?
+  activeSessionId     String?
+  activeDeviceId      String?
+  activeDeviceName    String?
+  activeDeviceBrowser String?
+  activeDeviceOs      String?
+  lastLoginAt         DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 }
@@ -1289,7 +1295,7 @@ model AttendancePolicy {
   graceTimeMinutes     Int      @default(15)
   lateThresholdMinutes Int      @default(30)
   halfDayHours         Float    @default(4.5)
-  fullDayHours         Float    @default(8.5)
+  fullDayHours         Float    @default(9.0)
   workingHoursStart    String   @default("09:30")
   workingHoursEnd      String   @default("18:30")
   shifts               Json?    // Optional shifts: [{ name: "Morning", start: "09:00", end: "18:00" }, ...]

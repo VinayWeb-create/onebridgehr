@@ -5,19 +5,20 @@ import { prisma } from '../config/db';
 import { AppError } from '../middleware/errorHandler';
 import { loginSchema } from '../models/validators';
 import { logActivity } from '../middleware/auditLogger';
+import { socketService } from '../services/socketService';
 
 const ACCESS_TOKEN_EXPIRY = '1d'; // Short in production, e.g. '15m'
 const REFRESH_TOKEN_EXPIRY = '7d';
 
-const generateTokens = (user: { id: string; email: string; role: string; employeeId: string }) => {
+const generateTokens = (user: { id: string; email: string; role: string; employeeId: string; sessionId?: string }) => {
   const accessToken = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, employeeId: user.employeeId },
+    { id: user.id, email: user.email, role: user.role, employeeId: user.employeeId, sessionId: user.sessionId },
     process.env.JWT_SECRET || 'onebridge_secret_key_123456_super_secure',
     { expiresIn: ACCESS_TOKEN_EXPIRY }
   );
 
   const refreshToken = jwt.sign(
-    { id: user.id },
+    { id: user.id, sessionId: user.sessionId },
     process.env.JWT_REFRESH_SECRET || 'onebridge_refresh_secret_key_7890_super_secure',
     { expiresIn: REFRESH_TOKEN_EXPIRY }
   );
@@ -69,16 +70,73 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       return next(new AppError('Invalid email or password', 401));
     }
 
-    // Generate Tokens
-    const { accessToken, refreshToken } = generateTokens(user);
+    // Check for active session on another device (Single Active Device Policy)
+    const incomingDeviceId = parsed.deviceId;
+    const incomingDeviceName = parsed.deviceName || (parsed.os ? `${parsed.os} Device` : 'Workstation');
+    const incomingBrowser = parsed.browser || 'Browser';
+    const incomingOs = parsed.os || 'OS';
+    const forceContinue = Boolean(parsed.forceContinue);
 
-    // Password matches - Clear failed attempts, locks, and save refresh token in one update
+    const hasActiveSession = Boolean(user.activeSessionId);
+    const isDifferentDevice = Boolean(
+      user.activeDeviceId &&
+      incomingDeviceId &&
+      user.activeDeviceId !== incomingDeviceId
+    );
+
+    // If another device is already active and user has not confirmed forceContinue
+    if (hasActiveSession && isDifferentDevice && !forceContinue) {
+      return res.status(409).json({
+        status: 'conflict',
+        code: 'ACTIVE_SESSION_EXISTS',
+        message: 'You are currently active on another device. Only one device is allowed at a time.',
+        data: {
+          activeDevice: {
+            deviceId: user.activeDeviceId,
+            name: user.activeDeviceName || 'Another Device',
+            browser: user.activeDeviceBrowser || 'Browser',
+            os: user.activeDeviceOs || 'OS',
+            lastLoginAt: user.lastLoginAt,
+          },
+          targetDevice: {
+            deviceId: incomingDeviceId,
+            name: incomingDeviceName,
+            browser: incomingBrowser,
+            os: incomingOs,
+          },
+        },
+      });
+    }
+
+    // If user confirmed to switch to this device, notify previous device to terminate session
+    if (hasActiveSession && isDifferentDevice && forceContinue) {
+      socketService.sendNotification(user.employeeId, 'SESSION_TERMINATED', {
+        reason: 'NEW_DEVICE_LOGIN',
+        newDevice: incomingDeviceName,
+        message: `Your session was ended because you logged in from another device (${incomingDeviceName}). Only one active device is allowed.`,
+      });
+    }
+
+    // Generate fresh session ID for this single active device
+    const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    const { accessToken, refreshToken } = generateTokens({
+      ...user,
+      sessionId: newSessionId,
+    });
+
+    // Clear failed attempts, locks, save refresh token & active session
     await prisma.user.update({
       where: { id: user.id },
       data: {
         failedLoginAttempts: 0,
         lockedUntil: null,
         refreshToken,
+        activeSessionId: newSessionId,
+        activeDeviceId: incomingDeviceId || user.activeDeviceId || 'dev_' + Math.random().toString(36).substring(2, 9),
+        activeDeviceName: incomingDeviceName,
+        activeDeviceBrowser: incomingBrowser,
+        activeDeviceOs: incomingOs,
+        lastLoginAt: new Date(),
       },
     });
 
@@ -147,7 +205,7 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
     const decoded = jwt.verify(
       token,
       process.env.JWT_REFRESH_SECRET || 'onebridge_refresh_secret_key_7890_super_secure'
-    ) as { id: string };
+    ) as { id: string; sessionId?: string };
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
@@ -157,7 +215,14 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
       return next(new AppError('Invalid refresh token', 401));
     }
 
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens(user);
+    if (decoded.sessionId && user.activeSessionId && user.activeSessionId !== decoded.sessionId) {
+      return next(new AppError('Session invalidated by login on another device', 401, 'SESSION_TERMINATED'));
+    }
+
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens({
+      ...user,
+      sessionId: user.activeSessionId || undefined,
+    });
 
     await prisma.user.update({
       where: { id: user.id },
@@ -182,7 +247,7 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
     if (req.user?.id) {
       await prisma.user.update({
         where: { id: req.user.id },
-        data: { refreshToken: null },
+        data: { refreshToken: null, activeSessionId: null },
       });
       await logActivity(employeeId, 'USER_LOGOUT', 'User logged out', req);
     }

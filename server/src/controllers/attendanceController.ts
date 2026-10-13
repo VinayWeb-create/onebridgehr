@@ -208,10 +208,16 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction) 
       breakMinutes += Math.round((end - b.start.getTime()) / 60000);
     });
     const netWorkMinutes = rawWorkMinutes - breakMinutes;
-    let overtimeMinutes = 0;
-    if (netWorkMinutes > 480) overtimeMinutes = netWorkMinutes - 480;
 
-    const updatedStatus = netWorkMinutes < 240 ? 'HALF_DAY' : record.status;
+    // Standard Shift: 9:30 AM to 18:30 PM = 9 hours (540 mins)
+    const policy = await prisma.attendancePolicy.findFirst({ where: { isDefault: true } });
+    const fullDayMinutes = Math.round((policy?.fullDayHours || 9.0) * 60);
+    const halfDayMinutes = Math.round((policy?.halfDayHours || 4.5) * 60);
+
+    let overtimeMinutes = 0;
+    if (netWorkMinutes > fullDayMinutes) overtimeMinutes = netWorkMinutes - fullDayMinutes;
+
+    const updatedStatus = netWorkMinutes < halfDayMinutes ? 'HALF_DAY' : record.status;
 
     const updated = await prisma.attendance.update({
       where: { id: record.id },

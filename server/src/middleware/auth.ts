@@ -8,6 +8,7 @@ export interface UserPayload {
   email: string;
   role: 'SUPER_ADMIN' | 'HR' | 'TEAM_LEAD' | 'EMPLOYEE';
   employeeId: string;
+  sessionId?: string;
 }
 
 // Extend Request interface to include user
@@ -49,6 +50,17 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       return next(new AppError('The user belonging to this token no longer exists.', 401));
     }
 
+    // Single active device session enforcement
+    if (decoded.sessionId && currentUser.activeSessionId && currentUser.activeSessionId !== decoded.sessionId) {
+      return next(
+        new AppError(
+          'Your session has ended because this account was logged into from another device.',
+          401,
+          'SESSION_TERMINATED'
+        )
+      );
+    }
+
     // Check lock status
     if (currentUser.lockedUntil && currentUser.lockedUntil > new Date()) {
       return next(
@@ -65,6 +77,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       email: currentUser.email,
       role: currentUser.role,
       employeeId: currentUser.employeeId,
+      sessionId: decoded.sessionId,
     };
     next();
   } catch (error) {

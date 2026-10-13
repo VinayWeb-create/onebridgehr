@@ -1,6 +1,7 @@
 import { prisma } from '../config/db';
 import { socketService } from './socketService';
 import { WebPushService } from './webPushService';
+import { checkAndSendScheduledGreetings } from './energeticGreetingService';
 
 /**
  * Tracks sent reminders today so an employee is only alerted once per 10-minute slot.
@@ -175,12 +176,14 @@ export function startShiftReminderScheduler() {
 
   console.log('⏰ [ShiftReminder] Started 18:30 shift check-out reminder scheduler (running every 60s)');
 
-  // Run initial check
+  // Run initial checks
   triggerShiftCheckOutReminders().catch(() => {});
+  checkAndSendScheduledGreetings().catch(() => {});
 
   // Run every 60 seconds
   reminderInterval = setInterval(() => {
     triggerShiftCheckOutReminders().catch(() => {});
+    checkAndSendScheduledGreetings().catch(() => {});
   }, 60000);
 }
 

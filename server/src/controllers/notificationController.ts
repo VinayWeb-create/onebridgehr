@@ -92,3 +92,19 @@ export const triggerCheckoutRemindersManual = async (
     next(error);
   }
 };
+
+export const triggerGreetingManual = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const slot = (req.body.slot || 'MORNING').toUpperCase() as 'MORNING' | 'AFTERNOON' | 'EVENING';
+    const { dispatchEnergeticGreeting } = await import('../services/energeticGreetingService');
+    const result = await dispatchEnergeticGreeting(slot);
+
+    res.status(200).json({
+      status: 'success',
+      message: `Energetic ${slot} greeting dispatched!`,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

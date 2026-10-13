@@ -373,6 +373,7 @@ export const AdminEmployeeAttendanceCatalog: React.FC = () => {
                 <th className="px-4 py-4 text-center">Days Absent</th>
                 <th className="px-4 py-4 text-center">Late / WFH</th>
                 <th className="px-5 py-4">Attendance Rate</th>
+                <th className="px-4 py-4 text-center">Extra Hours (OT)</th>
                 <th className="px-4 py-4 text-center">Biometrics</th>
                 <th className="px-5 py-4 text-right">Detailed Log</th>
               </tr>
@@ -380,7 +381,7 @@ export const AdminEmployeeAttendanceCatalog: React.FC = () => {
             <tbody className="divide-y divide-brand-100 dark:divide-brand-900 font-semibold">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12 text-brand-500">
+                  <td colSpan={10} className="text-center py-12 text-brand-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                       <p className="text-xs font-bold">Calculating employee attendance catalog...</p>
@@ -389,7 +390,7 @@ export const AdminEmployeeAttendanceCatalog: React.FC = () => {
                 </tr>
               ) : filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12 text-brand-500">
+                  <td colSpan={10} className="text-center py-12 text-brand-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Users size={32} className="text-brand-300 dark:text-brand-700" />
                       <p className="text-sm font-bold text-brand-950 dark:text-white">No employee records found</p>
@@ -512,6 +513,18 @@ export const AdminEmployeeAttendanceCatalog: React.FC = () => {
                         </div>
                       </td>
 
+                      {/* Extra Hours / Overtime (Admin Exclusive) */}
+                      <td className="px-4 py-3.5 text-center">
+                        {emp.totalOvertimeMinutes > 0 ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 font-extrabold text-xs border border-purple-200 dark:border-purple-800/60 shadow-sm shadow-purple-500/10">
+                            <Clock size={11} className="text-purple-600 dark:text-purple-400" />
+                            +{(emp.totalOvertimeMinutes / 60).toFixed(1)}h OT
+                          </span>
+                        ) : (
+                          <span className="text-brand-400 font-normal">-</span>
+                        )}
+                      </td>
+
                       {/* Biometric Status */}
                       <td className="px-4 py-3.5 text-center">
                         {emp.isBiometricEnrolled ? (
@@ -595,7 +608,7 @@ export const AdminEmployeeAttendanceCatalog: React.FC = () => {
               </div>
 
               {/* Month KPI Badges for this Employee */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <div className="p-3.5 rounded-2xl bg-emerald-950/60 border border-emerald-500/30">
                   <p className="text-[10px] uppercase font-bold text-emerald-400 flex items-center gap-1">
                     <CheckCircle2 size={12} /> Days Present
@@ -623,7 +636,16 @@ export const AdminEmployeeAttendanceCatalog: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-indigo-950/60 border border-indigo-500/30">
+                <div className="p-3.5 rounded-2xl bg-purple-950/60 border border-purple-500/30">
+                  <p className="text-[10px] uppercase font-bold text-purple-400 flex items-center gap-1">
+                    <Clock size={12} /> Extra Hours (OT)
+                  </p>
+                  <p className="text-2xl font-black text-purple-300">
+                    +{(selectedEmp.totalOvertimeMinutes / 60).toFixed(1)} <span className="text-xs font-normal text-brand-400">hrs</span>
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-indigo-950/60 border border-indigo-500/30 col-span-2 sm:col-span-1">
                   <p className="text-[10px] uppercase font-bold text-indigo-400 flex items-center gap-1">
                     <BarChart3 size={12} /> Attendance Rate
                   </p>

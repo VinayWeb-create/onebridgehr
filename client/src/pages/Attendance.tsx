@@ -581,6 +581,14 @@ export const Attendance: React.FC = () => {
             >
               My Attendance
             </button>
+            {isAdmin && (
+              <Link
+                to="/attendance/setup"
+                className="px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 text-brand-300 hover:text-white hover:bg-brand-700/50"
+              >
+                <Sliders size={14} className="text-indigo-400" /> Attendance Policy & Setup
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -958,8 +966,36 @@ export const Attendance: React.FC = () => {
       ============================================================= */}
       {activeTab === 'ADMIN_DASHBOARD' && isAdmin && (
         <div className="space-y-6">
+          {/* Active Attendance Policy Quick Status Card */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 border border-indigo-200 dark:border-indigo-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30 shrink-0">
+                <Sliders size={20} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm font-extrabold text-brand-950 dark:text-white">
+                    Attendance Policy & Shift Configuration
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                    Active &bull; 9.0 Hours Shift
+                  </span>
+                </div>
+                <p className="text-xs text-brand-600 dark:text-brand-400 mt-0.5">
+                  General Shift: <strong>09:30 AM to 18:30 PM</strong> (9 hrs) &bull; Grace: 15 min &bull; Extra hours automatically tracked when checking in before 09:30 or checking out after 18:30 (Admin exclusive display)
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/attendance/setup"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-600/20 shrink-0 transition-all"
+            >
+              <Sliders size={14} /> Configure Policies & Geofences &rarr;
+            </Link>
+          </div>
+
           {/* KPI Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4">
             <div className="glass p-5 rounded-2xl border border-brand-200 dark:border-brand-900 shadow-lg">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-[10px] font-bold text-brand-500 uppercase tracking-wider">Present Today</h4>
@@ -987,6 +1023,18 @@ export const Attendance: React.FC = () => {
               </div>
               <p className="text-2xl font-black text-brand-950 dark:text-white">
                 {adminStats?.stats?.lateCount ?? adminStats?.today?.late ?? 0}
+              </p>
+            </div>
+
+            <div className="glass p-5 rounded-2xl border border-brand-200 dark:border-brand-900 shadow-lg">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-[10px] font-bold text-brand-500 uppercase tracking-wider">Extra Hours (OT)</h4>
+                <Clock size={14} className="text-purple-500" />
+              </div>
+              <p className="text-2xl font-black text-purple-600 dark:text-purple-400">
+                {adminStats?.stats?.extraHoursMinutesToday
+                  ? `${(adminStats.stats.extraHoursMinutesToday / 60).toFixed(1)} hrs`
+                  : '0.0 hrs'}
               </p>
             </div>
 

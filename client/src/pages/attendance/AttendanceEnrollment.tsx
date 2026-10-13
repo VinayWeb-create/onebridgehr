@@ -320,7 +320,8 @@ export const AttendanceEnrollment: React.FC = () => {
       !faceAnalysis.noFace &&
       !faceAnalysis.multipleFaces &&
       !faceAnalysis.maskDetected &&
-      faceAnalysis.lightingQuality !== 'POOR';
+      faceAnalysis.lightingQuality !== 'LOW_LIGHT' &&
+      faceAnalysis.lightingQuality !== 'OVEREXPOSED';
 
     if (isGoodQuality && !isAlreadyCaptured) {
       if (autoCaptureSeconds === null) {

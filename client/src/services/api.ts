@@ -38,30 +38,52 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      const refToken = localStorage.getItem('refreshToken');
+    if (error.response?.status === 401) {
+      if (error.response?.data?.code === 'SESSION_TERMINATED') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        sessionStorage.setItem(
+          'logout_reason',
+          'Your session was ended because you logged in from another device. Only one active device is allowed at a time.'
+        );
+        window.location.href = '/login?reason=session_terminated';
+        return Promise.reject(error);
+      }
 
-      if (refToken) {
-        try {
-          const res = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-            refreshToken: refToken,
-          });
+      if (!originalRequest._retry) {
+        originalRequest._retry = true;
+        const refToken = localStorage.getItem('refreshToken');
 
-          const { token, refreshToken: newRefreshToken } = res.data.data;
-          
-          localStorage.setItem('token', token);
-          localStorage.setItem('refreshToken', newRefreshToken);
+        if (refToken) {
+          try {
+            const res = await axios.post(`${API_BASE_URL}/auth/refresh`, {
+              refreshToken: refToken,
+            });
 
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return api(originalRequest);
-        } catch (refreshError) {
-          // Refresh failed - clean storage and force log out
-          localStorage.removeItem('token');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
-          window.location.href = '/login';
-          return Promise.reject(refreshError);
+            const { token, refreshToken: newRefreshToken } = res.data.data;
+
+            localStorage.setItem('token', token);
+            localStorage.setItem('refreshToken', newRefreshToken);
+
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
+          } catch (refreshError: any) {
+            // Refresh failed - clean storage and force log out
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('user');
+            if (refreshError.response?.data?.code === 'SESSION_TERMINATED') {
+              sessionStorage.setItem(
+                'logout_reason',
+                'Your session was ended because you logged in from another device. Only one active device is allowed at a time.'
+              );
+              window.location.href = '/login?reason=session_terminated';
+            } else {
+              window.location.href = '/login';
+            }
+            return Promise.reject(refreshError);
+          }
         }
       }
     }

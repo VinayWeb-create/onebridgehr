@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { getClientDeviceInfo } from '../utils/deviceFingerprint';
 import {
   Lock,
   Mail,
@@ -14,6 +15,9 @@ import {
   Cog,
   BarChart3,
   ChevronDown,
+  Smartphone,
+  Laptop,
+  ShieldAlert,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AiMascotRobot, type RobotState } from '../components/AiMascotRobot';
@@ -31,20 +35,46 @@ export const Login: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Single Active Device Conflict State
+  const [sessionConflictModalOpen, setSessionConflictModalOpen] = useState(false);
+  const [conflictingDevice, setConflictingDevice] = useState<any>(null);
+  const [switchingDevice, setSwitchingDevice] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const reason = params.get('reason');
+    const storedReason = sessionStorage.getItem('logout_reason');
+
+    if (reason === 'session_terminated' || storedReason) {
+      setError(
+        storedReason ||
+          'You were logged out because this account was accessed from another device. Only one active device is permitted.'
+      );
+      sessionStorage.removeItem('logout_reason');
+    }
+  }, []);
+
+  const performLogin = async (forceContinue = false) => {
     setError(null);
     setLoading(true);
     setRobotState('loading');
+
+    const deviceInfo = getClientDeviceInfo();
 
     try {
       const res = await api.post('/auth/login', {
         email,
         password,
         rememberMe,
+        deviceId: deviceInfo.deviceId,
+        deviceName: deviceInfo.deviceName,
+        browser: deviceInfo.browser,
+        os: deviceInfo.os,
+        forceContinue,
       });
 
       if (res.data.status === 'success') {
+        setSessionConflictModalOpen(false);
         setRobotState('success');
         const { token, refreshToken, user } = res.data.data;
         setTimeout(() => {
@@ -53,6 +83,13 @@ export const Login: React.FC = () => {
         }, 1200);
       }
     } catch (err: any) {
+      if (err.response?.status === 409 && err.response?.data?.code === 'ACTIVE_SESSION_EXISTS') {
+        setConflictingDevice(err.response.data.data.activeDevice);
+        setSessionConflictModalOpen(true);
+        setRobotState('idle');
+        return;
+      }
+
       console.error('Login failed:', err);
       const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
       setError(msg);
@@ -62,7 +99,13 @@ export const Login: React.FC = () => {
       }, 3500);
     } finally {
       setLoading(false);
+      setSwitchingDevice(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    performLogin(false);
   };
 
   const handlePasswordFocus = () => {
@@ -365,6 +408,86 @@ export const Login: React.FC = () => {
           <span>People First</span>
         </p>
       </footer>
+
+      {/* ACTIVE DEVICE SESSION CONFLICT MODAL */}
+      <AnimatePresence>
+        {sessionConflictModalOpen && conflictingDevice && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-md rounded-3xl p-6 sm:p-7 border border-orange-500/30 bg-[#0d0f18] text-center shadow-2xl shadow-orange-500/10 space-y-5"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/30 text-orange-400 mx-auto flex items-center justify-center shadow-inner">
+                <Smartphone size={32} />
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-orange-500/20 text-orange-300 border border-orange-500/40">
+                  Single Active Device Policy
+                </span>
+                <h3 className="text-lg font-black text-white pt-1">
+                  Active Session Detected
+                </h3>
+                <p className="text-xs text-slate-300/80 leading-relaxed max-w-xs mx-auto">
+                  You are currently logged in on another device. Only one device is allowed to be active at a time.
+                </p>
+              </div>
+
+              {/* Active Device Info Box */}
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-left text-xs space-y-2">
+                <div className="flex justify-between items-center text-slate-400">
+                  <span>Currently Active Device:</span>
+                  <span className="font-extrabold text-white flex items-center gap-1.5">
+                    <Laptop size={13} className="text-orange-400" />
+                    {conflictingDevice.name || 'Other Device'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-slate-400">
+                  <span>Browser / Platform:</span>
+                  <span className="font-mono text-white/90">
+                    {conflictingDevice.browser} on {conflictingDevice.os}
+                  </span>
+                </div>
+                {conflictingDevice.lastLoginAt && (
+                  <div className="flex justify-between items-center text-slate-400 pt-1 border-t border-white/10">
+                    <span>Logged In At:</span>
+                    <span className="font-mono text-orange-300">
+                      {new Date(conflictingDevice.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-[11px] text-amber-300/90 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-left">
+                ⚠️ Continuing will terminate your session on <strong>{conflictingDevice.name || 'your other device'}</strong> and activate access here.
+              </p>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSessionConflictModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white/80 font-bold text-xs uppercase tracking-wider transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={switchingDevice}
+                  onClick={() => {
+                    setSwitchingDevice(true);
+                    performLogin(true);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-indigo-600 hover:from-orange-600 hover:to-indigo-700 text-white font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2"
+                >
+                  {switchingDevice ? 'Switching...' : 'Continue on this Device'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

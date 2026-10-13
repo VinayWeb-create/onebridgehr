@@ -78,6 +78,34 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       socket.emit('register', user.employeeId);
     });
 
+    // Single active device session terminated remotely by another device
+    socket.on('SESSION_TERMINATED', (data: { message?: string; newDevice?: string }) => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+      sessionStorage.setItem(
+        'logout_reason',
+        data.message ||
+          'Your session was ended because this account was logged into from another device. Only one active device is permitted.'
+      );
+      window.location.href = '/login?reason=session_terminated';
+    });
+
+    // Realtime energetic greetings (morning, afternoon, evening)
+    socket.on('ENERGETIC_GREETING', (data: { title: string; body: string; emoji?: string; vibe?: string }) => {
+      const newToast: NotificationToast = {
+        id: Math.random().toString(),
+        title: `${data.emoji || '✨'} ${data.title}`,
+        message: data.body,
+      };
+
+      setNotifications((prev) => [newToast, ...prev]);
+
+      setTimeout(() => {
+        setNotifications((prev) => prev.filter((t) => t.id !== newToast.id));
+      }, 8000);
+    });
+
     socket.on('notification', (data: { title: string; message: string }) => {
       const newToast: NotificationToast = {
         id: Math.random().toString(),
@@ -610,7 +638,51 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             >
               <Menu size={20} />
             </button>
-            <div className="hidden md:flex items-center space-x-2 text-xs font-semibold text-brand-500 dark:text-brand-400">
+            {/* Mobile compact greeting */}
+            <div className="md:hidden flex items-center gap-1.5 text-xs font-bold text-brand-800 dark:text-brand-200">
+              {(() => {
+                const hour = new Date().getHours();
+                const icon = hour < 12 ? '🌅' : hour < 17 ? '⚡' : '🌙';
+                return (
+                  <span className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-brand-100/70 dark:bg-brand-900/50">
+                    <span>{icon}</span>
+                    <span className="truncate max-w-[120px]">Hi, {user.firstName}</span>
+                  </span>
+                );
+              })()}
+            </div>
+
+            <div className="hidden md:flex items-center space-x-2.5 text-xs font-semibold text-brand-500 dark:text-brand-400">
+              {/* Energetic Greeting Pill */}
+              {(() => {
+                const hour = new Date().getHours();
+                let greeting = 'Good Morning';
+                let icon = '🌅';
+                let tagColor = 'from-amber-500/20 via-orange-500/15 to-amber-500/10 text-amber-800 dark:text-amber-200 border-amber-300/70 dark:border-amber-700/60 shadow-amber-500/5';
+                let energyText = 'Rise & Shine 🚀';
+                if (hour >= 12 && hour < 17) {
+                  greeting = 'Good Afternoon';
+                  icon = '⚡';
+                  tagColor = 'from-sky-500/20 via-indigo-500/15 to-cyan-500/10 text-sky-800 dark:text-sky-200 border-sky-300/70 dark:border-sky-700/60 shadow-sky-500/5';
+                  energyText = 'Keep The Energy High 💥';
+                } else if (hour >= 17) {
+                  greeting = 'Good Evening';
+                  icon = '🌙';
+                  tagColor = 'from-purple-500/20 via-indigo-500/15 to-pink-500/10 text-purple-800 dark:text-purple-200 border-purple-300/70 dark:border-purple-700/60 shadow-purple-500/5';
+                  energyText = 'Finishing Strong 🌟';
+                }
+                return (
+                  <div className={`flex items-center gap-2 px-3 py-1 rounded-xl bg-gradient-to-r ${tagColor} border shadow-xs select-none transition-all`}>
+                    <span className="text-sm">{icon}</span>
+                    <span className="font-bold text-xs">
+                      {greeting}, <span className="font-extrabold">{user.firstName}</span>!
+                    </span>
+                    <span className="hidden xl:inline text-[10px] opacity-80 font-medium">({energyText})</span>
+                  </div>
+                );
+              })()}
+
+              <span className="text-brand-300 dark:text-brand-800">•</span>
               <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
               <span className="text-brand-300 dark:text-brand-800">•</span>
               <span className="text-[10px] bg-brand-100 dark:bg-brand-900 px-2 py-0.5 rounded font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400 border border-brand-200/50 dark:border-brand-800/50">OBI Node</span>

@@ -94,7 +94,7 @@ export const AttendanceSetup: React.FC = () => {
     graceTimeMinutes: 15,
     lateThresholdMinutes: 30,
     halfDayHours: 4.5,
-    fullDayHours: 8.5,
+    fullDayHours: 9.0,
     workingHoursStart: '09:30',
     workingHoursEnd: '18:30',
     shifts: [
@@ -832,9 +832,12 @@ export const AttendanceSetup: React.FC = () => {
                   min="6"
                   max="12"
                   value={policy.fullDayHours}
-                  onChange={(e) => setPolicy({ ...policy, fullDayHours: parseFloat(e.target.value) || 8 })}
+                  onChange={(e) => setPolicy({ ...policy, fullDayHours: parseFloat(e.target.value) || 9.0 })}
                   className="w-full px-3 py-2.5 rounded-xl border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-900/40 text-brand-950 dark:text-white outline-none"
                 />
+                <p className="text-[10px] text-brand-400 mt-1">
+                  Standard shift (09:30 - 18:30) is 9.0 hours. Working beyond this adds Extra Hours / Overtime for Admins.
+                </p>
               </div>
             </div>
           </div>
