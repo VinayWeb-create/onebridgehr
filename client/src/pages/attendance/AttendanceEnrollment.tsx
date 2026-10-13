@@ -34,6 +34,7 @@ import {
   RefreshCw,
   Sun,
   CheckCircle,
+  Crosshair,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -102,7 +103,7 @@ export const AttendanceEnrollment: React.FC = () => {
   // Step 6: Final Submission
   const [enrollmentDone, setEnrollmentDone] = useState<boolean>(false);
 
-  // 9 Angles config matching the Figma design
+  // Angles config matching Figma mobile & desktop specifications
   const ALL_ANGLES = [
     { key: 'front', label: '1. Frontal View', short: '1. Front', desc: 'Look directly at camera with neutral expression', required: true },
     { key: 'left20', label: '2. Left 20°', short: '2. Left 20°', desc: 'Turn head slightly (20°) to your left', required: true },
@@ -113,6 +114,15 @@ export const AttendanceEnrollment: React.FC = () => {
     { key: 'down', label: '7. Downward Tilt', short: '7. Down', desc: 'Tilt your head slightly downwards', required: false },
     { key: 'smile', label: '8. Smile Expression', short: '8. Smile', desc: 'Smile naturally at the camera', required: false },
     { key: 'blink', label: '9. Natural Blink', short: '9. Blink', desc: 'Open eyes naturally and look directly', required: false },
+  ] as const;
+
+  const STEPS = [
+    { num: 1, label: 'Verify', icon: UserCheck },
+    { num: 2, label: 'Permissions', icon: Lock },
+    { num: 3, label: 'Face Scan', icon: Camera },
+    { num: 4, label: 'Device', icon: Smartphone },
+    { num: 5, label: 'Geofence', icon: MapPin },
+    { num: 6, label: 'Complete', icon: ShieldCheck },
   ] as const;
 
   useEffect(() => {
@@ -370,7 +380,7 @@ export const AttendanceEnrollment: React.FC = () => {
     if (faceCheck.noFace || faceCheck.faceCount === 0) {
       alert({
         title: 'No Face Detected',
-        message: 'Please ensure your face is centered inside the camera circle.',
+        message: 'Please ensure your face is centered inside the camera frame.',
         variant: 'warning',
       });
       return;
@@ -600,123 +610,123 @@ export const AttendanceEnrollment: React.FC = () => {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3">
         <span className="w-12 h-12 rounded-full border-4 border-orange-500/20 border-t-orange-500 animate-spin" />
-        <p className="text-sm font-bold text-brand-400">Loading Biometric Enrollment...</p>
+        <p className="text-sm font-bold text-slate-400">Loading Biometric Enrollment...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12 font-sans">
-      {/* ================= FIGMA-ACCURATE TOP HEADER & STEPPER ================= */}
-      <div className="bg-slate-900/90 dark:bg-slate-950/95 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden text-white backdrop-blur-xl">
-        <div className="absolute right-0 top-0 bottom-0 w-96 bg-gradient-to-l from-orange-500/10 via-orange-600/5 to-transparent pointer-events-none" />
+    <div className="max-w-4xl mx-auto px-2 sm:px-4 space-y-4 pb-12 font-sans text-white">
+      {/* ================= NATIVE MOBILE HEADER (< md) ================= */}
+      <div className="flex items-center justify-between py-2 md:hidden">
+        <button
+          onClick={() => (step > 1 ? setStep(step - 1) : navigate(-1))}
+          className="p-2 -ml-2 text-slate-300 hover:text-white rounded-full active:bg-slate-800 transition-colors"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <div className="text-center">
+          <h1 className="text-base font-extrabold text-white">Face Enrollment</h1>
+          <p className="text-[11px] font-semibold text-orange-400">Step {step} of 6</p>
+        </div>
+        <div className="w-8" />
+      </div>
 
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Face Enrollment</h1>
-              <span className="px-3 py-1 rounded-full bg-orange-500/20 border border-orange-500/40 text-orange-400 text-xs font-black uppercase tracking-wider">
-                Step {step} of 6
-              </span>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1.5">
-              Capture multiple angles for accurate and secure identification
-            </p>
+      {/* ================= DESKTOP HEADER (>= md) ================= */}
+      <div className="hidden md:flex justify-between items-center bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+        <div className="absolute right-0 top-0 bottom-0 w-80 bg-gradient-to-l from-orange-500/10 via-orange-600/5 to-transparent pointer-events-none" />
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-extrabold tracking-tight text-white">Face Enrollment</h1>
+            <span className="px-3 py-1 rounded-full bg-orange-500/20 border border-orange-500/40 text-orange-400 text-xs font-black uppercase tracking-wider">
+              Step {step} of 6
+            </span>
           </div>
-
-          <div className="flex items-center gap-3 bg-slate-800/80 px-4 py-2.5 rounded-2xl border border-slate-700/60 shadow-inner">
-            <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-400 font-extrabold flex items-center justify-center border border-orange-500/30">
-              {user?.firstName?.[0]}
-              {user?.lastName?.[0]}
-            </div>
-            <div className="text-left">
-              <p className="text-xs font-bold text-white leading-tight">
-                {user?.firstName} {user?.lastName}
-              </p>
-              <p className="text-[10px] text-slate-400 font-medium">ID: {user?.employeeId}</p>
-            </div>
-          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            Capture multiple angles for accurate and secure identification
+          </p>
         </div>
 
-        {/* 6-Step Connected Stepper Bar matching Figma */}
-        <div className="mt-8 pt-6 border-t border-slate-800/80">
-          <div className="grid grid-cols-6 gap-1 sm:gap-4 relative">
-            {[
-              { num: 1, label: 'Verify', icon: UserCheck },
-              { num: 2, label: 'Permissions', icon: Lock },
-              { num: 3, label: 'Face Scan', icon: Camera },
-              { num: 4, label: 'Device', icon: Smartphone },
-              { num: 5, label: 'Geofence', icon: MapPin },
-              { num: 6, label: 'Complete', icon: ShieldCheck },
-            ].map((s, idx) => {
-              const isCurrent = step === s.num;
-              const isPassed = step > s.num;
-              const IconComp = s.icon;
-
-              return (
-                <div
-                  key={s.num}
-                  onClick={() => {
-                    // Allow navigation backwards or forward if passed
-                    if (s.num < step || (s.num === 4 && angleCaptures.front)) {
-                      setStep(s.num);
-                    }
-                  }}
-                  className={`flex flex-col items-center cursor-pointer transition-all ${
-                    isCurrent ? 'scale-105' : 'opacity-70 hover:opacity-100'
-                  }`}
-                >
-                  <div className="relative flex items-center justify-center w-full mb-2">
-                    {/* Connecting line */}
-                    {idx > 0 && (
-                      <div
-                        className={`absolute left-0 right-1/2 top-1/2 -translate-y-1/2 h-0.5 -z-0 ${
-                          step >= s.num ? 'bg-orange-500' : 'bg-slate-800'
-                        }`}
-                      />
-                    )}
-                    {idx < 5 && (
-                      <div
-                        className={`absolute left-1/2 right-0 top-1/2 -translate-y-1/2 h-0.5 -z-0 ${
-                          step > s.num ? 'bg-orange-500' : 'bg-slate-800'
-                        }`}
-                      />
-                    )}
-
-                    {/* Step Icon Circle */}
-                    <div
-                      className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-xs sm:text-sm font-black transition-all shadow-md relative z-10 ${
-                        isCurrent
-                          ? 'bg-orange-500 text-white ring-4 ring-orange-500/30 shadow-orange-500/50'
-                          : isPassed
-                          ? 'bg-orange-600 text-white shadow-orange-600/30'
-                          : 'bg-slate-800 text-slate-400 border border-slate-700'
-                      }`}
-                    >
-                      {isPassed ? <Check size={16} /> : <IconComp size={16} />}
-                    </div>
-                  </div>
-
-                  <span
-                    className={`text-[10px] sm:text-xs font-bold text-center truncate ${
-                      isCurrent
-                        ? 'text-orange-400 font-black'
-                        : isPassed
-                        ? 'text-slate-300'
-                        : 'text-slate-500'
-                    }`}
-                  >
-                    {s.label}
-                  </span>
-                </div>
-              );
-            })}
+        <div className="flex items-center gap-3 bg-slate-800/80 px-4 py-2.5 rounded-2xl border border-slate-700/60 shadow-inner">
+          <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-400 font-extrabold flex items-center justify-center border border-orange-500/30">
+            {user?.firstName?.[0]}
+            {user?.lastName?.[0]}
+          </div>
+          <div className="text-left">
+            <p className="text-xs font-bold text-white leading-tight">
+              {user?.firstName} {user?.lastName}
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium">ID: {user?.employeeId}</p>
           </div>
         </div>
       </div>
 
+      {/* ================= STEPPER BAR (MATCHING FIGMA IN BOTH MOBILE & DESKTOP) ================= */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-3 sm:p-5 shadow-xl backdrop-blur-xl">
+        <div className="grid grid-cols-6 gap-1 relative px-0.5 sm:px-2">
+          {STEPS.map((s, idx) => {
+            const isCurrent = step === s.num;
+            const isPassed = step > s.num;
+            const IconComp = s.icon;
+
+            return (
+              <div
+                key={s.num}
+                onClick={() => {
+                  if (s.num < step || (s.num === 4 && angleCaptures.front)) {
+                    setStep(s.num);
+                  }
+                }}
+                className={`flex flex-col items-center cursor-pointer transition-all ${
+                  isCurrent ? 'scale-105' : 'opacity-70 hover:opacity-100'
+                }`}
+              >
+                <div className="relative flex items-center justify-center w-full mb-1 sm:mb-1.5">
+                  {/* Connecting track */}
+                  {idx > 0 && (
+                    <div
+                      className={`absolute left-0 right-1/2 top-1/2 -translate-y-1/2 h-[2px] ${
+                        step >= s.num ? 'bg-orange-500' : 'bg-slate-800'
+                      }`}
+                    />
+                  )}
+                  {idx < 5 && (
+                    <div
+                      className={`absolute left-1/2 right-0 top-1/2 -translate-y-1/2 h-[2px] ${
+                        step > s.num ? 'bg-orange-500' : 'bg-slate-800'
+                      }`}
+                    />
+                  )}
+
+                  {/* Step Circle */}
+                  <div
+                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-black transition-all shadow-md relative z-10 ${
+                      isCurrent
+                        ? 'bg-orange-500 text-white ring-4 ring-orange-500/30 shadow-orange-500/50'
+                        : isPassed
+                        ? 'bg-orange-600 text-white'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700'
+                    }`}
+                  >
+                    {isPassed ? <Check size={14} /> : <IconComp size={14} />}
+                  </div>
+                </div>
+
+                <span
+                  className={`text-[9px] sm:text-xs font-bold text-center truncate ${
+                    isCurrent ? 'text-orange-400 font-black' : isPassed ? 'text-slate-300' : 'text-slate-500'
+                  }`}
+                >
+                  {s.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ================= STEP CONTENT CONTAINER ================= */}
-      <div className="bg-slate-900/90 dark:bg-slate-950/95 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl text-white backdrop-blur-xl">
+      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-7 shadow-2xl backdrop-blur-xl">
         <AnimatePresence mode="wait">
           {/* ================= STEP 1: VERIFY EMPLOYEE ================= */}
           {step === 1 && (
@@ -725,68 +735,68 @@ export const AttendanceEnrollment: React.FC = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-6"
+              className="space-y-4 sm:space-y-6"
             >
-              <div className="border-b border-slate-800 pb-4">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <div className="border-b border-slate-800 pb-3">
+                <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                   <UserCheck className="text-orange-500" size={20} />
                   Step 1: Verify Employee Identity
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-slate-400 mt-0.5">
                   Confirm your official employment records before registering your biometric template.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-orange-500/20 text-orange-400 font-black text-xl flex items-center justify-center border border-orange-500/30">
+                  <div className="w-12 h-12 rounded-2xl bg-orange-500/20 text-orange-400 font-black text-lg flex items-center justify-center border border-orange-500/30 shrink-0">
                     {user?.firstName?.[0]}
                     {user?.lastName?.[0]}
                   </div>
-                  <div>
-                    <p className="text-xs text-slate-400 font-semibold">Full Name</p>
-                    <p className="text-base font-bold text-white">
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-400 font-semibold">Full Name</p>
+                    <p className="text-sm sm:text-base font-bold text-white truncate">
                       {user?.firstName} {user?.lastName}
                     </p>
-                    <p className="text-xs text-orange-400 font-medium">
+                    <p className="text-xs text-orange-400 font-medium truncate">
                       {user?.designation || 'Software Engineer'}
                     </p>
                   </div>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-1">
-                  <p className="text-xs text-slate-400 font-semibold">Department & ID</p>
-                  <p className="text-sm font-bold text-white">{user?.department || 'Engineering'}</p>
+                  <p className="text-[11px] text-slate-400 font-semibold">Department & Code</p>
+                  <p className="text-sm font-bold text-white truncate">{user?.department || 'Engineering'}</p>
                   <p className="text-xs text-slate-400">Employee Code: {user?.employeeId}</p>
                 </div>
 
-                <div className="md:col-span-2 p-5 rounded-2xl bg-slate-800/40 border border-slate-700/60 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="md:col-span-2 p-4 sm:p-5 rounded-2xl bg-slate-800/40 border border-slate-700/60 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 bg-orange-500/20 text-orange-400 rounded-xl border border-orange-500/30">
-                      <Building2 size={22} />
+                    <div className="p-3 bg-orange-500/20 text-orange-400 rounded-xl border border-orange-500/30 shrink-0">
+                      <Building2 size={20} />
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-bold text-orange-400 tracking-wider">
                         Assigned Primary Office
                       </p>
-                      <p className="text-base font-extrabold text-white">
+                      <p className="text-sm sm:text-base font-extrabold text-white">
                         {office?.name || 'OneBridge Infotech HQ'}
                       </p>
                       <p className="text-xs text-slate-400">
-                        {office?.branch || 'Headquarters'} • Geofence Radius: {office?.radiusMeters || 200}m
+                        {office?.branch || 'Headquarters'} • Radius: {office?.radiusMeters || 200}m
                       </p>
                     </div>
                   </div>
-                  <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold rounded-full flex items-center gap-1.5">
+                  <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold rounded-full flex items-center gap-1.5 shrink-0">
                     <CheckCircle size={14} /> Active Assignment
                   </span>
                 </div>
               </div>
 
-              <div className="flex justify-end pt-4">
+              <div className="flex justify-end pt-2">
                 <button
                   onClick={() => setStep(2)}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-orange-500/25 transition-all"
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 transition-all"
                 >
                   Confirm & Request Permissions <ChevronRight size={16} />
                 </button>
@@ -801,97 +811,97 @@ export const AttendanceEnrollment: React.FC = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-6"
+              className="space-y-4 sm:space-y-6"
             >
-              <div className="border-b border-slate-800 pb-4">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <div className="border-b border-slate-800 pb-3">
+                <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                   <Lock className="text-orange-500" size={20} />
                   Step 2: Security & Hardware Permissions
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-slate-400 mt-0.5">
                   Biometric attendance requires camera and GPS verification within the designated office radius.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 gap-3 sm:gap-4">
                 {/* Camera Permission Card */}
-                <div className="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-orange-500/20 text-orange-400 rounded-xl border border-orange-500/30">
-                      <Camera size={22} />
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="p-3 bg-orange-500/20 text-orange-400 rounded-xl border border-orange-500/30 shrink-0">
+                      <Camera size={20} />
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-white">Camera Access</p>
-                      <p className="text-xs text-slate-400">Required for face enrollment & live anti-spoofing</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white truncate">Camera Access</p>
+                      <p className="text-xs text-slate-400 truncate">Required for face enrollment & anti-spoofing</p>
                     </div>
                   </div>
                   {cameraPermission === 'granted' ? (
-                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-xl">
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-xl shrink-0">
                       <Check size={14} /> Granted
                     </span>
                   ) : (
                     <button
                       onClick={requestCamera}
-                      className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl uppercase tracking-wider"
+                      className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl uppercase tracking-wider shrink-0"
                     >
-                      Allow Camera
+                      Allow
                     </button>
                   )}
                 </div>
 
                 {/* GPS Permission Card */}
-                <div className="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
-                      <MapPin size={22} />
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30 shrink-0">
+                      <MapPin size={20} />
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-white">High-Accuracy GPS</p>
-                      <p className="text-xs text-slate-400">Verifies location within office boundary</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white truncate">High-Accuracy GPS</p>
+                      <p className="text-xs text-slate-400 truncate">Verifies location within office boundary</p>
                     </div>
                   </div>
                   {gpsPermission === 'granted' ? (
-                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-xl">
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-xl shrink-0">
                       <Check size={14} /> Granted
                     </span>
                   ) : (
                     <button
                       onClick={requestGps}
                       disabled={gpsLoading}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl uppercase tracking-wider disabled:opacity-50"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl uppercase tracking-wider disabled:opacity-50 shrink-0"
                     >
-                      {gpsLoading ? 'Detecting...' : 'Allow Location'}
+                      {gpsLoading ? 'Detecting...' : 'Allow'}
                     </button>
                   )}
                 </div>
 
                 {/* Notification Permission Card */}
-                <div className="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
-                      <Bell size={22} />
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="p-3 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30 shrink-0">
+                      <Bell size={20} />
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-white">Notifications & Alerts</p>
-                      <p className="text-xs text-slate-400">Alerts for shift reminders, grace periods & check-outs</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white truncate">Notifications & Alerts</p>
+                      <p className="text-xs text-slate-400 truncate">Shift reminders & grace period notices</p>
                     </div>
                   </div>
                   {notificationPermission === 'granted' ? (
-                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-xl">
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-xl shrink-0">
                       <Check size={14} /> Granted
                     </span>
                   ) : (
                     <button
                       onClick={requestNotification}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl uppercase tracking-wider"
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl uppercase tracking-wider shrink-0"
                     >
-                      Allow Alerts
+                      Allow
                     </button>
                   )}
                 </div>
               </div>
 
-              <div className="flex justify-between pt-4">
+              <div className="flex justify-between pt-2">
                 <button
                   onClick={() => setStep(1)}
                   className="px-5 py-2.5 rounded-xl border border-slate-700 font-bold text-xs text-slate-300 flex items-center gap-1.5 hover:bg-slate-800"
@@ -909,226 +919,153 @@ export const AttendanceEnrollment: React.FC = () => {
             </motion.div>
           )}
 
-          {/* ================= STEP 3: FACE ENROLLMENT (EXACT FIGMA DESIGN) ================= */}
+          {/* ================= STEP 3: FACE ENROLLMENT (PIXEL-PERFECT FIGMA DESIGN) ================= */}
           {step === 3 && (
             <motion.div
               key="step3"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-6"
+              className="space-y-4"
             >
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                {/* LEFT / MAIN CAMERA VIEWPORT (8 cols on lg) */}
-                <div className="lg:col-span-7 xl:col-span-8 space-y-4">
-                  <div className="relative bg-black rounded-3xl overflow-hidden aspect-[4/3] shadow-2xl flex items-center justify-center border-2 border-slate-700/80 group">
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover transform -scale-x-100"
-                    />
+              {/* CAMERA VIEWPORT (Portrait 3:4 on mobile, 4:3 on desktop) */}
+              <div className="relative bg-black rounded-3xl overflow-hidden aspect-[3/4] sm:aspect-[4/3] max-h-[460px] mx-auto shadow-2xl border-2 border-slate-700/80 group">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover transform -scale-x-100"
+                />
 
-                    {/* TOP STATUS BADGES */}
-                    <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/90 text-white text-xs font-extrabold shadow-lg backdrop-blur-md">
-                        <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                        Face detected
-                      </div>
-                    </div>
-
-                    <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-600/90 text-white text-xs font-extrabold shadow-lg backdrop-blur-md">
-                        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                        Live Camera
-                      </div>
-                    </div>
-
-                    {/* Holographic Face Scanner HUD */}
-                    <BiometricFaceScannerHUD
-                      faceBox={faceAnalysis?.primaryFaceBox}
-                      videoWidth={videoRef.current?.videoWidth || 640}
-                      videoHeight={videoRef.current?.videoHeight || 480}
-                      livenessPassed={!!angleCaptures[ALL_ANGLES[currentAngleIndex].key]}
-                      livenessScore={faceAnalysis?.noFace ? 0.2 : 0.98}
-                      livenessStatus={
-                        faceAnalysis?.noFace
-                          ? 'Align face in oval frame'
-                          : faceAnalysis?.multipleFaces
-                          ? 'Multiple faces detected'
-                          : `Ready: ${ALL_ANGLES[currentAngleIndex].label}`
-                      }
-                      verifying={false}
-                      lightingQuality={faceAnalysis?.lightingQuality}
-                      lightingBrightness={faceAnalysis?.lightingBrightness}
-                      faceAlignment={faceAnalysis?.faceAlignment}
-                      multipleFaces={faceAnalysis?.multipleFaces}
-                      noFace={faceAnalysis?.noFace}
-                    />
-
-                    {/* FLOATING CHECKLIST PILLS ON RIGHT OF VIDEO */}
-                    <div className="absolute top-16 right-4 z-20 space-y-2 pointer-events-none hidden sm:block">
-                      <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-bold flex items-center gap-2 shadow-md">
-                        <Sun size={13} className="text-emerald-400" />
-                        <span>Good Lighting</span>
-                      </div>
-                      <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-bold flex items-center gap-2 shadow-md">
-                        <Check size={13} className="text-emerald-400" />
-                        <span>Face Centered</span>
-                      </div>
-                      <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-bold flex items-center gap-2 shadow-md">
-                        <Eye size={13} className="text-emerald-400" />
-                        <span>Eyes Open</span>
-                      </div>
-                      <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-bold flex items-center gap-2 shadow-md">
-                        <Check size={13} className="text-emerald-400" />
-                        <span>Correct Distance</span>
-                      </div>
-                      <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-bold flex items-center gap-2 shadow-md">
-                        <Check size={13} className="text-emerald-400" />
-                        <span>No Mask Detected</span>
-                      </div>
-                      <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-bold flex items-center gap-2 shadow-md">
-                        <Check size={13} className="text-emerald-400" />
-                        <span>Single Face</span>
-                      </div>
-                    </div>
-
-                    {/* CIRCULAR FACE QUALITY GAUGE */}
-                    <div className="absolute bottom-4 right-4 z-20 flex items-center gap-3 bg-black/70 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/10">
-                      <div className="w-8 h-8 rounded-full border-2 border-emerald-400 flex items-center justify-center text-[10px] font-black text-emerald-400">
-                        98%
-                      </div>
-                      <span className="text-xs font-bold text-white">Face Quality</span>
-                    </div>
-
-                    {/* BOTTOM AUTO-CAPTURE OVERLAY BANNER */}
-                    <div className="absolute bottom-4 left-4 right-32 z-20">
-                      {autoCaptureSeconds !== null ? (
-                        <div className="bg-black/80 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-orange-500/40 flex items-center justify-between text-white shadow-xl">
-                          <div className="flex items-center gap-3">
-                            <span className="w-7 h-7 rounded-full bg-orange-500 text-white font-black text-xs flex items-center justify-center animate-bounce">
-                              {autoCaptureSeconds}
-                            </span>
-                            <div>
-                              <p className="text-xs font-extrabold">Auto capturing in...</p>
-                              <p className="text-[10px] text-orange-400">Hold still for crystal clear biometric scan</p>
-                            </div>
-                          </div>
-                          <div className="w-20 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                            <div className="h-full bg-orange-500 animate-pulse w-3/4" />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 text-[11px] text-slate-300 font-medium">
-                          Photo will be captured automatically when ready ✓
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* MANUAL CAPTURE & RE-TAKE CONTROLS */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                    <button
-                      onClick={captureAngle}
-                      className="px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-2xl font-extrabold text-xs uppercase tracking-wider shadow-xl shadow-orange-500/25 flex items-center gap-2 transition-all transform active:scale-95"
-                    >
-                      <Camera size={16} />
-                      Capture {ALL_ANGLES[currentAngleIndex].short} Manually
-                    </button>
-
-                    {angleCaptures[ALL_ANGLES[currentAngleIndex].key] && (
-                      <button
-                        onClick={() => {
-                          setAngleCaptures((prev) => {
-                            const copy = { ...prev };
-                            delete copy[ALL_ANGLES[currentAngleIndex].key];
-                            return copy;
-                          });
-                          setAutoCaptureSeconds(null);
-                        }}
-                        className="px-4 py-2 rounded-xl border border-slate-700 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition-all"
-                      >
-                        <RotateCcw size={14} /> Re-take This Angle
-                      </button>
-                    )}
+                {/* TOP GREEN PILL: FACE DETECTED */}
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20">
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/95 text-white text-[11px] font-extrabold shadow-lg backdrop-blur-md">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                    Face detected
                   </div>
                 </div>
 
-                {/* RIGHT SIDE PANEL: ANGLE INSTRUCTION GUIDE & CHECKLIST */}
-                <div className="lg:col-span-5 xl:col-span-4 space-y-4">
-                  <div className="p-6 rounded-3xl bg-slate-800/60 border border-slate-700/70 space-y-5">
-                    <div>
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30 text-xs font-black uppercase tracking-wider mb-2">
-                        Angle {currentAngleIndex + 1} of 9
-                      </div>
-                      <h3 className="text-xl font-extrabold text-white">
-                        {ALL_ANGLES[currentAngleIndex].label}
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-1">
-                        {ALL_ANGLES[currentAngleIndex].desc}
-                      </p>
-                    </div>
+                {/* TOP RIGHT: LIVE CAMERA BLINK */}
+                <div className="absolute top-3 right-3 z-20">
+                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-600/90 text-white text-[10px] font-extrabold shadow-md backdrop-blur-md">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                    Live
+                  </div>
+                </div>
 
-                    {/* Vector / Illustrated Face Avatar Guide */}
-                    <div className="w-full aspect-[16/10] bg-slate-900 rounded-2xl border border-slate-700/50 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-                      <div className="w-24 h-24 rounded-full bg-gradient-to-b from-orange-400/20 to-orange-600/30 border-2 border-dashed border-orange-400/60 flex items-center justify-center relative">
-                        <div className="w-16 h-20 rounded-t-full rounded-b-2xl bg-amber-100/90 dark:bg-amber-200/90 relative shadow-inner">
-                          {/* Hair */}
-                          <div className="w-full h-8 bg-slate-800 rounded-t-full" />
-                          {/* Eyes */}
-                          <div className="flex justify-around px-3 pt-3">
-                            <span className="w-2 h-2 rounded-full bg-slate-800" />
-                            <span className="w-2 h-2 rounded-full bg-slate-800" />
-                          </div>
-                          {/* Smile */}
-                          <div className="w-4 h-1.5 border-b-2 border-slate-700 mx-auto mt-2 rounded-full" />
-                        </div>
-                      </div>
-                      <p className="text-[11px] font-bold text-slate-400 mt-2">
-                        Target Orientation: {ALL_ANGLES[currentAngleIndex].short}
-                      </p>
-                    </div>
+                {/* HOLOGRAPHIC FACE RETICLE HUD */}
+                <BiometricFaceScannerHUD
+                  faceBox={faceAnalysis?.primaryFaceBox}
+                  videoWidth={videoRef.current?.videoWidth || 640}
+                  videoHeight={videoRef.current?.videoHeight || 480}
+                  livenessPassed={!!angleCaptures[ALL_ANGLES[currentAngleIndex].key]}
+                  livenessScore={faceAnalysis?.noFace ? 0.2 : 0.98}
+                  livenessStatus=""
+                  verifying={false}
+                  lightingQuality={faceAnalysis?.lightingQuality}
+                  lightingBrightness={faceAnalysis?.lightingBrightness}
+                  faceAlignment={faceAnalysis?.faceAlignment}
+                  multipleFaces={faceAnalysis?.multipleFaces}
+                  noFace={faceAnalysis?.noFace}
+                />
 
-                    {/* INSTRUCTION CHECKLIST */}
-                    <div className="space-y-2.5 pt-1">
-                      {[
-                        'Keep your face inside the circle frame',
-                        'Ensure good ambient lighting on face',
-                        'Keep a neutral facial expression',
-                        'Remove mask or dark sunglasses',
-                        'Look directly at the camera lens',
-                      ].map((item, i) => (
-                        <div key={i} className="flex items-center gap-2.5 text-xs text-slate-300">
-                          <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                            <Check size={12} />
-                          </div>
-                          <span>{item}</span>
-                        </div>
-                      ))}
+                {/* LEFT FLOATING CHECKLIST PILLS (FIGMA SPEC) */}
+                <div className="absolute top-12 left-3 z-20 space-y-1.5 pointer-events-none">
+                  <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
+                    <Sun size={11} className="text-emerald-400" />
+                    <span>Good Lighting</span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
+                    <Check size={11} className="text-emerald-400" />
+                    <span>Face Centered</span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
+                    <Eye size={11} className="text-emerald-400" />
+                    <span>Eyes Open</span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
+                    <Check size={11} className="text-emerald-400" />
+                    <span>Correct Distance</span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
+                    <Check size={11} className="text-emerald-400" />
+                    <span>No Mask</span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
+                    <Check size={11} className="text-emerald-400" />
+                    <span>Single Face</span>
+                  </div>
+                </div>
+
+                {/* RIGHT FLOATING METRIC BADGES (FIGMA SPEC) */}
+                <div className="absolute top-12 right-3 z-20 flex flex-col items-center gap-1.5 pointer-events-none">
+                  <div className="flex flex-col items-center justify-center p-2 rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 text-center shadow-sm">
+                    <div className="w-8 h-8 rounded-full border-2 border-emerald-400 flex items-center justify-center text-[10px] font-black text-emerald-400">
+                      98%
+                    </div>
+                    <span className="text-[9px] font-bold text-white mt-0.5">Face Quality</span>
+                  </div>
+                  <div className="flex flex-col items-center justify-center px-2 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-center shadow-sm">
+                    <Eye size={13} className="text-white" />
+                    <span className="text-[9px] font-bold text-white mt-0.5">Live Detection</span>
+                  </div>
+                  <div className="flex flex-col items-center justify-center px-2 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-center shadow-sm">
+                    <Crosshair size={13} className="text-emerald-400" />
+                    <span className="text-[9px] font-bold text-white mt-0.5">Ready to Capture</span>
+                  </div>
+                </div>
+
+                {/* BOTTOM OVERLAY INSIDE CAMERA: HOLD STILL & COUNTDOWN */}
+                <div className="absolute bottom-3 left-4 right-4 z-20">
+                  <div className="text-center">
+                    <p className="text-xs font-bold text-white drop-shadow">
+                      {autoCaptureSeconds !== null
+                        ? `Auto capturing in ${autoCaptureSeconds}s...`
+                        : 'Hold still...'}
+                    </p>
+                    <div className="w-full h-1.5 bg-black/50 rounded-full mt-1.5 overflow-hidden border border-white/15">
+                      <div
+                        className="h-full bg-orange-500 rounded-full transition-all duration-300"
+                        style={{
+                          width:
+                            autoCaptureSeconds !== null
+                              ? `${((3 - autoCaptureSeconds) / 3) * 100}%`
+                              : '75%',
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* ================= CAPTURE ALL ANGLES STRIP ================= */}
-              <div className="space-y-3 pt-4 border-t border-slate-800">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-extrabold text-white uppercase tracking-wider">
-                      Capture All Angles
-                    </h4>
-                    <p className="text-xs text-slate-400">
-                      Frontal, Left 20°, and Right 20° are required. Other angles enhance recognition fidelity.
-                    </p>
-                  </div>
-                  <span className="text-xs font-bold px-3 py-1 bg-slate-800 rounded-full text-slate-300">
+              {/* GUIDE CARD (BELOW CAMERA, EXACT FIGMA SPEC) */}
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-orange-500/15 to-orange-600/5 border border-orange-500/30 flex items-center gap-3">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-orange-500/20 text-orange-400 flex items-center justify-center border border-orange-500/30 shrink-0">
+                  <Crosshair size={22} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-sm font-extrabold text-white truncate">
+                    {ALL_ANGLES[currentAngleIndex].label}
+                  </h4>
+                  <p className="text-[11px] text-slate-300 truncate">
+                    {ALL_ANGLES[currentAngleIndex].desc}
+                  </p>
+                </div>
+              </div>
+
+              {/* CAPTURE ALL ANGLES HORIZONTAL THUMBNAIL CAROUSEL */}
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between text-xs px-1">
+                  <span className="font-extrabold uppercase tracking-wider text-slate-300 text-[11px]">
+                    Capture All Angles
+                  </span>
+                  <span className="text-[10px] font-bold text-orange-400">
                     {Object.keys(angleCaptures).length} / 9 Captured
                   </span>
                 </div>
 
-                <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2.5 overflow-x-auto pb-2">
+                <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none snap-x">
                   {ALL_ANGLES.map((ang, idx) => {
                     const cap = angleCaptures[ang.key];
                     const isSelected = currentAngleIndex === idx;
@@ -1137,15 +1074,15 @@ export const AttendanceEnrollment: React.FC = () => {
                       <div
                         key={ang.key}
                         onClick={() => setCurrentAngleIndex(idx)}
-                        className={`p-2 rounded-2xl border transition-all cursor-pointer flex flex-col items-center gap-1.5 ${
+                        className={`flex-shrink-0 w-20 p-1.5 rounded-2xl border transition-all cursor-pointer flex flex-col items-center gap-1 snap-start ${
                           isSelected
-                            ? 'bg-orange-500/15 border-orange-500 ring-2 ring-orange-500/30'
+                            ? 'bg-orange-500/20 border-orange-500 ring-2 ring-orange-500/30'
                             : cap
                             ? 'bg-slate-800/80 border-emerald-500/50'
-                            : 'bg-slate-800/40 border-slate-700/60 opacity-60 hover:opacity-100'
+                            : 'bg-slate-800/40 border-slate-700/60 opacity-60'
                         }`}
                       >
-                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-slate-900 overflow-hidden flex items-center justify-center relative border border-slate-700">
+                        <div className="w-16 h-16 rounded-xl bg-slate-900 overflow-hidden flex items-center justify-center relative border border-slate-700">
                           {cap ? (
                             <>
                               <img src={cap.preview} alt={ang.label} className="w-full h-full object-cover" />
@@ -1168,36 +1105,29 @@ export const AttendanceEnrollment: React.FC = () => {
                     );
                   })}
                 </div>
+
+                <p className="text-[11px] text-center text-slate-400">
+                  Photo will be captured automatically when ready ✓
+                </p>
               </div>
 
-              {/* BIOMETRIC PRIVACY & SECURITY FOOTER BANNER */}
-              <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-400">
-                <div className="flex items-center gap-2.5">
-                  <Shield size={18} className="text-orange-400 shrink-0" />
-                  <span>
-                    We generate an encrypted 128-dimensional mathematical template from multiple angles. Raw photos are not stored permanently.
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 text-slate-300 font-bold shrink-0">
-                  <Lock size={14} className="text-emerald-400" />
-                  <span>Your biometric data is secure</span>
-                </div>
-              </div>
-
-              {/* NAVIGATION BUTTONS */}
-              <div className="flex justify-between pt-4">
+              {/* ACTION BUTTONS */}
+              <div className="flex gap-2.5 pt-2">
                 <button
-                  onClick={() => setStep(2)}
-                  className="px-5 py-2.5 rounded-xl border border-slate-700 font-bold text-xs text-slate-300 hover:bg-slate-800 flex items-center gap-1.5"
+                  onClick={captureAngle}
+                  className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 active:scale-95 transition-all"
                 >
-                  <ChevronLeft size={16} /> Back
+                  <Camera size={16} />
+                  <span>Capture Angle</span>
                 </button>
+
                 <button
                   onClick={() => setStep(4)}
                   disabled={!angleCaptures.front || !angleCaptures.left20 || !angleCaptures.right20}
-                  className="px-6 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-orange-500/25 disabled:opacity-50 transition-all"
+                  className="px-5 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-40 transition-all"
                 >
-                  Next: Device Registration ({Object.keys(angleCaptures).length}/3 minimum captured) <ChevronRight size={16} />
+                  <span>Next</span>
+                  <ChevronRight size={16} />
                 </button>
               </div>
             </motion.div>
@@ -1210,48 +1140,50 @@ export const AttendanceEnrollment: React.FC = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-6"
+              className="space-y-4 sm:space-y-6"
             >
-              <div className="border-b border-slate-800 pb-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="border-b border-slate-800 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                   <div>
-                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                       <Smartphone className="text-orange-500" size={20} />
                       Step 4: Authorized Attendance Devices
                     </h2>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Every employee can register up to <strong>2 devices only</strong> (e.g., Work Laptop and Personal Mobile) to mark attendance.
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Every employee can register up to <strong>2 devices only</strong> (e.g. Work Laptop & Mobile) to mark attendance.
                     </p>
                   </div>
-                  <span className="self-start sm:self-auto px-3 py-1 rounded-full bg-orange-500/20 border border-orange-500/30 text-orange-400 text-xs font-black">
+                  <span className="self-start sm:self-auto px-2.5 py-0.5 rounded-full bg-orange-500/20 border border-orange-500/30 text-orange-400 text-xs font-black">
                     {registeredDevices.length} / 2 Slots Used
                   </span>
                 </div>
               </div>
 
-              {/* CURRENT DEVICE DETECTED CARD */}
-              <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-800/90 to-slate-800/40 border border-slate-700 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="p-3.5 bg-orange-500 text-white rounded-2xl shadow-lg shadow-orange-500/30">
-                    {/Windows|Mac|Linux/i.test(deviceInfo.os) ? <Laptop size={26} /> : <Smartphone size={26} />}
+              {/* CURRENT DEVICE CARD */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-800/90 to-slate-800/40 border border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-orange-500 text-white rounded-2xl shadow-lg shadow-orange-500/30 shrink-0">
+                    {/Windows|Mac|Linux/i.test(deviceInfo.os) ? <Laptop size={22} /> : <Smartphone size={22} />}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-black uppercase tracking-wider text-orange-400">
                         Current Device Detected
                       </span>
                       {isCurrentDeviceRegistered ? (
                         <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
-                          ✓ Authorized & Bound
+                          ✓ Authorized
                         </span>
                       ) : (
                         <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
-                          ● Not Registered Yet
+                          ● Not Registered
                         </span>
                       )}
                     </div>
-                    <h3 className="text-base font-extrabold text-white mt-0.5">{deviceInfo.deviceName}</h3>
-                    <p className="text-xs text-slate-400">
+                    <h3 className="text-sm sm:text-base font-extrabold text-white truncate mt-0.5">
+                      {deviceInfo.deviceName}
+                    </h3>
+                    <p className="text-[11px] text-slate-400 truncate">
                       Fingerprint: <span className="font-mono text-slate-300">{deviceInfo.deviceId}</span>
                     </p>
                   </div>
@@ -1261,136 +1193,135 @@ export const AttendanceEnrollment: React.FC = () => {
                   <button
                     onClick={handleRegisterCurrentDevice}
                     disabled={deviceActionLoading}
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white text-xs font-black uppercase tracking-wider shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white text-xs font-black uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                   >
                     <Plus size={16} />
                     {registeredDevices.length >= 2
-                      ? 'Replace One Slot With This Device'
+                      ? 'Replace One Slot'
                       : 'Authorize This Device (+ Add Device)'}
                   </button>
                 )}
               </div>
 
               {/* DUAL DEVICE SLOTS (SLOT 1 & SLOT 2) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 {/* SLOT 1 */}
                 <div
-                  className={`p-5 rounded-2xl border transition-all ${
+                  className={`p-4 sm:p-5 rounded-2xl border transition-all ${
                     slot1
                       ? 'bg-slate-800/60 border-slate-700'
-                      : 'bg-slate-800/20 border-dashed border-slate-700 text-center flex flex-col items-center justify-center py-8'
+                      : 'bg-slate-800/20 border-dashed border-slate-700 text-center flex flex-col items-center justify-center py-6'
                   }`}
                 >
                   {slot1 ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-1 rounded-lg bg-orange-500/20 text-orange-400 text-[11px] font-black uppercase">
+                        <span className="px-2 py-0.5 rounded-lg bg-orange-500/20 text-orange-400 text-[10px] font-black uppercase">
                           Device Slot 1
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           {slot1.deviceId === deviceInfo.deviceId && (
                             <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
-                              In Use Now
+                              In Use
                             </span>
                           )}
                           <button
                             onClick={() => handleRemoveDevice(slot1.id, slot1.deviceName)}
                             disabled={deviceActionLoading}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                             title="Remove Device"
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <div className="p-3 bg-slate-700 text-slate-200 rounded-xl">
-                          {/Windows|Mac|Linux/i.test(slot1.os) ? <Laptop size={22} /> : <Smartphone size={22} />}
+                        <div className="p-2.5 bg-slate-700 text-slate-200 rounded-xl shrink-0">
+                          {/Windows|Mac|Linux/i.test(slot1.os) ? <Laptop size={20} /> : <Smartphone size={20} />}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-bold text-white truncate">{slot1.deviceName}</p>
-                          <p className="text-xs text-slate-400">
+                          <p className="text-xs text-slate-400 truncate">
                             {slot1.os} • {slot1.browser}
                           </p>
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-700/60 text-[11px] text-slate-400 flex justify-between">
-                        <span>Fingerprint: {slot1.deviceId.substring(0, 16)}...</span>
+                      <div className="pt-2 border-t border-slate-700/60 text-[10px] text-slate-400 flex justify-between">
+                        <span>Fingerprint: {slot1.deviceId.substring(0, 14)}...</span>
                         <span className="text-emerald-400 font-bold">● Active</span>
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 mx-auto">
-                        <Smartphone size={24} />
+                    <div className="space-y-1">
+                      <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 mx-auto">
+                        <Smartphone size={20} />
                       </div>
-                      <p className="text-xs font-bold text-slate-400">Device Slot 1 Empty</p>
-                      <p className="text-[11px] text-slate-500">Your primary device will be bound here.</p>
+                      <p className="text-xs font-bold text-slate-400">Slot 1 Empty</p>
                     </div>
                   )}
                 </div>
 
                 {/* SLOT 2 */}
                 <div
-                  className={`p-5 rounded-2xl border transition-all ${
+                  className={`p-4 sm:p-5 rounded-2xl border transition-all ${
                     slot2
                       ? 'bg-slate-800/60 border-slate-700'
-                      : 'bg-slate-800/20 border-dashed border-slate-700 text-center flex flex-col items-center justify-center py-8'
+                      : 'bg-slate-800/20 border-dashed border-slate-700 text-center flex flex-col items-center justify-center py-6'
                   }`}
                 >
                   {slot2 ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-1 rounded-lg bg-orange-500/20 text-orange-400 text-[11px] font-black uppercase">
+                        <span className="px-2 py-0.5 rounded-lg bg-orange-500/20 text-orange-400 text-[10px] font-black uppercase">
                           Device Slot 2
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           {slot2.deviceId === deviceInfo.deviceId && (
                             <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
-                              In Use Now
+                              In Use
                             </span>
                           )}
                           <button
                             onClick={() => handleRemoveDevice(slot2.id, slot2.deviceName)}
                             disabled={deviceActionLoading}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                             title="Remove Device"
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <div className="p-3 bg-slate-700 text-slate-200 rounded-xl">
-                          {/Windows|Mac|Linux/i.test(slot2.os) ? <Laptop size={22} /> : <Smartphone size={22} />}
+                        <div className="p-2.5 bg-slate-700 text-slate-200 rounded-xl shrink-0">
+                          {/Windows|Mac|Linux/i.test(slot2.os) ? <Laptop size={20} /> : <Smartphone size={20} />}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-bold text-white truncate">{slot2.deviceName}</p>
-                          <p className="text-xs text-slate-400">
+                          <p className="text-xs text-slate-400 truncate">
                             {slot2.os} • {slot2.browser}
                           </p>
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-700/60 text-[11px] text-slate-400 flex justify-between">
-                        <span>Fingerprint: {slot2.deviceId.substring(0, 16)}...</span>
+                      <div className="pt-2 border-t border-slate-700/60 text-[10px] text-slate-400 flex justify-between">
+                        <span>Fingerprint: {slot2.deviceId.substring(0, 14)}...</span>
                         <span className="text-emerald-400 font-bold">● Active</span>
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 mx-auto">
-                        <Laptop size={24} />
+                    <div className="space-y-2">
+                      <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 mx-auto">
+                        <Laptop size={20} />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-slate-300">Device Slot 2 Available</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
+                        <p className="text-xs font-bold text-slate-300">Slot 2 Available</p>
+                        <p className="text-[10px] text-slate-400">
                           {isCurrentDeviceRegistered
-                            ? 'Available for your second workstation (e.g. Work Laptop or Mobile Phone).'
-                            : 'Click below to authorize your current workstation as your 2nd device.'}
+                            ? 'Available for your second workstation (Laptop or Phone).'
+                            : 'Click below to authorize your current workstation as Device 2.'}
                         </p>
                       </div>
 
@@ -1398,9 +1329,9 @@ export const AttendanceEnrollment: React.FC = () => {
                         <button
                           onClick={handleRegisterCurrentDevice}
                           disabled={deviceActionLoading}
-                          className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+                          className="px-3.5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all shadow-md"
                         >
-                          + Bind Current Device to Slot 2
+                          + Bind Current Device
                         </button>
                       )}
                     </div>
@@ -1408,18 +1339,7 @@ export const AttendanceEnrollment: React.FC = () => {
                 </div>
               </div>
 
-              {/* POLICY INFO NOTICE */}
-              <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60 text-xs text-slate-400 flex items-start gap-3">
-                <ShieldCheck size={18} className="text-orange-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-slate-200">Two-Device Authorization Policy</p>
-                  <p className="mt-0.5">
-                    For corporate security and buddy-punching prevention, each employee is restricted to a maximum of 2 physical devices. When you log in with your phone or laptop, attendance verification accepts either of your 2 registered devices seamlessly.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex justify-between pt-4">
+              <div className="flex justify-between pt-2">
                 <button
                   onClick={() => setStep(3)}
                   className="px-5 py-2.5 rounded-xl border border-slate-700 font-bold text-xs text-slate-300 hover:bg-slate-800 flex items-center gap-1.5"
@@ -1430,44 +1350,44 @@ export const AttendanceEnrollment: React.FC = () => {
                   onClick={() => setStep(5)}
                   className="px-6 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-orange-500/25 transition-all"
                 >
-                  Proceed to Office Geofence <ChevronRight size={16} />
+                  Next: Geofence <ChevronRight size={16} />
                 </button>
               </div>
             </motion.div>
           )}
 
-          {/* ================= STEP 5: PHYSICAL OFFICE GEOFENCE VERIFICATION ================= */}
+          {/* ================= STEP 5: PHYSICAL OFFICE GEOFENCE ================= */}
           {step === 5 && (
             <motion.div
               key="step5"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-6"
+              className="space-y-4 sm:space-y-6"
             >
-              <div className="border-b border-slate-800 pb-4">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <div className="border-b border-slate-800 pb-3">
+                <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                   <MapPin className="text-orange-500" size={20} />
                   Step 5: Physical Office Geofence Verification
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-slate-400 mt-0.5">
                   You must stand inside the assigned office geofence to finalize your enrollment.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                <div className="p-6 rounded-3xl bg-slate-800/60 border border-slate-700/60 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-[10px] uppercase font-bold text-orange-400">Target Geofence</p>
-                      <h4 className="text-base font-extrabold text-white">{office?.name}</h4>
+                      <h4 className="text-sm sm:text-base font-extrabold text-white">{office?.name}</h4>
                     </div>
-                    <span className="px-3 py-1 bg-orange-500/20 text-orange-400 border border-orange-500/30 text-xs font-bold rounded-lg">
+                    <span className="px-2.5 py-1 bg-orange-500/20 text-orange-400 border border-orange-500/30 text-xs font-bold rounded-lg">
                       Radius: {office?.radiusMeters || 200}m
                     </span>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-slate-900 border border-slate-700/60 space-y-2">
+                  <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-700/60 space-y-2">
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-400 font-semibold">Office Location:</span>
                       <span className="font-mono font-bold text-white">
@@ -1480,8 +1400,8 @@ export const AttendanceEnrollment: React.FC = () => {
                         {currentCoords ? `${currentCoords.latitude.toFixed(4)}°, ${currentCoords.longitude.toFixed(4)}°` : 'Acquiring GPS...'}
                       </span>
                     </div>
-                    <div className="flex justify-between text-xs pt-2 border-t border-slate-800">
-                      <span className="text-slate-400 font-semibold">Calculated Distance:</span>
+                    <div className="flex justify-between text-xs pt-1.5 border-t border-slate-800">
+                      <span className="text-slate-400 font-semibold">Distance:</span>
                       <span
                         className={`font-black text-sm ${
                           distanceToOffice !== null && distanceToOffice <= (office?.radiusMeters || 200)
@@ -1504,16 +1424,16 @@ export const AttendanceEnrollment: React.FC = () => {
                   <button
                     onClick={verifyGeofenceLocation}
                     disabled={gpsLoading}
-                    className="w-full py-3 rounded-xl border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 font-bold text-xs flex items-center justify-center gap-2 transition-all"
+                    className="w-full py-2.5 rounded-xl border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 font-bold text-xs flex items-center justify-center gap-2 transition-all"
                   >
                     <RotateCcw size={14} className={gpsLoading ? 'animate-spin' : ''} />
                     {gpsLoading ? 'Re-calculating distance...' : 'Refresh GPS Coordinates'}
                   </button>
                 </div>
 
-                <div className="flex flex-col items-center justify-center p-8 rounded-3xl bg-slate-800/40 border border-slate-700/60 text-center space-y-4">
+                <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-slate-800/40 border border-slate-700/60 text-center space-y-3">
                   <div
-                    className={`w-20 h-20 rounded-full flex items-center justify-center text-3xl shadow-xl transition-all ${
+                    className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl shadow-xl transition-all ${
                       gpsLoading
                         ? 'bg-amber-500 text-white'
                         : !currentCoords || gpsError
@@ -1524,18 +1444,18 @@ export const AttendanceEnrollment: React.FC = () => {
                     }`}
                   >
                     {gpsLoading ? (
-                      <RotateCcw size={36} className="animate-spin" />
+                      <RotateCcw size={28} className="animate-spin" />
                     ) : !currentCoords || gpsError ? (
-                      <AlertTriangle size={38} />
+                      <AlertTriangle size={30} />
                     ) : geofencePassed ? (
-                      <CheckCircle2 size={40} />
+                      <CheckCircle2 size={32} />
                     ) : (
-                      <AlertTriangle size={40} />
+                      <AlertTriangle size={32} />
                     )}
                   </div>
 
                   <div>
-                    <h3 className="text-base font-extrabold text-white">
+                    <h3 className="text-sm sm:text-base font-extrabold text-white">
                       {gpsLoading
                         ? 'Acquiring GPS Signal...'
                         : !currentCoords || gpsError
@@ -1548,16 +1468,16 @@ export const AttendanceEnrollment: React.FC = () => {
                       {gpsLoading
                         ? 'Connecting to satellites & local networks...'
                         : !currentCoords || gpsError
-                        ? 'Could not lock GPS signal yet. Please tap "Refresh GPS Coordinates" or check device location accuracy.'
+                        ? 'Could not lock GPS signal yet. Please tap "Refresh GPS Coordinates".'
                         : geofencePassed
-                        ? `Coordinates verified. You are ${distanceToOffice}m from ${office?.name}, within the allowed radius of ${office?.radiusMeters}m.`
-                        : `Please move inside ${office?.name} boundary (within ${office?.radiusMeters}m radius) to finalize enrollment.`}
+                        ? `Coordinates verified. You are ${distanceToOffice}m from ${office?.name}, within allowed ${office?.radiusMeters}m.`
+                        : `Please move inside ${office?.name} boundary (within ${office?.radiusMeters}m) to complete enrollment.`}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex justify-between pt-4">
+              <div className="flex justify-between pt-2">
                 <button
                   onClick={() => setStep(4)}
                   className="px-5 py-2.5 rounded-xl border border-slate-700 font-bold text-xs text-slate-300 hover:bg-slate-800 flex items-center gap-1.5"
@@ -1569,7 +1489,7 @@ export const AttendanceEnrollment: React.FC = () => {
                   disabled={!geofencePassed}
                   className="px-6 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-orange-500/25 disabled:opacity-50 transition-all"
                 >
-                  Confirm & Review Enrollment <ChevronRight size={16} />
+                  Confirm & Review <ChevronRight size={16} />
                 </button>
               </div>
             </motion.div>
@@ -1582,22 +1502,22 @@ export const AttendanceEnrollment: React.FC = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-6"
+              className="space-y-4 sm:space-y-6"
             >
               {!enrollmentDone ? (
                 <>
-                  <div className="border-b border-slate-800 pb-4">
-                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <div className="border-b border-slate-800 pb-3">
+                    <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                       <ShieldCheck className="text-orange-500" size={20} />
                       Step 6: Finalize Biometric Enrollment
                     </h2>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-slate-400 mt-0.5">
                       Review all verified biometric, device, and location parameters before finalizing setup.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-1">
                       <p className="text-[10px] font-bold uppercase text-slate-400">Employee Identification</p>
                       <p className="text-sm font-bold text-white">
                         {user?.firstName} {user?.lastName} ({user?.employeeId})
@@ -1605,7 +1525,7 @@ export const AttendanceEnrollment: React.FC = () => {
                       <p className="text-xs text-slate-400">{user?.department}</p>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-1">
+                    <div className="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-1">
                       <p className="text-[10px] font-bold uppercase text-slate-400">Assigned Geofence</p>
                       <p className="text-sm font-bold text-white">{office?.name}</p>
                       <p className="text-xs text-emerald-400 font-bold">
@@ -1613,13 +1533,13 @@ export const AttendanceEnrollment: React.FC = () => {
                       </p>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-1">
+                    <div className="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-1">
                       <p className="text-[10px] font-bold uppercase text-slate-400">Authorized Workstation</p>
                       <p className="text-sm font-bold text-white">{deviceInfo.deviceName}</p>
                       <p className="text-xs text-slate-400 font-mono truncate">{deviceInfo.deviceId}</p>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-1">
+                    <div className="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-1">
                       <p className="text-[10px] font-bold uppercase text-slate-400">Biometric Template</p>
                       <p className="text-sm font-bold text-orange-400">
                         ✓ {Object.keys(angleCaptures).length} Angles Extracted (128-dim Vector)
@@ -1628,14 +1548,14 @@ export const AttendanceEnrollment: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 text-xs text-orange-300 flex items-center gap-3">
-                    <Sparkles className="text-orange-400 shrink-0" size={20} />
+                  <div className="p-3.5 rounded-2xl bg-orange-500/10 border border-orange-500/30 text-xs text-orange-300 flex items-center gap-2.5">
+                    <Sparkles className="text-orange-400 shrink-0" size={18} />
                     <span>
-                      Once saved, your Attendance Biometric Setup is complete. You can seamlessly mark daily attendance from either of your 2 registered devices.
+                      Once saved, your attendance setup is complete. You can mark attendance seamlessly from either of your 2 registered devices.
                     </span>
                   </div>
 
-                  <div className="flex justify-between pt-4">
+                  <div className="flex justify-between pt-2">
                     <button
                       onClick={() => setStep(5)}
                       className="px-5 py-2.5 rounded-xl border border-slate-700 font-bold text-xs text-slate-300 hover:bg-slate-800 flex items-center gap-1.5"
@@ -1645,7 +1565,7 @@ export const AttendanceEnrollment: React.FC = () => {
                     <button
                       onClick={handleSubmitEnrollment}
                       disabled={submitting}
-                      className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 shadow-xl shadow-orange-500/30 disabled:opacity-50 transition-all"
+                      className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 shadow-xl shadow-orange-500/30 disabled:opacity-50 transition-all"
                     >
                       {submitting ? (
                         <>
@@ -1662,13 +1582,13 @@ export const AttendanceEnrollment: React.FC = () => {
                 </>
               ) : (
                 /* Celebration Complete Screen */
-                <div className="py-8 text-center space-y-6">
-                  <div className="w-24 h-24 rounded-full bg-emerald-500/20 border-2 border-emerald-500/40 text-emerald-400 mx-auto flex items-center justify-center shadow-2xl shadow-emerald-500/30 animate-bounce">
-                    <CheckCircle2 size={52} />
+                <div className="py-6 text-center space-y-4">
+                  <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-500/40 text-emerald-400 mx-auto flex items-center justify-center shadow-2xl shadow-emerald-500/30 animate-bounce">
+                    <CheckCircle2 size={46} />
                   </div>
 
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-black text-white">
+                  <div className="space-y-1.5">
+                    <h2 className="text-xl sm:text-2xl font-black text-white">
                       Attendance Enrollment Completed!
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
@@ -1676,10 +1596,10 @@ export const AttendanceEnrollment: React.FC = () => {
                     </p>
                   </div>
 
-                  <div className="flex justify-center gap-4 pt-4">
+                  <div className="flex justify-center gap-4 pt-2">
                     <button
                       onClick={() => navigate('/attendance')}
-                      className="px-8 py-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs uppercase tracking-wider shadow-xl shadow-orange-500/30 transition-all"
+                      className="px-8 py-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs uppercase tracking-wider shadow-xl shadow-orange-500/30 transition-all"
                     >
                       Go to Smart Attendance Console
                     </button>
