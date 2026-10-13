@@ -12,6 +12,8 @@ import {
   RefreshCw,
   MapPin,
   ExternalLink,
+  Smartphone,
+  Laptop,
 } from 'lucide-react';
 import api from '../services/api';
 import { getClientDeviceInfo } from '../utils/deviceFingerprint';
@@ -52,7 +54,11 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
     remaining: number;
     message: string;
     isLockedAbsent: boolean;
+    canRegisterDevice?: boolean;
+    deviceId?: string;
+    deviceName?: string;
   } | null>(null);
+  const [registeringDevice, setRegisteringDevice] = useState<boolean>(false);
 
   // Success state
   const [successData, setSuccessData] = useState<any | null>(null);
@@ -277,6 +283,21 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
             return;
           }
 
+          if (data?.canRegisterDevice) {
+            setWarningData({
+              count: 0,
+              max: 2,
+              remaining: 1,
+              message: data.message || 'New device detected. You can register up to 2 devices for attendance.',
+              isLockedAbsent: false,
+              canRegisterDevice: true,
+              deviceId: data.deviceId,
+              deviceName: data.deviceName,
+            });
+            isVerifyingRef.current = false;
+            return;
+          }
+
           if (data?.enrollmentPending) {
             setWarningData({
               count: 0,
@@ -497,7 +518,33 @@ export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
 
               {/* Action Buttons inside Warning Box */}
               <div className="flex gap-2 pt-2 border-t border-white/10">
-                {warningData.message.includes('enrollment required') || warningData.count === 0 ? (
+                {warningData.canRegisterDevice ? (
+                  <button
+                    onClick={async () => {
+                      try {
+                        setRegisteringDevice(true);
+                        const dev = getClientDeviceInfo();
+                        await api.post('/attendance/devices/register', {
+                          deviceId: dev.deviceId,
+                          deviceName: dev.deviceName,
+                          browser: dev.browser,
+                          os: dev.os,
+                        });
+                        setWarningData(null);
+                        handleRetry();
+                      } catch (e: any) {
+                        alert(e.response?.data?.message || 'Failed to authorize device');
+                      } finally {
+                        setRegisteringDevice(false);
+                      }
+                    }}
+                    disabled={registeringDevice}
+                    className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg transition-all"
+                  >
+                    <Smartphone size={16} />
+                    <span>{registeringDevice ? 'Authorizing Device...' : '+ Authorize This Device as 2nd Attendance Device'}</span>
+                  </button>
+                ) : warningData.message.includes('enrollment required') || warningData.count === 0 ? (
                   <button
                     onClick={() => {
                       onClose();

@@ -26,6 +26,9 @@ import {
   getEnrollmentStatus,
   completeEnrollment,
   resetEmployeeEnrollment,
+  getRegisteredDevices,
+  registerDevice,
+  removeRegisteredDevice,
   clearTodayAttendance,
   clearAllTodayAttendance,
   smartVerifyAndMark,
@@ -60,6 +63,11 @@ router.get('/enrollment/status', getEnrollmentStatus);
 router.post('/enrollment/complete', completeEnrollment);
 router.post('/enrollment/reset/:employeeId', restrictTo('SUPER_ADMIN', 'HR'), resetEmployeeEnrollment);
 router.delete('/enrollment/reset/:employeeId', restrictTo('SUPER_ADMIN', 'HR'), resetEmployeeEnrollment);
+
+// 3.1 Device Authorization & Multi-Device Slots (Max 2 Devices per Employee)
+router.get('/devices', getRegisteredDevices);
+router.post('/devices/register', registerDevice);
+router.delete('/devices/:id', removeRegisteredDevice);
 
 // 4. Admin Attendance Clearing (Today single employee / Today all employees)
 router.delete('/admin/today-all', restrictTo('SUPER_ADMIN', 'HR'), clearAllTodayAttendance);

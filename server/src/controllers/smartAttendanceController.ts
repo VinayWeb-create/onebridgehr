@@ -373,6 +373,9 @@ export const getEnrollmentStatus = async (req: Request, res: Response, next: Nex
         },
         office: assignedOffice,
         registeredDevices: employee.registeredDevices,
+        totalDevices: employee.registeredDevices.length,
+        maxDevices: 2,
+        canAddDevice: employee.registeredDevices.length < 2,
       },
     });
   } catch (error) {
@@ -511,7 +514,7 @@ export const completeEnrollment = async (req: Request, res: Response, next: Next
       },
     });
 
-    // Register / update Device in RegisteredDevice
+    // Register / update Device in RegisteredDevice (Max 2 devices)
     const existingDevice = await prisma.registeredDevice.findFirst({
       where: { employeeId, deviceId },
     });
@@ -528,16 +531,36 @@ export const completeEnrollment = async (req: Request, res: Response, next: Next
         },
       });
     } else {
-      await prisma.registeredDevice.create({
-        data: {
-          employeeId,
-          deviceId,
-          deviceName: deviceName || 'Registered Device',
-          browser: browser || 'Unknown',
-          os: os || 'Unknown',
-          isActive: true,
-        },
+      const activeDevices = await prisma.registeredDevice.findMany({
+        where: { employeeId, isActive: true },
+        orderBy: { registeredAt: 'asc' },
       });
+
+      if (activeDevices.length < 2) {
+        await prisma.registeredDevice.create({
+          data: {
+            employeeId,
+            deviceId,
+            deviceName: deviceName || 'Registered Device',
+            browser: browser || 'Unknown',
+            os: os || 'Unknown',
+            isActive: true,
+          },
+        });
+      } else {
+        // When max 2 devices reached, replace the least recently used device
+        await prisma.registeredDevice.update({
+          where: { id: activeDevices[0].id },
+          data: {
+            deviceId,
+            deviceName: deviceName || 'Registered Device',
+            browser: browser || 'Unknown',
+            os: os || 'Unknown',
+            lastUsedAt: new Date(),
+            isActive: true,
+          },
+        });
+      }
     }
 
     // Ensure employee has assigned officeId
@@ -643,6 +666,193 @@ export const resetEmployeeEnrollment = async (req: Request, res: Response, next:
     res.status(200).json({
       status: 'success',
       message: `Enrollment and device registration reset for ${employeeId}. Employee can now re-enroll face biometrics and device.`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get all registered attendance devices for an employee (Max 2 devices)
+ */
+export const getRegisteredDevices = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const employeeId = req.user?.employeeId;
+    if (!employeeId) return next(new AppError('Unauthorized', 401));
+
+    const devices = await prisma.registeredDevice.findMany({
+      where: { employeeId },
+      orderBy: { registeredAt: 'asc' },
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        devices,
+        total: devices.length,
+        maxDevices: 2,
+        canAddDevice: devices.length < 2,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Register / Authorize a new device for biometric attendance (Max 2 devices)
+ */
+export const registerDevice = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const employeeId = req.user?.employeeId;
+    if (!employeeId) return next(new AppError('Unauthorized', 401));
+
+    const { deviceId, deviceName, browser, os, ipAddress } = req.body;
+    if (!deviceId) {
+      return next(new AppError('Device fingerprint ID is required', 400));
+    }
+
+    const employee = await prisma.employee.findUnique({
+      where: { employeeId },
+      include: { registeredDevices: true },
+    });
+
+    if (!employee) {
+      return next(new AppError('Employee profile not found', 404));
+    }
+
+    const existingDevice = employee.registeredDevices.find((d) => d.deviceId === deviceId);
+    if (existingDevice) {
+      const updated = await prisma.registeredDevice.update({
+        where: { id: existingDevice.id },
+        data: {
+          deviceName: deviceName || existingDevice.deviceName,
+          browser: browser || existingDevice.browser,
+          os: os || existingDevice.os,
+          lastUsedAt: new Date(),
+          isActive: true,
+        },
+      });
+
+      const allDevices = await prisma.registeredDevice.findMany({
+        where: { employeeId, isActive: true },
+        orderBy: { registeredAt: 'asc' },
+      });
+
+      return res.status(200).json({
+        status: 'success',
+        message: 'Device is already registered and updated.',
+        data: {
+          device: updated,
+          devices: allDevices,
+          total: allDevices.length,
+          maxDevices: 2,
+        },
+      });
+    }
+
+    // Enforce MAX 2 devices per employee
+    const activeDevices = employee.registeredDevices.filter((d) => d.isActive);
+    if (activeDevices.length >= 2) {
+      return res.status(400).json({
+        status: 'fail',
+        limitReached: true,
+        message:
+          'Maximum 2 authorized devices allowed per employee (e.g. Work Laptop and Mobile). Please remove an existing device before registering this one.',
+        data: {
+          registeredDevices: activeDevices,
+          maxDevices: 2,
+        },
+      });
+    }
+
+    const newDevice = await prisma.registeredDevice.create({
+      data: {
+        employeeId,
+        deviceId,
+        deviceName: deviceName || (os ? `${os} Device` : 'Workstation'),
+        browser: browser || 'Unknown',
+        os: os || 'Unknown',
+        ipAddress: ipAddress || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress,
+        userAgent: req.headers['user-agent'],
+        isActive: true,
+      },
+    });
+
+    await logActivity(
+      employeeId,
+      'ATTENDANCE_DEVICE_REGISTERED',
+      `Registered attendance device: ${newDevice.deviceName} (${newDevice.deviceId}) [Slot ${activeDevices.length + 1} of 2]`,
+      req
+    );
+
+    const allDevices = await prisma.registeredDevice.findMany({
+      where: { employeeId, isActive: true },
+      orderBy: { registeredAt: 'asc' },
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: `Device successfully authorized (${allDevices.length} of 2 slots used).`,
+      data: {
+        device: newDevice,
+        devices: allDevices,
+        total: allDevices.length,
+        maxDevices: 2,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Remove an authorized device for an employee (frees up slot)
+ */
+export const removeRegisteredDevice = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const employeeId = req.user?.employeeId;
+    const userRole = req.user?.role;
+    const { id } = req.params;
+
+    if (!employeeId) return next(new AppError('Unauthorized', 401));
+
+    const device = await prisma.registeredDevice.findUnique({
+      where: { id },
+    });
+
+    if (!device) {
+      return next(new AppError('Device not found', 404));
+    }
+
+    if (device.employeeId !== employeeId && !['HR', 'SUPER_ADMIN'].includes(userRole || '')) {
+      return next(new AppError('Permission denied', 403));
+    }
+
+    await prisma.registeredDevice.delete({
+      where: { id },
+    });
+
+    await logActivity(
+      employeeId,
+      'ATTENDANCE_DEVICE_REMOVED',
+      `Removed registered device: ${device.deviceName} (${device.deviceId})`,
+      req
+    );
+
+    const remainingDevices = await prisma.registeredDevice.findMany({
+      where: { employeeId: device.employeeId, isActive: true },
+      orderBy: { registeredAt: 'asc' },
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Device unregistered successfully. Slot is now available to register a new device.',
+      data: {
+        devices: remainingDevices,
+        total: remainingDevices.length,
+        maxDevices: 2,
+      },
     });
   } catch (error) {
     next(error);
@@ -979,9 +1189,26 @@ export const smartVerifyAndMark = async (req: Request, res: Response, next: Next
         employee.registeredDevices.some((d) => d.deviceId === deviceId && d.isActive);
 
       if (!isDeviceMatched) {
+        const activeDevices = employee.registeredDevices.filter((d) => d.isActive);
+
+        // If employee has fewer than 2 devices registered (e.g. they only enrolled on phone, now logging in on laptop),
+        // offer them to register this second device without immediately penalizing with an attendance warning
+        if (activeDevices.length < 2) {
+          return res.status(400).json({
+            status: 'fail',
+            code: 'DEVICE_MISMATCH_CAN_REGISTER',
+            canRegisterDevice: true,
+            deviceId,
+            deviceName: deviceName || 'Work Device',
+            registeredDevicesCount: activeDevices.length,
+            maxDevices: 2,
+            message: `New device detected (${deviceName || 'Workstation'}). You have 1 slot available (${activeDevices.length}/2 registered). Click below to authorize this device for your attendance.`,
+          });
+        }
+
         return recordFailureAndWarn(
           'DEVICE_MISMATCH',
-          `Attempted check-in from unregistered device (${deviceName || deviceId || 'Unknown'}). Policy requires your enrolled device.`,
+          `Attempted check-in from unregistered device (${deviceName || deviceId || 'Unknown'}). Policy requires one of your 2 registered devices.`,
           { deviceId, latitude, longitude }
         );
       }
