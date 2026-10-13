@@ -74,6 +74,7 @@ export const Login: React.FC = () => {
       });
 
       if (res.data.status === 'success') {
+        sessionStorage.removeItem('obi_push_dismissed_session');
         setSessionConflictModalOpen(false);
         setRobotState('success');
         const { token, refreshToken, user } = res.data.data;
