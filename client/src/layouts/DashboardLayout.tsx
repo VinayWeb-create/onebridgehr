@@ -48,9 +48,8 @@ import {
   Download,
   CheckCircle2,
 } from 'lucide-react';
-import api from '../services/api';
+import api, { resolveImageUrl } from '../services/api';
 import { triggerPwaInstall, usePwaInstall } from '../components/PwaInstallPrompt';
-import { NotificationPermissionModal } from '../components/NotificationPermissionModal';
 import { sendTestPushNotification, subscribeToPushNotifications } from '../registerServiceWorker';
 
 interface NotificationToast {
@@ -72,6 +71,11 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
   const [testingPush, setTestingPush] = useState(false);
   const [pushFeedback, setPushFeedback] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.profileImageUrl]);
 
   const handleTestPush = async () => {
     setTestingPush(true);
@@ -96,23 +100,6 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     
     socket.on('connect', () => {
       socket.emit('register', user.employeeId);
-    });
-
-    const terminateSessionLocally = (msg?: string) => {
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-      sessionStorage.setItem(
-        'logout_reason',
-        msg ||
-          'Your session was ended because this account was logged into from another device. Only one active device is allowed at a time.'
-      );
-      window.location.href = '/login?reason=session_terminated';
-    };
-
-    // Realtime remote termination event from socket
-    socket.on('SESSION_TERMINATED', (data: { message?: string; newDevice?: string }) => {
-      terminateSessionLocally(data.message);
     });
 
     // Realtime energetic greetings (morning, afternoon, evening)
@@ -145,28 +132,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       }, 6000);
     });
 
-    // Periodic Heartbeat & Window Focus validation (guarantees device cannot remain logged in)
-    const checkActiveSession = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      try {
-        await api.get('/auth/validate-session');
-      } catch (err: any) {
-        if (err.response?.status === 401 && err.response?.data?.code === 'SESSION_TERMINATED') {
-          terminateSessionLocally(err.response?.data?.message);
-        }
-      }
-    };
-
-    const heartbeatInterval = setInterval(checkActiveSession, 10000);
-    const onFocus = () => { checkActiveSession(); };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onFocus);
-
     return () => {
-      clearInterval(heartbeatInterval);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onFocus);
       socket.disconnect();
     };
   }, [user]);
@@ -832,9 +798,14 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
               to="/profile"
               className="flex items-center space-x-2.5 pl-1.5 sm:pl-2 sm:border-l border-brand-200 dark:border-brand-900 group cursor-pointer"
             >
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-brand-200 dark:bg-brand-900 overflow-hidden flex items-center justify-center border border-orange-500 shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
-                {user.profileImageUrl ? (
-                  <img src={user.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white dark:bg-slate-900 overflow-hidden flex items-center justify-center border border-orange-500 shrink-0 shadow-2xs group-hover:scale-105 transition-transform p-0.5">
+                {user.profileImageUrl && !avatarError ? (
+                  <img
+                    src={resolveImageUrl(user.profileImageUrl)}
+                    alt=""
+                    onError={() => setAvatarError(true)}
+                    className={`w-full h-full ${user.profileImageUrl.includes('image.png') || user.profileImageUrl.includes('logo') ? 'object-contain' : 'object-cover rounded-lg'}`}
+                  />
                 ) : (
                   <span className="font-extrabold text-xs text-orange-600 uppercase">{user.firstName[0]}{user.lastName[0]}</span>
                 )}
@@ -893,9 +864,6 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           ))}
         </AnimatePresence>
       </div>
-
-      {/* Push Notification Permission Modal (Prompts every login attempt until enabled) */}
-      <NotificationPermissionModal />
     </div>
   );
 };

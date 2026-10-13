@@ -537,7 +537,15 @@ export const uploadProfileImage = async (req: Request, res: Response, next: Next
       return next(new AppError('No image file uploaded', 400));
     }
 
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    let fileUrl = '';
+    const filePath = req.file.path || path.join(process.cwd(), 'uploads', req.file.filename);
+    if (fs.existsSync(filePath)) {
+      const fileBuffer = fs.readFileSync(filePath);
+      const mimeType = req.file.mimetype || 'image/jpeg';
+      fileUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`;
+    } else {
+      fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    }
 
     await prisma.employee.update({
       where: { employeeId },

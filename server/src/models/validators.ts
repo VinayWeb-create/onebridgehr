@@ -92,8 +92,8 @@ export const updateEmployeeSchema = z.object({
   validity: z.string().or(z.date()).transform((val) => new Date(val)).optional(),
   currentAddress: z.string().optional(),
   permanentAddress: z.string().optional(),
-  profileImageUrl: z.string().optional(),
-  signatureUrl: z.string().optional(),
+  profileImageUrl: z.string().nullable().optional(),
+  signatureUrl: z.string().nullable().optional(),
   
   personalInfo: personalInfoSchema.optional(),
   professionalInfo: professionalInfoSchema.optional(),

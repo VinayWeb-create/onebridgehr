@@ -1,6 +1,6 @@
 import { useDialog } from '../context/DialogContext';
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import api, { resolveImageUrl } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   CreditCard, Printer, Download, FlipHorizontal, RefreshCw, AlertCircle, PhoneCall
@@ -214,7 +214,14 @@ export const IdCard: React.FC = () => {
                     {/* Circular profile image card */}
                     <div style={{ width: '136px', height: '136px', margin: '0 auto 6px', padding: '4px', border: '5px solid #f97316', borderRadius: '50%', background: '#ffffff', position: 'relative', overflow: 'hidden', flexShrink: 0, boxShadow: '0 12px 24px rgba(0,0,0,0.15)', zIndex: 20 }}>
                       {cardData.profileImageUrl ? (
-                        <img src={cardData.profileImageUrl} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} alt="ID Photo" />
+                        <img
+                          src={resolveImageUrl(cardData.profileImageUrl)}
+                          style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: cardData.profileImageUrl.includes('image.png') ? 'contain' : 'cover' }}
+                          alt="ID Photo"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                          }}
+                        />
                       ) : (
                         <div className="w-full h-full rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-extrabold text-3xl uppercase">
                           {cardData.firstName[0]}{cardData.lastName[0]}

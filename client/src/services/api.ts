@@ -11,6 +11,27 @@ export const SOCKET_URL = import.meta.env.VITE_API_URL
       ? 'http://localhost:5000' 
       : 'https://onebridgehr.onrender.com');
 
+export const resolveImageUrl = (url?: string | null): string => {
+  if (!url) return '';
+  if (url.startsWith('data:')) return url;
+  if (url === '/image.png' || url.startsWith('/image') || url.startsWith('/mascot') || url.startsWith('/icons')) {
+    return url;
+  }
+  if (url.startsWith('/uploads/')) {
+    return `${SOCKET_URL}${url}`;
+  }
+  if (url.startsWith('uploads/')) {
+    return `${SOCKET_URL}/${url}`;
+  }
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    if (url.includes('localhost:5000')) {
+      const path = url.split('localhost:5000')[1];
+      return `${SOCKET_URL}${path}`;
+    }
+  }
+  return url;
+};
+
 const API_BASE_URL = `${SOCKET_URL}/api`;
 
 export const api = axios.create({
@@ -39,18 +60,6 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     if (error.response?.status === 401) {
-      if (error.response?.data?.code === 'SESSION_TERMINATED') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        sessionStorage.setItem(
-          'logout_reason',
-          'Your session was ended because you logged in from another device. Only one active device is allowed at a time.'
-        );
-        window.location.href = '/login?reason=session_terminated';
-        return Promise.reject(error);
-      }
-
       if (!originalRequest._retry) {
         originalRequest._retry = true;
         const refToken = localStorage.getItem('refreshToken');
@@ -73,19 +82,12 @@ api.interceptors.response.use(
             localStorage.removeItem('token');
             localStorage.removeItem('refreshToken');
             localStorage.removeItem('user');
-            if (refreshError.response?.data?.code === 'SESSION_TERMINATED') {
-              sessionStorage.setItem(
-                'logout_reason',
-                'Your session was ended because you logged in from another device. Only one active device is allowed at a time.'
-              );
-              window.location.href = '/login?reason=session_terminated';
-            } else {
-              window.location.href = '/login';
-            }
+            window.location.href = '/login';
             return Promise.reject(refreshError);
           }
         }
       }
+    }
     }
 
     return Promise.reject(error);

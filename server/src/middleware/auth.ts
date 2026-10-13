@@ -50,27 +50,6 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       return next(new AppError('The user belonging to this token no longer exists.', 401));
     }
 
-    // Single active device session enforcement:
-    // Only one device can hold the active session. If activeSessionId is set in the DB,
-    // the incoming token MUST have a matching sessionId. Missing or different sessionId = terminate session.
-    if (currentUser.activeSessionId) {
-      if (!decoded.sessionId || decoded.sessionId !== currentUser.activeSessionId) {
-        return next(
-          new AppError(
-            'Your session has ended because this account was logged into from another device.',
-            401,
-            'SESSION_TERMINATED'
-          )
-        );
-      }
-    } else if (decoded.sessionId) {
-      // First session recorded for this user
-      await prisma.user.update({
-        where: { id: currentUser.id },
-        data: { activeSessionId: decoded.sessionId },
-      });
-    }
-
     // Check lock status
     if (currentUser.lockedUntil && currentUser.lockedUntil > new Date()) {
       return next(

@@ -1,11 +1,51 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import api, { resolveImageUrl } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import html2canvas from 'html2canvas';
+
+const compressImageToBase64 = (file: File, maxWidth = 320, maxHeight = 320, quality = 0.85): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(event.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
 import {
-  User, KeyRound, Upload, ShieldCheck, Mail, Phone, CalendarDays, Award, Edit3, X, Save, Copy, Download
+  User, KeyRound, Upload, ShieldCheck, Mail, Phone, CalendarDays, Award, Edit3, X, Save, Copy, Download, Camera, Image
 } from 'lucide-react';
 
 interface FullProfile {
@@ -61,6 +101,7 @@ export const Profile: React.FC = () => {
   const [editDesignation, setEditDesignation] = useState('');
   const [editDepartment, setEditDepartment] = useState('');
   const [editCustomUrl, setEditCustomUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Password fields
   const [currentPassword, setCurrentPassword] = useState('');
@@ -72,6 +113,12 @@ export const Profile: React.FC = () => {
   const [profileTheme, setProfileTheme] = useState<string>(() => {
     return localStorage.getItem('profileTheme') || 'orange';
   });
+
+  const [profileAvatarError, setProfileAvatarError] = useState(false);
+
+  useEffect(() => {
+    setProfileAvatarError(false);
+  }, [profile?.profileImageUrl]);
 
   useEffect(() => {
     fetchProfile();
@@ -163,6 +210,83 @@ export const Profile: React.FC = () => {
       setIsEditing(false);
     } catch (err: any) {
       await alert({ title: 'Error', message: err.response?.data?.message || 'Profile update failed', variant: 'error' });
+    }
+  };
+
+  const handleProfileImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!profile || !e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+
+    setUploadingImage(true);
+    try {
+      // 1. Compress image client-side to compact base64 (~25-45KB)
+      const base64Image = await compressImageToBase64(file);
+
+      // 2. Persist directly to MongoDB Atlas
+      await api.put(`/employees/${profile.employeeId}`, {
+        profileImageUrl: base64Image,
+      });
+
+      setProfile((prev) => (prev ? { ...prev, profileImageUrl: base64Image } : null));
+      setProfileAvatarError(false);
+      updateUserCache({ profileImageUrl: base64Image } as any);
+      await alert({ title: 'Success', message: 'Profile picture saved successfully!', variant: 'info' });
+    } catch (err: any) {
+      // Fallback: try multipart upload if PUT fails
+      try {
+        const formData = new FormData();
+        formData.append('profileImage', file);
+        const res = await api.post(`/employees/${profile.employeeId}/profile-image`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        const newUrl = res.data.data.profileImageUrl;
+        setProfile((prev) => (prev ? { ...prev, profileImageUrl: newUrl } : null));
+        setProfileAvatarError(false);
+        updateUserCache({ profileImageUrl: newUrl } as any);
+        await alert({ title: 'Success', message: 'Profile picture updated successfully!', variant: 'info' });
+      } catch (uploadErr: any) {
+        await alert({ title: 'Error', message: uploadErr.response?.data?.message || err.message || 'Failed to upload profile picture', variant: 'error' });
+      }
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleSetCompanyLogo = async () => {
+    if (!profile) return;
+    setUploadingImage(true);
+    try {
+      await api.put(`/employees/${profile.employeeId}`, {
+        profileImageUrl: '/image.png',
+      });
+      const newUrl = '/image.png';
+      setProfile((prev) => (prev ? { ...prev, profileImageUrl: newUrl } : null));
+      setProfileAvatarError(false);
+      updateUserCache({ profileImageUrl: newUrl } as any);
+      await alert({ title: 'Success', message: 'OneBridge company logo set as your profile avatar!', variant: 'info' });
+    } catch (err: any) {
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Failed to set company logo', variant: 'error' });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleRemoveProfileImage = async () => {
+    if (!profile) return;
+    setUploadingImage(true);
+    try {
+      await api.put(`/employees/${profile.employeeId}`, {
+        profileImageUrl: null,
+      });
+      setProfile((prev) => (prev ? { ...prev, profileImageUrl: undefined } : null));
+      setProfileAvatarError(false);
+      updateUserCache({ profileImageUrl: undefined } as any);
+      await alert({ title: 'Success', message: 'Profile picture removed. Initials restored.', variant: 'info' });
+    } catch (err: any) {
+      await alert({ title: 'Error', message: err.response?.data?.message || 'Failed to remove profile picture', variant: 'error' });
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -303,18 +427,109 @@ export const Profile: React.FC = () => {
             <div className="px-6 pb-6 -mt-10 relative z-10 space-y-6">
               <div className="flex items-end justify-between">
                 <div className="flex items-end space-x-4">
-                  <div className="w-20 h-20 rounded-2xl bg-brand-100 dark:bg-brand-950 overflow-hidden flex items-center justify-center border-4 border-white dark:border-brand-900 shadow-md">
-                    {profile.profileImageUrl ? (
-                      <img src={profile.profileImageUrl} alt="Staff pic" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-2xl font-extrabold text-indigo-600 uppercase">{profile.firstName[0]}{profile.lastName[0]}</span>
-                    )}
+                  {/* Avatar Container with Photo / Logo Upload Options */}
+                  <div className="relative group/avatar">
+                    <div className="w-20 h-20 rounded-2xl bg-white dark:bg-brand-950 overflow-hidden flex items-center justify-center border-4 border-white dark:border-brand-900 shadow-md relative">
+                      {profile.profileImageUrl && !profileAvatarError ? (
+                        <img
+                          src={resolveImageUrl(profile.profileImageUrl)}
+                          alt=""
+                          onError={() => setProfileAvatarError(true)}
+                          className={`w-full h-full ${
+                            profile.profileImageUrl.includes('image.png') || profile.profileImageUrl.includes('logo')
+                              ? 'object-contain p-2'
+                              : 'object-cover'
+                          }`}
+                        />
+                      ) : (
+                        <span className="text-2xl font-extrabold text-orange-600 uppercase">
+                          {profile.firstName?.[0] || 'U'}
+                          {profile.lastName?.[0] || 'A'}
+                        </span>
+                      )}
+
+                      {/* Hover Overlay to Trigger Upload */}
+                      <label
+                        title="Change Profile Photo"
+                        className="absolute inset-0 bg-black/60 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-white text-[9px] font-bold gap-1 select-none"
+                      >
+                        <Camera size={16} />
+                        <span>Change</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProfileImageFileChange}
+                          className="hidden"
+                          disabled={uploadingImage}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Camera Badge Icon */}
+                    <label
+                      title="Upload Profile Photo"
+                      className="absolute -bottom-1 -right-1 p-1.5 bg-orange-500 hover:bg-orange-600 active:scale-95 text-white rounded-xl shadow-md cursor-pointer transition-all border-2 border-white dark:border-brand-900 flex items-center justify-center"
+                    >
+                      <Camera size={12} />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProfileImageFileChange}
+                        className="hidden"
+                        disabled={uploadingImage}
+                      />
+                    </label>
                   </div>
+
                   <div>
                     <h3 className="font-extrabold text-lg text-brand-950 dark:text-white leading-tight">
                       {profile.firstName} {profile.lastName}
                     </h3>
-                    <p className="text-[10px] text-brand-500 font-bold uppercase tracking-wider mt-1">{profile.designation} | {profile.department}</p>
+                    <p className="text-[10px] text-brand-500 font-bold uppercase tracking-wider mt-1">
+                      {profile.designation} | {profile.department}
+                    </p>
+
+                    {/* Quick Avatar Actions */}
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <button
+                        type="button"
+                        onClick={handleSetCompanyLogo}
+                        disabled={uploadingImage}
+                        title="Display OneBridge company logo as your profile image"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <img src="/image.png" alt="Logo" className="w-3.5 h-3.5 object-contain" />
+                        <span>Use Logo</span>
+                      </button>
+
+                      <label
+                        title="Upload custom picture"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 transition-all cursor-pointer"
+                      >
+                        <Upload size={11} />
+                        <span>Upload Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProfileImageFileChange}
+                          className="hidden"
+                          disabled={uploadingImage}
+                        />
+                      </label>
+
+                      {profile.profileImageUrl && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveProfileImage}
+                          disabled={uploadingImage}
+                          title="Reset avatar to initials"
+                          className="inline-flex items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all cursor-pointer"
+                        >
+                          <X size={11} />
+                          <span>Clear</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -343,6 +558,61 @@ export const Profile: React.FC = () => {
                     onSubmit={handleSaveProfile} 
                     className="space-y-4 pt-4 border-t border-brand-100 dark:border-brand-900"
                   >
+                    {/* Profile Picture & Logo Option */}
+                    <div className="p-3.5 rounded-2xl bg-brand-100/60 dark:bg-brand-900/40 border border-brand-200 dark:border-brand-800 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-bold text-brand-950 dark:text-white flex items-center gap-1.5">
+                            <Image size={14} className="text-orange-500" />
+                            <span>Profile Image Option</span>
+                          </h4>
+                          <p className="text-[10px] text-brand-500 mt-0.5">
+                            Upload a custom staff photo or display the official OneBridge company logo as your avatar.
+                          </p>
+                        </div>
+                        {profile.profileImageUrl && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 shrink-0">
+                            Active
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <label className="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold cursor-pointer transition-all shadow-xs active:scale-95">
+                          <Upload size={12} />
+                          <span>Upload Image</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleProfileImageFileChange}
+                            className="hidden"
+                            disabled={uploadingImage}
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={handleSetCompanyLogo}
+                          disabled={uploadingImage}
+                          className="flex items-center space-x-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-[10px] font-bold cursor-pointer transition-all shadow-xs active:scale-95 disabled:opacity-50"
+                        >
+                          <img src="/image.png" alt="Logo" className="w-3.5 h-3.5 object-contain bg-white rounded-xs p-0.5" />
+                          <span>Display OneBridge Logo</span>
+                        </button>
+
+                        {profile.profileImageUrl && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveProfileImage}
+                            disabled={uploadingImage}
+                            className="flex items-center space-x-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 rounded-xl text-[10px] font-bold cursor-pointer transition-all active:scale-95"
+                          >
+                            <X size={12} />
+                            <span>Remove Image</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-brand-500 uppercase pl-1">First Name</label>

@@ -1,7 +1,7 @@
 import { useDialog } from '../../context/DialogContext';
 import { useAuth } from '../../context/AuthContext';
 import React, { useState, useEffect } from 'react';
-import api from '../../services/api';
+import api, { resolveImageUrl } from '../../services/api';
 import {
   Search, Plus, UserPlus, Eye, Edit2, Upload, FileText, X, Check, Trash2, CalendarDays,
   Lock, Key, Shield, DollarSign, Mail, Phone, UserCheck, AlertCircle, Building2, MapPin
@@ -449,7 +449,12 @@ export const Employees: React.FC = () => {
                     <td className="px-6 py-4 flex items-center space-x-3">
                       <div className="w-7 h-7 rounded-lg overflow-hidden bg-brand-200 dark:bg-brand-950 flex items-center justify-center border border-indigo-600/20">
                         {emp.profileImageUrl ? (
-                          <img src={emp.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                          <img
+                            src={resolveImageUrl(emp.profileImageUrl)}
+                            alt=""
+                            onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <span className="uppercase text-[9px] font-bold text-indigo-600">{emp.firstName[0]}{emp.lastName[0]}</span>
                         )}
@@ -782,7 +787,12 @@ export const Employees: React.FC = () => {
                 <div className="relative w-20 h-20 mx-auto group">
                   <div className="w-full h-full rounded-2xl overflow-hidden bg-brand-100 dark:bg-brand-900 flex items-center justify-center border-2 border-indigo-600 shadow-md">
                     {selectedEmp.profileImageUrl ? (
-                      <img src={selectedEmp.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                      <img
+                        src={resolveImageUrl(selectedEmp.profileImageUrl)}
+                        alt=""
+                        onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       <span className="text-2xl font-bold text-indigo-600 uppercase">
                         {selectedEmp.firstName[0]}{selectedEmp.lastName[0]}

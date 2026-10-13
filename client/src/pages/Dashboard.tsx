@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import { useDialog } from '../context/DialogContext';
-import api from '../services/api';
+import api, { resolveImageUrl } from '../services/api';
 import { motion } from 'framer-motion';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -452,7 +452,12 @@ export const Dashboard: React.FC = () => {
                     <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-amber-300 to-orange-500 p-0.5 shadow-lg">
                       <div className="w-full h-full rounded-[14px] overflow-hidden bg-white dark:bg-brand-950 flex items-center justify-center">
                         {hrData.bestEmployee.profileImageUrl ? (
-                          <img src={hrData.bestEmployee.profileImageUrl} alt="Best" className="w-full h-full object-cover" />
+                          <img
+                            src={resolveImageUrl(hrData.bestEmployee.profileImageUrl)}
+                            alt=""
+                            onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <span className="font-black text-3xl bg-gradient-to-br from-amber-500 to-orange-600 bg-clip-text text-transparent">
                             {hrData.bestEmployee.firstName[0]}{hrData.bestEmployee.lastName[0]}
@@ -1475,7 +1480,12 @@ export const Dashboard: React.FC = () => {
                     <div className="flex items-center space-x-3">
                       <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center font-bold text-amber-700 text-xs overflow-hidden">
                         {m.profileImageUrl ? (
-                          <img src={m.profileImageUrl} alt={m.firstName} className="w-full h-full object-cover" />
+                          <img
+                            src={resolveImageUrl(m.profileImageUrl)}
+                            alt=""
+                            onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <span>{m.firstName[0]}{m.lastName[0]}</span>
                         )}

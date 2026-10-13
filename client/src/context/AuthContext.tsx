@@ -53,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               employeeId: res.data.data.user?.employeeId || savedUserParsed.employeeId,
               firstName: res.data.data.employee?.firstName || savedUserParsed.firstName || 'User',
               lastName: res.data.data.employee?.lastName || savedUserParsed.lastName || '',
-              profileImageUrl: res.data.data.employee?.profileImageUrl || savedUserParsed.profileImageUrl,
+              profileImageUrl: res.data.data.employee ? (res.data.data.employee.profileImageUrl || undefined) : savedUserParsed.profileImageUrl,
               department: res.data.data.employee?.department || savedUserParsed.department,
               designation: res.data.data.employee?.designation || savedUserParsed.designation,
               onboardingPending: res.data.data.user?.onboardingPending ?? savedUserParsed.onboardingPending,

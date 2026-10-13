@@ -110,15 +110,6 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       });
     }
 
-    // If continuing from this device, notify previous device(s) via real-time socket to immediately kick out
-    if (hasActiveSession && !isSameDevice) {
-      socketService.sendNotification(user.employeeId, 'SESSION_TERMINATED', {
-        reason: 'NEW_DEVICE_LOGIN',
-        newDevice: incomingDeviceName,
-        message: `Your session was ended because this account was logged into from another device (${incomingDeviceName}). Only one active device is allowed at a time.`,
-      });
-    }
-
     // Generate fresh session ID for this single active device
     const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
     const { accessToken, refreshToken } = generateTokens({
@@ -172,20 +163,6 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 
     await logActivity(user.employeeId, 'USER_LOGIN', 'User logged in successfully', req);
 
-    // Send immediate login push notification to employee's registered devices
-    if (user.employeeId) {
-      const displayName = employee?.firstName || 'Champion';
-      WebPushService.sendPushToEmployee(user.employeeId, {
-        title: `👋 Welcome back, ${displayName}!`,
-        body: `Logged in to OneBridge HRMS. Have a productive and energized day ahead!`,
-        url: '/dashboard',
-        actions: [
-          { action: 'open', title: 'Open HRMS' },
-          { action: 'close', title: 'Dismiss' },
-        ],
-      }).catch((err) => console.warn('[WebPush] Login push notification notice:', err?.message || err));
-    }
-
     res.status(200).json({
       status: 'success',
       data: {
@@ -229,10 +206,6 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
 
     if (!user || user.refreshToken !== token) {
       return next(new AppError('Invalid refresh token', 401));
-    }
-
-    if (decoded.sessionId && user.activeSessionId && user.activeSessionId !== decoded.sessionId) {
-      return next(new AppError('Session invalidated by login on another device', 401, 'SESSION_TERMINATED'));
     }
 
     const { accessToken, refreshToken: newRefreshToken } = generateTokens({
@@ -379,16 +352,6 @@ export const validateSession = async (req: Request, res: Response, next: NextFun
 
     if (!user) {
       return next(new AppError('User not found', 404));
-    }
-
-    if (user.activeSessionId && req.user?.sessionId && user.activeSessionId !== req.user.sessionId) {
-      return next(
-        new AppError(
-          'Your session has ended because this account was accessed from another device.',
-          401,
-          'SESSION_TERMINATED'
-        )
-      );
     }
 
     res.status(200).json({
