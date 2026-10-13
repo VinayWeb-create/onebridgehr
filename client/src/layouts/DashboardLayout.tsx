@@ -51,6 +51,7 @@ import {
 import api, { resolveImageUrl } from '../services/api';
 import { triggerPwaInstall, usePwaInstall } from '../components/PwaInstallPrompt';
 import { sendTestPushNotification, subscribeToPushNotifications } from '../registerServiceWorker';
+import { NotificationPermissionModal } from '../components/NotificationPermissionModal';
 
 interface NotificationToast {
   id: string;
@@ -978,6 +979,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           ))}
         </AnimatePresence>
       </div>
+
+      {/* Push Notification Permission Modal with Auto-Focus Detection & Mobile Steps */}
+      <NotificationPermissionModal />
     </div>
   );
 };

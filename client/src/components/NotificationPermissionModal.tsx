@@ -7,6 +7,7 @@ export const NotificationPermissionModal: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isDenied, setIsDenied] = useState(false);
+  const [deniedFeedback, setDeniedFeedback] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,7 +26,12 @@ export const NotificationPermissionModal: React.FC = () => {
       setIsDenied(true);
     }
 
-    // Check if dismissed in the current login session
+    // Check if dismissed recently (7 days) or in current session
+    const dismissedUntil = localStorage.getItem('obi_push_dismissed_until');
+    if (dismissedUntil && Number(dismissedUntil) > Date.now()) {
+      return;
+    }
+
     const dismissedThisSession = sessionStorage.getItem('obi_push_dismissed_session');
     if (dismissedThisSession) {
       return;
@@ -39,21 +45,60 @@ export const NotificationPermissionModal: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Listen for window focus: if user allowed permission in Chrome URL bar and switched back, auto-subscribe
+  useEffect(() => {
+    const handleRecheck = async () => {
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission === 'granted') {
+          setIsDenied(false);
+          setLoading(true);
+          const ok = await subscribeToPushNotifications();
+          setLoading(false);
+          if (ok) {
+            setSuccessMessage('Notifications enabled! Welcome alert sent.');
+            sendTestPushNotification().catch(() => {});
+            setTimeout(() => setIsOpen(false), 2000);
+          }
+        } else if (Notification.permission === 'denied') {
+          setIsDenied(true);
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleRecheck);
+    document.addEventListener('visibilitychange', handleRecheck);
+    return () => {
+      window.removeEventListener('focus', handleRecheck);
+      document.removeEventListener('visibilitychange', handleRecheck);
+    };
+  }, []);
+
   const handleEnable = async () => {
     setLoading(true);
+    setDeniedFeedback(null);
     try {
-      const granted = await subscribeToPushNotifications();
-      const currentPerm = typeof window !== 'undefined' ? Notification.permission : 'default';
+      const currentPerm = typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default';
 
-      if (granted || currentPerm === 'granted') {
+      if (currentPerm === 'denied') {
+        setIsDenied(true);
+        setDeniedFeedback('Notifications are still blocked in your browser settings. Please tap the 🔒 icon beside the URL above, set Notifications to Allow, then tap here again.');
+        setLoading(false);
+        return;
+      }
+
+      const granted = await subscribeToPushNotifications();
+      const updatedPerm = typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default';
+
+      if (granted || updatedPerm === 'granted') {
+        setIsDenied(false);
         setSuccessMessage('Notifications enabled! A welcome notification has been sent.');
-        // Trigger test push to ensure the user device receives it immediately
         sendTestPushNotification().catch(() => {});
         setTimeout(() => {
           setIsOpen(false);
         }, 1800);
-      } else if (currentPerm === 'denied') {
+      } else if (updatedPerm === 'denied') {
         setIsDenied(true);
+        setDeniedFeedback('Notifications are blocked by your browser settings. Tap the 🔒 icon in the URL bar to allow.');
       } else {
         sessionStorage.setItem('obi_push_dismissed_session', 'true');
         setIsOpen(false);
@@ -68,6 +113,8 @@ export const NotificationPermissionModal: React.FC = () => {
 
   const handleDismiss = () => {
     sessionStorage.setItem('obi_push_dismissed_session', 'true');
+    // Hide for 7 days so user is not harassed repeatedly
+    localStorage.setItem('obi_push_dismissed_until', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
     setIsOpen(false);
   };
 
@@ -91,7 +138,7 @@ export const NotificationPermissionModal: React.FC = () => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-          className="relative w-full max-w-md bg-white dark:bg-brand-900 rounded-3xl shadow-2xl border border-brand-200 dark:border-brand-800 p-6 overflow-hidden z-10"
+          className="relative w-full max-w-md bg-white dark:bg-brand-900 rounded-3xl shadow-2xl border border-brand-200 dark:border-brand-800 p-6 overflow-hidden z-10 text-left"
         >
           {/* Subtle Ambient Glow */}
           <div className="absolute -top-16 -right-16 w-36 h-36 bg-orange-500/15 rounded-full blur-3xl pointer-events-none" />
@@ -133,20 +180,31 @@ export const NotificationPermissionModal: React.FC = () => {
             </motion.div>
           )}
 
-          {/* Blocked / Denied Banner */}
+          {/* Blocked / Denied Banner with Clear Steps */}
           {isDenied && !successMessage && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs space-y-1.5"
+              className="mb-4 p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs space-y-2.5"
             >
               <div className="flex items-center space-x-2 font-bold text-amber-900 dark:text-amber-100">
-                <AlertTriangle size={15} className="text-amber-500 shrink-0" />
-                <span>Notifications Blocked in Browser</span>
+                <AlertTriangle size={16} className="text-amber-500 shrink-0" />
+                <span className="font-extrabold">Notifications Blocked in Browser</span>
               </div>
-              <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
-                To enable: Click the site settings icon (🔒 or ⚙️) beside the browser address bar, set <b>Notifications</b> to <b>Allow</b>, then click below.
+              <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+                Browsers do not allow permission popups once blocked. To allow on mobile:
               </p>
+              <div className="space-y-1.5 pl-1.5 text-[11px] text-amber-900 dark:text-amber-100 font-medium bg-amber-100/60 dark:bg-amber-900/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-800">
+                <p>1️⃣ Tap the <b>🔒 (Lock / Tune)</b> icon at top URL bar.</p>
+                <p>2️⃣ Tap <b>Permissions</b> (or <b>Site settings</b>).</p>
+                <p>3️⃣ Set <b>Notifications</b> to <b>Allow</b> (turn switch ON).</p>
+                <p>4️⃣ Tap <b>Check Permission Again</b> below.</p>
+              </div>
+              {deniedFeedback && (
+                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-[11px] font-semibold text-rose-700 dark:text-rose-300">
+                  {deniedFeedback}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -206,7 +264,7 @@ export const NotificationPermissionModal: React.FC = () => {
               className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 transition-all shadow-md shadow-orange-500/25 flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
             >
               {loading ? (
-                <span>Enabling...</span>
+                <span>Checking...</span>
               ) : isDenied ? (
                 <>
                   <RefreshCw size={14} />
