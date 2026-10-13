@@ -928,8 +928,8 @@ export const AttendanceEnrollment: React.FC = () => {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-4"
             >
-              {/* CAMERA VIEWPORT (Portrait 3:4 on mobile, 4:3 on desktop) */}
-              <div className="relative bg-black rounded-3xl overflow-hidden aspect-[3/4] sm:aspect-[4/3] max-h-[460px] mx-auto shadow-2xl border-2 border-slate-700/80 group">
+              {/* CAMERA VIEWPORT - WIDE & SPACIOUS FOR MOBILE & DESKTOP */}
+              <div className="relative bg-black rounded-3xl overflow-hidden w-full aspect-[4/5] sm:aspect-[4/3] min-h-[360px] sm:min-h-[440px] shadow-2xl border-2 border-slate-700/80 group">
                 <video
                   ref={videoRef}
                   autoPlay
@@ -939,22 +939,25 @@ export const AttendanceEnrollment: React.FC = () => {
                 />
 
                 {/* TOP GREEN PILL: FACE DETECTED */}
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20">
-                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/95 text-white text-[11px] font-extrabold shadow-lg backdrop-blur-md">
+                <div className="absolute top-3 left-3 sm:left-1/2 sm:-translate-x-1/2 z-20">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/95 text-white text-[11px] font-extrabold shadow-lg backdrop-blur-md">
                     <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                     Face detected
                   </div>
                 </div>
 
-                {/* TOP RIGHT: LIVE CAMERA BLINK */}
-                <div className="absolute top-3 right-3 z-20">
-                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-600/90 text-white text-[10px] font-extrabold shadow-md backdrop-blur-md">
+                {/* TOP RIGHT: QUALITY & LIVE STATUS */}
+                <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 border border-white/10 text-emerald-400 text-[10px] font-black backdrop-blur-md shadow-md">
+                    <span>98% Quality</span>
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-rose-600/90 text-white text-[10px] font-extrabold shadow-md backdrop-blur-md">
                     <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
                     Live
                   </div>
                 </div>
 
-                {/* HOLOGRAPHIC FACE RETICLE HUD */}
+                {/* HOLOGRAPHIC WIDE FACE RETICLE HUD */}
                 <BiometricFaceScannerHUD
                   faceBox={faceAnalysis?.primaryFaceBox}
                   videoWidth={videoRef.current?.videoWidth || 640}
@@ -970,49 +973,27 @@ export const AttendanceEnrollment: React.FC = () => {
                   noFace={faceAnalysis?.noFace}
                 />
 
-                {/* LEFT FLOATING CHECKLIST PILLS (FIGMA SPEC) */}
-                <div className="absolute top-12 left-3 z-20 space-y-1.5 pointer-events-none">
-                  <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
-                    <Sun size={11} className="text-emerald-400" />
+                {/* DESKTOP-ONLY FLOATING CHECKLIST PILLS (HIDDEN ON MOBILE FOR MAXIMUM VIEW WIDTH) */}
+                <div className="absolute top-14 left-4 z-20 space-y-2 pointer-events-none hidden md:block">
+                  <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-bold flex items-center gap-2 shadow-sm">
+                    <Sun size={12} className="text-emerald-400" />
                     <span>Good Lighting</span>
                   </div>
-                  <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
-                    <Check size={11} className="text-emerald-400" />
+                  <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-bold flex items-center gap-2 shadow-sm">
+                    <Check size={12} className="text-emerald-400" />
                     <span>Face Centered</span>
                   </div>
-                  <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
-                    <Eye size={11} className="text-emerald-400" />
+                  <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-bold flex items-center gap-2 shadow-sm">
+                    <Eye size={12} className="text-emerald-400" />
                     <span>Eyes Open</span>
                   </div>
-                  <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
-                    <Check size={11} className="text-emerald-400" />
+                  <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-bold flex items-center gap-2 shadow-sm">
+                    <Check size={12} className="text-emerald-400" />
                     <span>Correct Distance</span>
                   </div>
-                  <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
-                    <Check size={11} className="text-emerald-400" />
+                  <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-bold flex items-center gap-2 shadow-sm">
+                    <Check size={12} className="text-emerald-400" />
                     <span>No Mask</span>
-                  </div>
-                  <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
-                    <Check size={11} className="text-emerald-400" />
-                    <span>Single Face</span>
-                  </div>
-                </div>
-
-                {/* RIGHT FLOATING METRIC BADGES (FIGMA SPEC) */}
-                <div className="absolute top-12 right-3 z-20 flex flex-col items-center gap-1.5 pointer-events-none">
-                  <div className="flex flex-col items-center justify-center p-2 rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 text-center shadow-sm">
-                    <div className="w-8 h-8 rounded-full border-2 border-emerald-400 flex items-center justify-center text-[10px] font-black text-emerald-400">
-                      98%
-                    </div>
-                    <span className="text-[9px] font-bold text-white mt-0.5">Face Quality</span>
-                  </div>
-                  <div className="flex flex-col items-center justify-center px-2 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-center shadow-sm">
-                    <Eye size={13} className="text-white" />
-                    <span className="text-[9px] font-bold text-white mt-0.5">Live Detection</span>
-                  </div>
-                  <div className="flex flex-col items-center justify-center px-2 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-center shadow-sm">
-                    <Crosshair size={13} className="text-emerald-400" />
-                    <span className="text-[9px] font-bold text-white mt-0.5">Ready to Capture</span>
                   </div>
                 </div>
 
@@ -1022,7 +1003,7 @@ export const AttendanceEnrollment: React.FC = () => {
                     <p className="text-xs font-bold text-white drop-shadow">
                       {autoCaptureSeconds !== null
                         ? `Auto capturing in ${autoCaptureSeconds}s...`
-                        : 'Hold still...'}
+                        : 'Hold still for crystal clear biometric scan'}
                     </p>
                     <div className="w-full h-1.5 bg-black/50 rounded-full mt-1.5 overflow-hidden border border-white/15">
                       <div
