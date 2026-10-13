@@ -17,16 +17,35 @@ const OFFLINE_QUEUE_KEY = 'onebridge_offline_mutation_queue';
 /**
  * Register the Service Worker
  */
+let refreshing = false;
+
 export function registerServiceWorker(onUpdateAvailable?: () => void) {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return;
   }
+
+  // Reload window when new service worker activates and claims the client
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      console.log('[Onebridge PWA] New ServiceWorker active. Reloading application...');
+      window.location.reload();
+    }
+  });
 
   const runRegister = () => {
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
       .then((registration) => {
         console.log('[Onebridge PWA] ServiceWorker registered with scope:', registration.scope);
+
+        // Force check for updates immediately
+        registration.update().catch(() => {});
+
+        // If there's already a worker waiting, tell it to take over
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
 
         // Check for updates periodically
         registration.addEventListener('updatefound', () => {
@@ -36,7 +55,8 @@ export function registerServiceWorker(onUpdateAvailable?: () => void) {
           installingWorker.addEventListener('statechange', () => {
             if (installingWorker.state === 'installed') {
               if (navigator.serviceWorker.controller) {
-                console.log('[Onebridge PWA] New content is available; please refresh.');
+                console.log('[Onebridge PWA] New content is available; taking over.');
+                installingWorker.postMessage({ type: 'SKIP_WAITING' });
                 if (onUpdateAvailable) {
                   onUpdateAvailable();
                 }
@@ -45,6 +65,13 @@ export function registerServiceWorker(onUpdateAvailable?: () => void) {
               }
             }
           });
+        });
+
+        // Check for SW updates when user returns to app/tab
+        window.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            registration.update().catch(() => {});
+          }
         });
       })
       .catch((error) => {
