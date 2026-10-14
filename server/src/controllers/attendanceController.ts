@@ -10,6 +10,7 @@ import {
 } from '../models/validators';
 import { logActivity } from '../middleware/auditLogger';
 import jwt from 'jsonwebtoken';
+import { notificationEngine } from '../services/notificationEngine';
 
 const OFFICE_START_HOUR = 10;
 const OFFICE_START_MINUTE = 0;
@@ -133,6 +134,7 @@ const createAttendanceRecord = async (
       },
     }),
   ]);
+  notificationEngine.onAttendanceCheckIn(employeeId);
   return record;
 };
 
@@ -223,6 +225,7 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction) 
       where: { id: record.id },
       data: { checkOut: checkOutTime, overtimeMinutes, status: updatedStatus },
     });
+    notificationEngine.onAttendanceCheckOut(employeeId);
 
     await logActivity(employeeId, 'CHECK_OUT', `Checked out at ${checkOutTime.toLocaleTimeString()}`, req);
     res.status(200).json({ status: 'success', data: updated });
@@ -251,6 +254,7 @@ export const startBreak = async (req: Request, res: Response, next: NextFunction
       where: { id: record.id },
       data: { breaks: { push: { start: new Date(), end: null } } },
     });
+    notificationEngine.onLunchStart(employeeId);
     res.status(200).json({ status: 'success', data: updated });
   } catch (error) {
     next(error);
@@ -278,6 +282,7 @@ export const endBreak = async (req: Request, res: Response, next: NextFunction) 
       where: { id: record.id },
       data: { breaks },
     });
+    notificationEngine.onLunchEnd(employeeId);
     res.status(200).json({ status: 'success', data: updated });
   } catch (error) {
     next(error);

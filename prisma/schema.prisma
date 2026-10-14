@@ -387,13 +387,82 @@ model AuditLog {
 }
 
 model Notification {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
-  title      String
-  message    String
-  isRead     Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  title       String
+  message     String
+  type        String?   @default("GENERAL") // ATTENDANCE, MEETING, CHAT, HR, ANNOUNCEMENT, GENERAL
+  category    String?   @default("GENERAL") // ATTENDANCE, MEETINGS, CHAT, FILES, HR_UPDATES, ANNOUNCEMENTS
+  status      String?   @default("DELIVERED") // SENT, DELIVERED, READ, FAILED
+  actionUrl   String?
+  deliveredAt DateTime? @default(now())
+  readAt      DateTime?
+  isRead      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@index([employeeId, isRead])
+  @@index([employeeId, category])
+}
+
+model NotificationPreference {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId    String   @unique
+  attendance    Boolean  @default(true)
+  meetings      Boolean  @default(true)
+  chat          Boolean  @default(true)
+  files         Boolean  @default(true)
+  hrUpdates     Boolean  @default(true)
+  announcements Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model NotificationAdminConfig {
+  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+  key                     String   @unique @default("DEFAULT")
+  shiftStartBeforeMinutes Int      @default(10)
+  shiftStartAfterMinutes  Int      @default(5)
+  lunchTime               String   @default("13:00")
+  lunchDurationMinutes    Int      @default(60)
+  lunchReminderBeforeEnd  Int      @default(15)
+  checkoutBeforeMinutes   Int      @default(15)
+  checkoutAfterMinutes    Int      @default(5)
+  meetingReminders        Int[]    @default([15, 5])
+  announcementPriority    String   @default("MEDIUM")
+  templates               Json?
+  updatedBy               String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+model Meeting {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  title          String
+  description    String?
+  startTime      DateTime
+  endTime        DateTime
+  organizerId    String
+  participantIds String[]
+  link           String?
+  status         String    @default("SCHEDULED") // SCHEDULED, STARTED, COMPLETED, CANCELLED
+  cancelledAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([startTime, status])
+}
+
+model CompanyAnnouncement {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  content     String
+  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  createdBy   String
+  targetRoles String[] @default([]) // empty for all
+  department  String?  // null for all
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model PushSubscription {

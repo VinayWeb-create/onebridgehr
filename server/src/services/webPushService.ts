@@ -23,8 +23,9 @@ export interface PushNotificationPayload {
   badge?: string;
   url?: string;
   tag?: string;
-  type?: 'TASK_ASSIGNED' | 'CHECKOUT_REMINDER' | 'GENERAL';
+  type?: 'TASK_ASSIGNED' | 'CHECKOUT_REMINDER' | 'GENERAL' | string;
   actions?: Array<{ action: string; title: string }>;
+  requireInteraction?: boolean;
 }
 
 export class WebPushService {
@@ -106,6 +107,7 @@ export class WebPushService {
         url: payload.url || '/',
         tag: payload.tag || `onebridge-${Date.now()}`,
         type: payload.type || 'GENERAL',
+        requireInteraction: payload.requireInteraction !== undefined ? payload.requireInteraction : true,
         actions: payload.actions || [
           { action: 'open', title: 'Open HRMS' },
           { action: 'close', title: 'Dismiss' },

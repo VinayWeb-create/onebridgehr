@@ -585,6 +585,10 @@ export const uploadDocument = async (req: Request, res: Response, next: NextFunc
       },
     });
 
+    import('../services/notificationEngine').then(({ notificationEngine }) => {
+      notificationEngine.notifyDocumentShared(document).catch(() => {});
+    }).catch(() => {});
+
     await logActivity(req.user?.employeeId || 'SYSTEM', 'DOCUMENT_UPLOAD', `Uploaded document ${name} for ${employeeId}`, req);
 
     res.status(201).json({

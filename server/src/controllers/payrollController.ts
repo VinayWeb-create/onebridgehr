@@ -170,6 +170,10 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
     }
 
     // Notify employee
+    import('../services/notificationEngine').then(({ notificationEngine }) => {
+      notificationEngine.notifyPayrollProcessed(payroll).catch(() => {});
+    }).catch(() => {});
+
     await prisma.notification.create({
       data: {
         employeeId,

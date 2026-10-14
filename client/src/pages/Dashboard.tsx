@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useDialog } from '../context/DialogContext';
 import api, { resolveImageUrl } from '../services/api';
 import { motion } from 'framer-motion';
@@ -266,9 +266,20 @@ export const Dashboard: React.FC = () => {
     setShowCheckOutConfirmModal(true);
   };
 
+  const location = useLocation();
+
   useEffect(() => {
     fetchStats(true);
   }, [user]);
+
+  // Open direct check-out confirmation modal if user clicked push notification
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('action') === 'checkout') {
+      setShowCheckOutConfirmModal(true);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [location.search]);
 
   useEffect(() => {
     if (!empData?.todayAttendance?.breaks) return;

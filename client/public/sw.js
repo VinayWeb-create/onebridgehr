@@ -208,13 +208,14 @@ self.addEventListener('sync', (event) => {
 });
 
 // Push Notifications Architecture (Attendance reminders, Leave approvals, Payroll, Announcements)
+// Push Notifications Architecture (Attendance reminders, Leave approvals, Payroll, Announcements)
 self.addEventListener('push', (event) => {
   let data = {
     title: 'Onebridge HRMS Notification',
     body: 'You have a new update in your HR portal.',
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-96x96.png',
-    url: '/'
+    url: '/attendance?action=checkout',
   };
 
   if (event.data) {
@@ -225,24 +226,34 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  const isCheckout =
+    data.type === 'CHECKOUT_REMINDER' ||
+    data.type === 'MISSED_CHECKOUT_REMINDER' ||
+    (data.tag && data.tag.includes('checkout'));
+
   const options = {
     body: data.body,
     icon: data.icon || '/icons/icon-192x192.png',
     badge: data.badge || '/icons/icon-96x96.png',
     image: data.image,
-    vibrate: [200, 100, 200, 100, 200],
+    vibrate: isCheckout ? [300, 150, 300, 150, 400] : [200, 100, 200, 100, 200],
     tag: data.tag || ('onebridge-' + Date.now()),
     renotify: true,
-    requireInteraction: false,
+    requireInteraction: data.requireInteraction !== undefined ? data.requireInteraction : true,
     silent: false,
     data: {
-      url: data.url || '/',
-      type: data.type || 'GENERAL',
+      url: data.url || (isCheckout ? '/attendance?action=checkout' : '/'),
+      type: data.type || (isCheckout ? 'CHECKOUT_REMINDER' : 'GENERAL'),
     },
-    actions: data.actions || [
-      { action: 'open', title: 'Open HRMS' },
-      { action: 'close', title: 'Dismiss' }
-    ]
+    actions: data.actions || (isCheckout
+      ? [
+          { action: 'checkout', title: 'Check Out Now' },
+          { action: 'open', title: 'Open HRMS' },
+        ]
+      : [
+          { action: 'open', title: 'Open HRMS' },
+          { action: 'close', title: 'Dismiss' },
+        ]),
   };
 
   event.waitUntil(
@@ -256,7 +267,7 @@ self.addEventListener('notificationclick', (event) => {
 
   if (event.action === 'close') return;
 
-  let targetUrl = event.notification.data?.url || '/';
+  let targetUrl = event.notification.data?.url || '/attendance?action=checkout';
   if (event.action === 'checkout') {
     targetUrl = '/attendance?action=checkout';
   } else if (event.action === 'checkin') {

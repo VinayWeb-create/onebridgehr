@@ -169,6 +169,16 @@ export const reviewLeave = async (req: Request, res: Response, next: NextFunctio
       data: updateData,
     });
 
+    if (nextStatus === 'HR_APPROVED') {
+      import('../services/notificationEngine').then(({ notificationEngine }) => {
+        notificationEngine.notifyLeaveApproved(leave).catch(() => {});
+      }).catch(() => {});
+    } else if (nextStatus === 'REJECTED') {
+      import('../services/notificationEngine').then(({ notificationEngine }) => {
+        notificationEngine.notifyLeaveRejected({ ...leave, comment: parsed.comment }).catch(() => {});
+      }).catch(() => {});
+    }
+
     await prisma.notification.create({
       data: {
         employeeId: leave.employeeId,

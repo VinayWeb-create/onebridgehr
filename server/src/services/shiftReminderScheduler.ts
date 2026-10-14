@@ -51,10 +51,13 @@ function getMatchingCheckInSlot(hours: number, minutes: number): string | null {
 }
 
 /**
- * Check if the current time matches one of the 18:30 evening check-out reminder intervals
- * Every 10 mins: 18:00, 18:10, 18:20, 18:30
+ * Check if the current time matches one of the evening check-out reminder intervals:
+ * - Pre-shift end: 18:00, 18:10, 18:20
+ * - Exact shift end: 18:30
+ * - Post-18:30 quick reminders: 18:40, 18:50, 19:00, 19:15, 19:30, 20:00
  */
 function getMatchingCheckOutSlot(hours: number, minutes: number): string | null {
+  // 1. Pre-18:30 Warning Slots
   if (hours === 18 && minutes >= 0 && minutes <= 5) {
     return '18:00';
   }
@@ -64,9 +67,32 @@ function getMatchingCheckOutSlot(hours: number, minutes: number): string | null 
   if (hours === 18 && minutes >= 20 && minutes <= 25) {
     return '18:20';
   }
+
+  // 2. Exact 18:30 Shift Complete Slot
   if (hours === 18 && minutes >= 30 && minutes <= 35) {
     return '18:30';
   }
+
+  // 3. Post-18:30 Quick Reminders (for active checked-in employees who haven't checked out)
+  if (hours === 18 && minutes >= 40 && minutes <= 45) {
+    return '18:40';
+  }
+  if (hours === 18 && minutes >= 50 && minutes <= 55) {
+    return '18:50';
+  }
+  if (hours === 19 && minutes >= 0 && minutes <= 5) {
+    return '19:00';
+  }
+  if (hours === 19 && minutes >= 15 && minutes <= 20) {
+    return '19:15';
+  }
+  if (hours === 19 && minutes >= 30 && minutes <= 35) {
+    return '19:30';
+  }
+  if (hours === 20 && minutes >= 0 && minutes <= 5) {
+    return '20:00';
+  }
+
   return null;
 }
 
@@ -101,7 +127,7 @@ function getCheckInReminderContent(slot: string, firstName: string) {
 }
 
 /**
- * Professional, personalized copy for Check-Out reminders
+ * Professional, personalized copy for Check-Out reminders (Pre-18:30, Exact 18:30, and Post-18:30 Overdue)
  */
 function getCheckOutReminderContent(slot: string, firstName: string) {
   const name = firstName || 'Team Member';
@@ -122,6 +148,40 @@ function getCheckOutReminderContent(slot: string, firstName: string) {
         message: `Hi ${name}, 10 minutes remaining until 18:30! Please confirm your check-out to log today's working hours accurately.`,
       };
     case '18:30':
+      return {
+        title: `🏁 Shift Complete: 18:30 Check-Out Time`,
+        message: `Great work today, ${name}! Standard shift hours ended at 18:30. Tap here for quick 1-click check-out now.`,
+      };
+    case '18:40':
+      return {
+        title: `⚡ Quick Reminder: Check Out (Shift Ended 18:30)`,
+        message: `Hi ${name}, your shift completed 10 minutes ago at 18:30. Quick 1-click check-out is ready on your portal.`,
+      };
+    case '18:50':
+      return {
+        title: `⏰ Check-Out Reminder: 20 Mins Past Shift`,
+        message: `Hi ${name}, you are currently still clocked in past 18:30. Please take a second to confirm your check-out.`,
+      };
+    case '19:00':
+      return {
+        title: `📍 Pending Check-Out (30 Mins Past 18:30)`,
+        message: `Good evening ${name}! It is 19:00 (30 mins after shift end). Tap now to submit your attendance check-out.`,
+      };
+    case '19:15':
+      return {
+        title: `⏳ Overdue Check-Out: 18:30 Shift End`,
+        message: `Hi ${name}, remember to check out of today's shift! Quick 1-click check-out is available.`,
+      };
+    case '19:30':
+      return {
+        title: `🌙 Evening Check-Out Notice (18:30 Shift Policy)`,
+        message: `Hi ${name}, 1 hour has elapsed since 18:30 shift end. Please tap to finalize today's working hours.`,
+      };
+    case '20:00':
+      return {
+        title: `🚨 Action Required: Check Out of Today's Shift`,
+        message: `Hi ${name}, your shift attendance for today is still active. Please confirm check-out now to ensure your attendance record is finalized.`,
+      };
     default:
       return {
         title: `🏁 Shift Complete: 18:30 Check-Out`,
@@ -332,6 +392,7 @@ export async function triggerShiftCheckOutReminders(forceSlot?: string) {
         url: '/attendance?action=checkout',
         type: 'CHECKOUT_REMINDER',
         tag: `checkout-reminder-${slot}`,
+        requireInteraction: true,
         actions: [
           { action: 'checkout', title: 'Check Out Now' },
           { action: 'open', title: 'Open HRMS' },
@@ -357,6 +418,11 @@ export function startShiftReminderScheduler() {
   if (reminderInterval) {
     clearInterval(reminderInterval);
   }
+
+  // Start the full Background Notification Engine
+  import('./notificationEngine').then(({ notificationEngine }) => {
+    notificationEngine.startScheduler();
+  }).catch((err) => console.warn('[NotificationEngine] Startup warning:', err));
 
   console.log(
     '⏰ [ShiftReminder] Started 09:30 Check-In & 18:30 Check-Out schedulers (every 10 mins, evaluated every 60s)'

@@ -51,6 +51,7 @@ import {
 import api, { resolveImageUrl } from '../services/api';
 import { triggerPwaInstall, usePwaInstall } from '../components/PwaInstallPrompt';
 import { sendTestPushNotification, subscribeToPushNotifications } from '../registerServiceWorker';
+import NotificationCenter from '../components/NotificationCenter';
 
 interface NotificationToast {
   id: string;
@@ -69,6 +70,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationToast[]>([]);
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
+  const [persistentUnreadCount, setPersistentUnreadCount] = useState<number>(0);
   const [testingPush, setTestingPush] = useState(false);
   const [pushFeedback, setPushFeedback] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState(false);
@@ -90,7 +92,18 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     if (Notification.permission === 'default' && !dismissed) {
       setShowDevicePushBanner(true);
     }
-  }, []);
+
+    // Fetch initial unread notifications count
+    if (user?.employeeId) {
+      api.get('/notifications/unread-count')
+        .then((res) => {
+          if (res.data?.data?.unreadCount !== undefined) {
+            setPersistentUnreadCount(res.data.data.unreadCount);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user?.employeeId]);
 
   const handleEnableDevicePush = async () => {
     setEnablingPush(true);
@@ -157,6 +170,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     });
 
     socket.on('notification', (data: { title: string; message: string }) => {
+      setPersistentUnreadCount((prev) => prev + 1);
       const newToast: NotificationToast = {
         id: Math.random().toString(),
         title: data.title,
@@ -768,103 +782,27 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => setShowNotificationPanel(!showNotificationPanel)}
-                className="p-2 sm:p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900 hover:bg-brand-200 dark:hover:bg-brand-800 transition-all text-brand-600 dark:text-brand-400 cursor-pointer shadow-2xs"
+                onClick={() => setShowNotificationPanel(true)}
+                className="p-2 sm:p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900 hover:bg-brand-200 dark:hover:bg-brand-800 transition-all text-brand-600 dark:text-brand-400 cursor-pointer shadow-2xs relative"
                 aria-label="View notifications"
               >
                 <Bell size={17} />
-                {notifications.length > 0 && (
+                {persistentUnreadCount > 0 ? (
+                  <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center animate-pulse">
+                    {persistentUnreadCount > 99 ? '99+' : persistentUnreadCount}
+                  </span>
+                ) : notifications.length > 0 ? (
                   <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-                )}
+                ) : null}
               </motion.button>
 
-              {/* In-app Notification Dropdown */}
-              <AnimatePresence>
-                {showNotificationPanel && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 15, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 15, scale: 0.95 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    className="absolute right-0 mt-3 w-72 sm:w-80 glass rounded-2xl shadow-xl border border-brand-200 dark:border-brand-900 py-3 z-50"
-                  >
-                    <div className="px-4 pb-2 border-b border-brand-200 dark:border-brand-900 flex justify-between items-center">
-                      <h3 className="font-bold text-sm">Notifications</h3>
-                      {notifications.length > 0 && (
-                        <button onClick={() => setNotifications([])} className="text-[10px] text-indigo-600 font-bold hover:underline">
-                          Clear all
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="max-h-60 overflow-y-auto">
-                      {notifications.length === 0 ? (
-                        <p className="text-center py-6 text-xs text-brand-500">No new alerts</p>
-                      ) : (
-                        notifications.map((n) => (
-                          <div key={n.id} className="p-3.5 border-b last:border-b-0 border-brand-100 dark:border-brand-900 hover:bg-brand-100 dark:hover:bg-brand-900 transition-all">
-                            <p className="font-bold text-xs">{n.title}</p>
-                            <p className="text-[11px] text-brand-600 dark:text-brand-400 mt-0.5">{n.message}</p>
-                          </div>
-                        ))
-                      )}
-                    </div>
-
-                    {/* Device Notification Status & Actions */}
-                    <div className="pt-2.5 px-3 border-t border-brand-200 dark:border-brand-900 bg-brand-50/50 dark:bg-brand-950/40 rounded-b-2xl space-y-2">
-                      {devicePushStatus === 'granted' ? (
-                        <>
-                          <div className="flex items-center justify-between text-[11px] px-1">
-                            <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
-                              <CheckCircle2 size={13} className="text-emerald-500" />
-                              <span>Active on this device</span>
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleTestPush}
-                            disabled={testingPush}
-                            className="w-full py-1.5 px-3 rounded-xl bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all text-white text-[11px] font-bold flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
-                          >
-                            <Bell size={12} />
-                            <span>{testingPush ? 'Sending Test...' : 'Send Test Notification'}</span>
-                          </button>
-                        </>
-                      ) : devicePushStatus === 'denied' ? (
-                        <>
-                          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] leading-relaxed">
-                            ⚠️ Notifications are blocked in this browser. Tap site settings beside the URL to allow.
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleEnableDevicePush}
-                            disabled={enablingPush}
-                            className="w-full py-1.5 px-3 rounded-xl bg-brand-200 dark:bg-brand-800 text-brand-900 dark:text-white text-[11px] font-bold cursor-pointer transition-all"
-                          >
-                            <span>Check Permission Again</span>
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleEnableDevicePush}
-                          disabled={enablingPush}
-                          className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-orange-500 to-indigo-600 hover:opacity-95 active:scale-95 transition-all text-white text-xs font-bold flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
-                        >
-                          <Bell size={13} />
-                          <span>{enablingPush ? 'Enabling...' : 'Enable Notifications on this Device'}</span>
-                        </button>
-                      )}
-
-                      {pushFeedback && (
-                        <p className="text-[10px] text-center text-emerald-600 dark:text-emerald-400 font-semibold mt-1 truncate">
-                          {pushFeedback}
-                        </p>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {/* Centralized Notification Center Drawer */}
+              <NotificationCenter
+                isOpen={showNotificationPanel}
+                onClose={() => setShowNotificationPanel(false)}
+                userRole={user.role}
+                onUnreadChange={(count) => setPersistentUnreadCount(count)}
+              />
             </div>
 
             {/* Profile Brief */}

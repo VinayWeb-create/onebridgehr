@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useDialog } from '../context/DialogContext';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -106,14 +106,18 @@ export const Attendance: React.FC = () => {
 
     // Sync PWA Push Notification permissions seamlessly
     subscribeToPushNotifications().catch(() => {});
+  }, [isAdmin]);
 
-    // Check if user clicked notification action 'checkout'
-    const searchParams = new URLSearchParams(window.location.search);
+  const routeLocation = useLocation();
+
+  // React to push notification click action immediately (even if tab was already open in background)
+  useEffect(() => {
+    const searchParams = new URLSearchParams(routeLocation.search);
     if (searchParams.get('action') === 'checkout') {
       setShowCheckOutConfirmModal(true);
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [isAdmin]);
+  }, [routeLocation.search]);
 
   const fetchEnrollmentStatus = async () => {
     try {

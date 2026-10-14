@@ -252,13 +252,6 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
       });
 
       console.log('[Onebridge PWA] Device push subscription successfully saved to backend.');
-
-      // Direct local confirmation notification
-      showAppNotification('🔔 Notifications Active!', {
-        body: 'Shift check-in and check-out reminders are now active on this device.',
-        tag: 'onebridge-welcome-confirmation',
-      }).catch(() => {});
-
       return true;
     }
   } catch (err) {
