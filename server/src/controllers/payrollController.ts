@@ -520,6 +520,96 @@ export const getAllPayrolls = async (req: Request, res: Response, next: NextFunc
   }
 };
 
+export const buildPayslipPdfBuffer = async (
+  payroll: any,
+  employee: any
+): Promise<Buffer> => {
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const monthNum = payroll?.month || 1;
+  const monthName = monthNames[Math.max(0, Math.min(11, monthNum - 1))];
+
+  // Get QR Code
+  let qrCodeBase64 = employee?.qrCodeUrl;
+  if (!qrCodeBase64 && employee?.employeeId) {
+    try {
+      qrCodeBase64 = await qrService.generateEmployeeQr(employee.employeeId);
+      prisma.employee.update({
+        where: { employeeId: employee.employeeId },
+        data: { qrCodeUrl: qrCodeBase64 },
+      }).catch(() => {});
+    } catch {
+      // ignore
+    }
+  }
+
+  // Read HR signature
+  let hrSigBase64: string | undefined;
+  try {
+    const hrEmployee = await prisma.employee.findFirst({
+      where: {
+        department: { in: ['HR', 'Human Resources', 'Administration'] },
+        signatureUrl: { not: null },
+      },
+    });
+    hrSigBase64 = getLocalFileAsBase64(hrEmployee?.signatureUrl || null);
+  } catch {
+    // ignore
+  }
+
+  const struct = employee?.salaryStructure || {};
+  const basic = payroll?.basic ?? (struct.basicSalary || 0);
+  const hra = payroll?.hra ?? (struct.hra || 0);
+  const da = payroll?.da ?? (struct.da || 0);
+  const allowance = payroll?.allowance ?? (struct.allowance || 0);
+  const medicalAllowance = payroll?.medicalAllowance ?? (struct.medicalAllowance || 0);
+  const conveyanceAllowance = payroll?.conveyanceAllowance ?? (struct.conveyanceAllowance || 0);
+  const bonus = payroll?.bonus ?? (struct.bonus || 0);
+  const pf = payroll?.pf ?? (struct.pf || 0);
+  const esi = payroll?.esi ?? (struct.esi || 0);
+  const professionalTax = payroll?.professionalTax ?? (struct.professionalTax || 0);
+  const incomeTax = payroll?.incomeTax ?? (struct.incomeTax || 0);
+  const otherDeductions = payroll?.otherDeductions ?? (struct.otherDeductions || 0);
+  const netSalary = payroll?.netSalary ?? Math.max(0, (basic + hra + da + allowance + medicalAllowance + conveyanceAllowance + bonus) - (pf + esi + professionalTax + incomeTax + otherDeductions));
+
+  const empId = employee?.employeeId || payroll?.employeeId || 'N/A';
+  const cleanYear = payroll?.financialYear ? String(payroll.financialYear).split('-')[0] : `${new Date().getFullYear()}`;
+  const formattedMonth = String(monthNum).padStart(2, '0');
+  const payslipNumber = payroll?.payslipNumber || `PS-${empId}-${cleanYear}${formattedMonth}`;
+
+  return pdfService.generatePayslipPdf({
+    payslipNumber,
+    monthName,
+    financialYear: payroll?.financialYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+    employeeId: empId,
+    employeeName: employee ? `${employee.firstName} ${employee.lastName}` : empId,
+    department: employee?.department || 'Operations',
+    designation: employee?.designation || 'Staff',
+    pan: employee?.personalInfo?.panCard || 'N/A',
+    aadhar: employee?.personalInfo?.aadharCard || 'N/A',
+    dateOfJoining: employee?.professionalInfo?.dateOfJoining
+      ? new Date(employee.professionalInfo.dateOfJoining).toLocaleDateString('en-GB')
+      : '01/08/2024',
+    basic,
+    hra,
+    da,
+    allowance,
+    medicalAllowance,
+    conveyanceAllowance,
+    bonus,
+    pf,
+    esi,
+    professionalTax,
+    incomeTax,
+    otherDeductions,
+    netSalary,
+    qrCodeBase64: qrCodeBase64 || '',
+    signatureBase64: hrSigBase64,
+  });
+};
+
 export const emailPayslip = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { payrollId } = req.params;
@@ -535,15 +625,21 @@ export const emailPayslip = async (req: Request, res: Response, next: NextFuncti
 
     const { employee, month, financialYear, payslipNumber } = payroll;
 
-    // Load PDF from disk
+    // Load PDF from disk or regenerate if missing on ephemeral host
     const pdfFilename = `${payslipNumber}.pdf`;
     const pdfPath = path.join(process.cwd(), 'documents', pdfFilename);
 
-    if (!fs.existsSync(pdfPath)) {
-      return next(new AppError('Payslip PDF file not found on server disk', 404));
+    let pdfBuffer: Buffer;
+    if (fs.existsSync(pdfPath)) {
+      pdfBuffer = fs.readFileSync(pdfPath);
+    } else {
+      pdfBuffer = await buildPayslipPdfBuffer(payroll, employee);
+      const docsDir = path.join(process.cwd(), 'documents');
+      if (!fs.existsSync(docsDir)) {
+        fs.mkdirSync(docsDir, { recursive: true });
+      }
+      fs.writeFileSync(pdfPath, pdfBuffer);
     }
-
-    const pdfBuffer = fs.readFileSync(pdfPath);
 
     const monthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
@@ -568,3 +664,104 @@ export const emailPayslip = async (req: Request, res: Response, next: NextFuncti
     next(error);
   }
 };
+
+/**
+ * On-Demand Payslip PDF Delivery
+ * Serves cached PDF if present on disk; if missing (e.g. after Render restart/redeploy),
+ * seamlessly regenerates the PDF buffer from database records and returns it.
+ */
+export const servePayslipPdfOnDemand = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const filename = req.params.filename;
+    if (!filename || !filename.toLowerCase().endsWith('.pdf')) {
+      return next();
+    }
+
+    const docsDir = path.join(process.cwd(), 'documents');
+    const pdfPath = path.join(docsDir, filename);
+
+    // If exists on disk, send it directly
+    if (fs.existsSync(pdfPath)) {
+      return res.sendFile(pdfPath);
+    }
+
+    const payslipNumber = filename.replace(/\.pdf$/i, '');
+
+    // 1. Try finding payroll record in DB
+    let payroll: any = await prisma.payroll.findFirst({
+      where: {
+        OR: [
+          { payslipNumber },
+          { payslipPdfUrl: { contains: payslipNumber } },
+          { payslipPdfUrl: { contains: filename } },
+        ],
+      },
+      include: { employee: true },
+    });
+
+    let employee: any = payroll?.employee;
+
+    // 2. Fallback: Parse PS-{employeeId}-{year}{month} e.g. PS-OBI0006-202609
+    if (!payroll) {
+      const match = payslipNumber.match(/^PS-([A-Za-z0-9_-]+)-(\d{4})(\d{2})$/i);
+      if (match) {
+        const [, empId, , monthStr] = match;
+        const monthNum = parseInt(monthStr, 10);
+        payroll = await prisma.payroll.findFirst({
+          where: {
+            employeeId: empId,
+            month: monthNum,
+          },
+          include: { employee: true },
+        });
+
+        if (payroll) {
+          employee = payroll.employee;
+        } else {
+          // If payroll record is still not in DB, check if employee exists
+          employee = await prisma.employee.findUnique({
+            where: { employeeId: empId },
+          });
+        }
+      }
+    }
+
+    // 3. If neither payroll nor employee found, let standard 404 handler take over
+    if (!payroll && !employee) {
+      return next();
+    }
+
+    const dummyPayroll = payroll || {
+      payslipNumber,
+      employeeId: employee?.employeeId,
+      month: (() => {
+        const match = payslipNumber.match(/^PS-([A-Za-z0-9_-]+)-(\d{4})(\d{2})$/i);
+        return match ? parseInt(match[3], 10) : new Date().getMonth() + 1;
+      })(),
+      financialYear: (() => {
+        const match = payslipNumber.match(/^PS-([A-Za-z0-9_-]+)-(\d{4})(\d{2})$/i);
+        if (match) {
+          const y = parseInt(match[2], 10);
+          return `${y}-${y + 1}`;
+        }
+        return `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+      })(),
+    };
+
+    const pdfBuffer = await buildPayslipPdfBuffer(dummyPayroll, employee);
+
+    // Save to disk so subsequent requests are fast cached
+    if (!fs.existsSync(docsDir)) {
+      fs.mkdirSync(docsDir, { recursive: true });
+    }
+    fs.writeFileSync(pdfPath, pdfBuffer);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    return res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Error generating payslip PDF on demand:', err);
+    return next(err);
+  }
+};
+

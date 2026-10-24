@@ -22,6 +22,7 @@ import attendanceRoutes from './routes/attendanceRoutes';
 import leaveRoutes from './routes/leaveRoutes';
 import taskRoutes from './routes/taskRoutes';
 import payrollRoutes from './routes/payrollRoutes';
+import { servePayslipPdfOnDemand } from './controllers/payrollController';
 import reportRoutes from './routes/reportRoutes';
 import hrDocumentRoutes from './routes/hrDocumentRoutes';
 import financeRoutes from './routes/financeRoutes';
@@ -96,6 +97,8 @@ app.use(['/documents/quotations', '/documents/invoices'], (_req, res) => {
   res.status(404).json({ status: 'fail', message: 'Not found' });
 });
 app.use('/documents', express.static(path.join(process.cwd(), 'documents')));
+// On-demand dynamic recovery for payslip PDFs if file is missing from ephemeral disk (e.g. after Render redeploy)
+app.get('/documents/:filename', servePayslipPdfOnDemand);
 
 // 6. Socket.io setup
 socketService.init(server, FRONTEND_URL);
