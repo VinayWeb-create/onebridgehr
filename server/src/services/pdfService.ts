@@ -44,6 +44,8 @@ interface PayslipData {
   hra: number;
   da: number;
   allowance: number;
+  medicalAllowance?: number;
+  conveyanceAllowance?: number;
   bonus: number;
   pf: number;
   esi: number;
@@ -317,8 +319,9 @@ class PdfService {
         { l: 'House Rent Allowance (HRA)', v: data.hra },
         { l: 'Dearness Allowance (DA)', v: data.da },
         { l: 'Special Allowance', v: data.allowance },
+        { l: 'Medical Allowance', v: data.medicalAllowance || 0 },
+        { l: 'Conveyance Allowance', v: data.conveyanceAllowance || 0 },
         { l: 'Performance Bonus / Incentives', v: data.bonus },
-        { l: 'Conveyance & Medical Allowance', v: 0 },
       ];
 
       const deductionsList = [
@@ -328,6 +331,7 @@ class PdfService {
         { l: 'Income Tax (TDS)', v: data.incomeTax },
         { l: 'Voluntary PF / Other Deductions', v: 0 },
         { l: 'Loss of Pay (LOP) Deduction', v: 0 },
+        { l: 'Other Statutory Deductions', v: 0 },
       ];
 
       const totalEarnings = earningsList.reduce((sum, item) => sum + item.v, 0);

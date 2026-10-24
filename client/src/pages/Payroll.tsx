@@ -5,13 +5,13 @@ import {
   FileText, Download, Mail, ChevronDown, Check,
   AlertCircle, Sparkles, TrendingUp, Users, IndianRupee,
   BadgeCheck, Shield, Layers, X, Zap, Clock, RefreshCw,
-  PenTool, Star, Award
+  PenTool, Star, Award, Crown
 } from "lucide-react";
 
 interface PayrollRecord {
   id: string; employeeId: string; month: number; financialYear: string;
   payslipNumber: string; basic: number; hra: number; da: number;
-  allowance: number; bonus: number; pf: number; esi: number;
+  allowance: number; medicalAllowance?: number; conveyanceAllowance?: number; bonus: number; pf: number; esi: number;
   professionalTax: number; incomeTax: number; netSalary: number;
   payslipPdfUrl?: string; status: string;
   employee?: { firstName: string; lastName: string; department: string; designation: string };
@@ -21,25 +21,26 @@ interface EmployeeBasic {
   department: string; designation: string; salaryStructure?: SalaryStructure | null;
 }
 interface SalaryStructure {
-  basic: number; hra: number; da: number; allowance: number; bonus: number;
+  basic: number; hra: number; da: number; allowance: number;
+  medicalAllowance: number; conveyanceAllowance: number; bonus: number;
   pf: number; esi: number; professionalTax: number; incomeTax: number;
 }
 interface ToastMsg { id: string; type: "success" | "error" | "info"; title: string; message: string; }
 
 const SALARY_TEMPLATES: Record<string, { label: string; icon: string; color: string; values: SalaryStructure }> = {
-  INTERN:    { label: "Intern / Trainee",     icon: "🌱", color: "from-green-500/20 to-emerald-500/10 border-green-500/30",     values: { basic: 8000,   hra: 3200,   da: 1200,  allowance: 1000,  bonus: 0,     pf: 960,   esi: 150, professionalTax: 100, incomeTax: 0     } },
-  JUNIOR:    { label: "Junior Engineer",      icon: "💼", color: "from-blue-500/20 to-sky-500/10 border-blue-500/30",           values: { basic: 18000,  hra: 7200,   da: 2700,  allowance: 2500,  bonus: 0,     pf: 2160,  esi: 300, professionalTax: 150, incomeTax: 500   } },
-  MID:       { label: "Mid-Level Engineer",   icon: "⚡", color: "from-violet-500/20 to-purple-500/10 border-violet-500/30",    values: { basic: 30000,  hra: 12000,  da: 4500,  allowance: 4000,  bonus: 0,     pf: 3600,  esi: 525, professionalTax: 200, incomeTax: 1200  } },
-  SENIOR:    { label: "Senior Engineer",      icon: "🚀", color: "from-orange-500/20 to-amber-500/10 border-orange-500/30",    values: { basic: 50000,  hra: 20000,  da: 7500,  allowance: 6000,  bonus: 2000,  pf: 6000,  esi: 0,   professionalTax: 200, incomeTax: 3500  } },
-  LEAD:      { label: "Tech Lead",            icon: "🎯", color: "from-rose-500/20 to-pink-500/10 border-rose-500/30",         values: { basic: 70000,  hra: 28000,  da: 10500, allowance: 8000,  bonus: 3000,  pf: 8400,  esi: 0,   professionalTax: 200, incomeTax: 6000  } },
-  MANAGER:   { label: "Engineering Manager", icon: "🏆", color: "from-yellow-500/20 to-amber-500/10 border-yellow-500/30",   values: { basic: 95000,  hra: 38000,  da: 14250, allowance: 10000, bonus: 5000,  pf: 11400, esi: 0,   professionalTax: 200, incomeTax: 10000 } },
-  DIRECTOR:  { label: "Director",             icon: "👑", color: "from-indigo-500/20 to-blue-500/10 border-indigo-500/30",     values: { basic: 150000, hra: 60000,  da: 22500, allowance: 15000, bonus: 10000, pf: 18000, esi: 0,   professionalTax: 200, incomeTax: 18000 } },
-  EXECUTIVE: { label: "C-Level Executive",   icon: "🌟", color: "from-fuchsia-500/20 to-violet-500/10 border-fuchsia-500/30", values: { basic: 250000, hra: 100000, da: 37500, allowance: 25000, bonus: 20000, pf: 30000, esi: 0,   professionalTax: 200, incomeTax: 35000 } },
+  INTERN:    { label: "Intern / Trainee",     icon: "🌱", color: "from-green-500/20 to-emerald-500/10 border-green-500/30",     values: { basic: 8000,   hra: 3200,   da: 1200,  allowance: 1000,  medicalAllowance: 500,  conveyanceAllowance: 500,  bonus: 0,     pf: 960,   esi: 150, professionalTax: 100, incomeTax: 0     } },
+  JUNIOR:    { label: "Junior Engineer",      icon: "💼", color: "from-blue-500/20 to-sky-500/10 border-blue-500/30",           values: { basic: 18000,  hra: 7200,   da: 2700,  allowance: 2500,  medicalAllowance: 1250, conveyanceAllowance: 1600, bonus: 0,     pf: 2160,  esi: 300, professionalTax: 150, incomeTax: 500   } },
+  MID:       { label: "Mid-Level Engineer",   icon: "⚡", color: "from-violet-500/20 to-purple-500/10 border-violet-500/30",    values: { basic: 30000,  hra: 12000,  da: 4500,  allowance: 4000,  medicalAllowance: 1500, conveyanceAllowance: 1600, bonus: 0,     pf: 3600,  esi: 525, professionalTax: 200, incomeTax: 1200  } },
+  SENIOR:    { label: "Senior Engineer",      icon: "🚀", color: "from-orange-500/20 to-amber-500/10 border-orange-500/30",    values: { basic: 50000,  hra: 20000,  da: 7500,  allowance: 6000,  medicalAllowance: 2000, conveyanceAllowance: 2500, bonus: 2000,  pf: 6000,  esi: 0,   professionalTax: 200, incomeTax: 3500  } },
+  LEAD:      { label: "Tech Lead",            icon: "🎯", color: "from-rose-500/20 to-pink-500/10 border-rose-500/30",         values: { basic: 70000,  hra: 28000,  da: 10500, allowance: 8000,  medicalAllowance: 2500, conveyanceAllowance: 3000, bonus: 3000,  pf: 8400,  esi: 0,   professionalTax: 200, incomeTax: 6000  } },
+  MANAGER:   { label: "Engineering Manager", icon: "🏆", color: "from-yellow-500/20 to-amber-500/10 border-yellow-500/30",   values: { basic: 95000,  hra: 38000,  da: 14250, allowance: 10000, medicalAllowance: 3000, conveyanceAllowance: 3500, bonus: 5000,  pf: 11400, esi: 0,   professionalTax: 200, incomeTax: 10000 } },
+  DIRECTOR:  { label: "Director",             icon: "👑", color: "from-indigo-500/20 to-blue-500/10 border-indigo-500/30",     values: { basic: 150000, hra: 60000,  da: 22500, allowance: 15000, medicalAllowance: 5000, conveyanceAllowance: 5000, bonus: 10000, pf: 18000, esi: 0,   professionalTax: 200, incomeTax: 18000 } },
+  EXECUTIVE: { label: "C-Level Executive",   icon: "🌟", color: "from-fuchsia-500/20 to-violet-500/10 border-fuchsia-500/30", values: { basic: 250000, hra: 100000, da: 37500, allowance: 25000, medicalAllowance: 10000, conveyanceAllowance: 10000, bonus: 20000, pf: 30000, esi: 0,   professionalTax: 200, incomeTax: 35000 } },
 };
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const FINANCIAL_YEARS = ["2024-2025","2025-2026","2026-2027","2027-2028"];
-const calcNet = (s: SalaryStructure) => Math.max(0, s.basic+s.hra+s.da+s.allowance+s.bonus-(s.pf+s.esi+s.professionalTax+s.incomeTax));
+const calcNet = (s: SalaryStructure) => Math.max(0, s.basic + s.hra + s.da + s.allowance + (s.medicalAllowance || 0) + (s.conveyanceAllowance || 0) + s.bonus - (s.pf + s.esi + s.professionalTax + s.incomeTax));
 
 const ToastContainer: React.FC<{ toasts: ToastMsg[]; remove: (id: string) => void }> = ({ toasts, remove }) => (
   <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-3 pointer-events-none">
@@ -79,8 +80,8 @@ const SalaryBar: React.FC<{ earnings: number; deductions: number; net: number }>
 
 const SigningAlertBanner: React.FC<{ structure: SalaryStructure; templateKey?: string|null; employeeName?: string; isEmployee?: boolean }> = ({ structure, templateKey, employeeName, isEmployee }) => {
   const tpl = templateKey ? SALARY_TEMPLATES[templateKey] : null;
-  const earnings = structure.basic+structure.hra+structure.da+structure.allowance+structure.bonus;
-  const deductions = structure.pf+structure.esi+structure.professionalTax+structure.incomeTax;
+  const earnings = structure.basic + structure.hra + structure.da + structure.allowance + (structure.medicalAllowance || 0) + (structure.conveyanceAllowance || 0) + structure.bonus;
+  const deductions = structure.pf + structure.esi + structure.professionalTax + structure.incomeTax;
   return (
     <div className={`rounded-2xl border bg-gradient-to-br p-4 space-y-3 ${tpl?tpl.color:"from-indigo-500/20 to-orange-500/10 border-indigo-500/30"}`}>
       <div className="flex items-start justify-between gap-2">
@@ -98,8 +99,17 @@ const SigningAlertBanner: React.FC<{ structure: SalaryStructure; templateKey?: s
         </div>
         {isEmployee&&<div className="flex items-center gap-1 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg px-2 py-1 text-[9px] font-bold uppercase shrink-0"><PenTool size={9}/>Signed</div>}
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {[{label:"Basic",val:structure.basic,color:"text-blue-600 dark:text-blue-400"},{label:"HRA",val:structure.hra,color:"text-violet-600 dark:text-violet-400"},{label:"DA",val:structure.da,color:"text-amber-600 dark:text-amber-400"},{label:"Allow",val:structure.allowance,color:"text-teal-600 dark:text-teal-400"},{label:"Bonus",val:structure.bonus,color:"text-indigo-600"},{label:"PF",val:structure.pf,color:"text-rose-600 dark:text-rose-400"}].map(({label,val,color})=>(
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          {label:"Basic",val:structure.basic,color:"text-blue-600 dark:text-blue-400"},
+          {label:"HRA",val:structure.hra,color:"text-violet-600 dark:text-violet-400"},
+          {label:"DA",val:structure.da,color:"text-amber-600 dark:text-amber-400"},
+          {label:"Special",val:structure.allowance,color:"text-teal-600 dark:text-teal-400"},
+          {label:"Medical",val:structure.medicalAllowance||0,color:"text-emerald-600 dark:text-emerald-400"},
+          {label:"Conveyance",val:structure.conveyanceAllowance||0,color:"text-cyan-600 dark:text-cyan-400"},
+          {label:"Bonus",val:structure.bonus,color:"text-indigo-600"},
+          {label:"PF",val:structure.pf,color:"text-rose-600 dark:text-rose-400"}
+        ].map(({label,val,color})=>(
           <div key={label} className="bg-white/30 dark:bg-white/5 rounded-xl px-2.5 py-2">
             <p className="text-[8px] font-bold text-brand-500 uppercase">{label}</p>
             <p className={`text-xs font-extrabold mt-0.5 ${color}`}>₹{val.toLocaleString("en-IN")}</p>
@@ -122,11 +132,26 @@ export const Payroll: React.FC = () => {
   const [formLoading, setFormLoading] = useState(false);
   const [emailingId, setEmailingId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastMsg[]>([]);
-  const [hrMode, setHrMode] = useState<"GENERATE" | "TEMPLATE">("TEMPLATE");
+  const [hrMode, setHrMode] = useState<"GENERATE" | "TEMPLATE" | "MY_PAYSLIP">("TEMPLATE");
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string>("");
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
-  const [form, setForm] = useState({ employeeId: "", month: new Date().getMonth() + 1, financialYear: "2026-2027", basic: 0, hra: 0, da: 0, allowance: 0, bonus: 0, pf: 0, esi: 0, professionalTax: 0, incomeTax: 0 });
+  const [form, setForm] = useState({
+    employeeId: "",
+    month: new Date().getMonth() + 1,
+    financialYear: "2026-2027",
+    basic: 0,
+    hra: 0,
+    da: 0,
+    allowance: 0,
+    medicalAllowance: 0,
+    conveyanceAllowance: 0,
+    bonus: 0,
+    pf: 0,
+    esi: 0,
+    professionalTax: 0,
+    incomeTax: 0
+  });
 
   const toast = useCallback((type: ToastMsg["type"], title: string, message: string) => {
     const id = Math.random().toString(36).slice(2);
@@ -145,18 +170,65 @@ export const Payroll: React.FC = () => {
   const fetchEmployees = useCallback(async () => {
     if (!isHR) return;
     try {
-      const res = await api.get("/employees");
-      const list = (res.data.data || res.data || []).filter((e: any) => !['OBI0001', 'OBI1117'].includes(e.employeeId));
-      setEmployees(list);
+      const res = await api.get("/employees?all=true");
+      const list = res.data.data || res.data || [];
+      const sorted = [...list].sort((a: any, b: any) => {
+        const aLead = ['OBI0001', 'OBI1117'].includes(a.employeeId);
+        const bLead = ['OBI0001', 'OBI1117'].includes(b.employeeId);
+        if (aLead && !bLead) return -1;
+        if (!aLead && bLead) return 1;
+        return a.employeeId.localeCompare(b.employeeId);
+      });
+      setEmployees(sorted);
     } catch {/**/}
   }, [isHR]);
 
+  const [editingMyTemplate, setEditingMyTemplate] = useState(false);
+  const [myTemplateKey, setMyTemplateKey] = useState<string>("");
+  const [myTemplatePickerOpen, setMyTemplatePickerOpen] = useState(false);
+  const [myTemplateForm, setMyTemplateForm] = useState<SalaryStructure>({
+    basic: 150000,
+    hra: 60000,
+    da: 22500,
+    allowance: 15000,
+    medicalAllowance: 5000,
+    conveyanceAllowance: 5000,
+    bonus: 10000,
+    pf: 18000,
+    esi: 0,
+    professionalTax: 200,
+    incomeTax: 18000,
+  });
+
   const fetchMyProfile = useCallback(async () => {
-    if (isHR || !user?.employeeId) return;
+    if (!user?.employeeId) return;
     try { const res = await api.get(`/employees/${user.employeeId}`); setMyProfile(res.data.data || res.data); } catch {/**/}
-  }, [isHR, user?.employeeId]);
+  }, [user?.employeeId]);
 
   useEffect(() => { fetchPayrolls(); fetchEmployees(); fetchMyProfile(); }, [fetchPayrolls, fetchEmployees, fetchMyProfile]);
+
+  useEffect(() => {
+    if (myProfile?.salaryStructure && myProfile.salaryStructure.basic > 0) {
+      setMyTemplateForm({
+        basic: myProfile.salaryStructure.basic,
+        hra: myProfile.salaryStructure.hra,
+        da: myProfile.salaryStructure.da,
+        allowance: myProfile.salaryStructure.allowance,
+        medicalAllowance: myProfile.salaryStructure.medicalAllowance || 0,
+        conveyanceAllowance: myProfile.salaryStructure.conveyanceAllowance || 0,
+        bonus: myProfile.salaryStructure.bonus || 0,
+        pf: myProfile.salaryStructure.pf || 0,
+        esi: myProfile.salaryStructure.esi || 0,
+        professionalTax: myProfile.salaryStructure.professionalTax || 0,
+        incomeTax: myProfile.salaryStructure.incomeTax || 0,
+      });
+    } else if (['OBI0001', 'OBI1117'].includes(user?.employeeId || '')) {
+      const isDirector = user?.employeeId === 'OBI1117';
+      const key = isDirector ? 'DIRECTOR' : 'EXECUTIVE';
+      setMyTemplateKey(key);
+      setMyTemplateForm({ ...SALARY_TEMPLATES[key].values });
+    }
+  }, [myProfile, user?.employeeId]);
 
   const applyTemplate = (key: string) => {
     setSelectedTemplateKey(key);
@@ -165,8 +237,68 @@ export const Payroll: React.FC = () => {
     setTemplatePickerOpen(false);
   };
 
+  const applyMyTemplate = (key: string) => {
+    setMyTemplateKey(key);
+    const tpl = SALARY_TEMPLATES[key];
+    if (tpl) setMyTemplateForm({ ...tpl.values });
+    setMyTemplatePickerOpen(false);
+  };
+
+  const handleSaveMyTemplate = async () => {
+    if (!user?.employeeId) return;
+    setFormLoading(true);
+    try {
+      await api.put(`/employees/${user.employeeId}/salary-structure`, myTemplateForm);
+      toast("success", "Template Locked", `Your salary template has been updated and locked to your profile.`);
+      setEditingMyTemplate(false);
+      await fetchMyProfile();
+      await fetchEmployees();
+    } catch (err: any) {
+      toast("error", "Save Failed", err.response?.data?.message || "Could not save salary template.");
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleEmployeeSelect = (empId: string) => {
+    const emp = employees.find(e => e.employeeId === empId);
+    if (emp?.salaryStructure && emp.salaryStructure.basic > 0) {
+      setForm(f => ({
+        ...f,
+        employeeId: empId,
+        basic: emp.salaryStructure?.basic || 0,
+        hra: emp.salaryStructure?.hra || 0,
+        da: emp.salaryStructure?.da || 0,
+        allowance: emp.salaryStructure?.allowance || 0,
+        medicalAllowance: emp.salaryStructure?.medicalAllowance || 0,
+        conveyanceAllowance: emp.salaryStructure?.conveyanceAllowance || 0,
+        bonus: emp.salaryStructure?.bonus || 0,
+        pf: emp.salaryStructure?.pf || 0,
+        esi: emp.salaryStructure?.esi || 0,
+        professionalTax: emp.salaryStructure?.professionalTax || 0,
+        incomeTax: emp.salaryStructure?.incomeTax || 0,
+      }));
+    } else if (['OBI0001', 'OBI1117'].includes(empId) || emp?.designation?.toLowerCase().includes('director') || emp?.designation?.toLowerCase().includes('founder')) {
+      const isDirector = empId === 'OBI1117';
+      const key = isDirector ? 'DIRECTOR' : 'EXECUTIVE';
+      setSelectedTemplateKey(key);
+      setForm(f => ({
+        ...f,
+        employeeId: empId,
+        ...SALARY_TEMPLATES[key].values,
+      }));
+    } else {
+      setForm(f => ({
+        ...f,
+        employeeId: empId,
+        basic: 0, hra: 0, da: 0, allowance: 0, medicalAllowance: 0, conveyanceAllowance: 0,
+        bonus: 0, pf: 0, esi: 0, professionalTax: 0, incomeTax: 0
+      }));
+    }
+  };
+
   const selectedEmployee = employees.find(e => e.employeeId === form.employeeId);
-  const earnings = form.basic + form.hra + form.da + form.allowance + form.bonus;
+  const earnings = form.basic + form.hra + form.da + form.allowance + form.medicalAllowance + form.conveyanceAllowance + form.bonus;
   const deductions = form.pf + form.esi + form.professionalTax + form.incomeTax;
   const netSalary = Math.max(0, earnings - deductions);
 
@@ -174,7 +306,19 @@ export const Payroll: React.FC = () => {
     if (!form.employeeId) { toast("error", "Employee Required", "Please select an employee first."); return; }
     setFormLoading(true);
     try {
-      await api.put(`/employees/${form.employeeId}/salary-structure`, { basic:form.basic,hra:form.hra,da:form.da,allowance:form.allowance,bonus:form.bonus,pf:form.pf,esi:form.esi,professionalTax:form.professionalTax,incomeTax:form.incomeTax });
+      await api.put(`/employees/${form.employeeId}/salary-structure`, {
+        basic: form.basic,
+        hra: form.hra,
+        da: form.da,
+        allowance: form.allowance,
+        medicalAllowance: form.medicalAllowance,
+        conveyanceAllowance: form.conveyanceAllowance,
+        bonus: form.bonus,
+        pf: form.pf,
+        esi: form.esi,
+        professionalTax: form.professionalTax,
+        incomeTax: form.incomeTax
+      });
       toast("success", "Template Saved", `Salary template locked to ${form.employeeId}. Applied from first payslip.`);
       await fetchEmployees(); setForm(f => ({ ...f, employeeId: "" })); setSelectedTemplateKey("");
     } catch (err: any) { toast("error", "Save Failed", err.response?.data?.message || "Could not save salary template."); }
@@ -185,7 +329,22 @@ export const Payroll: React.FC = () => {
     if (!form.employeeId) { toast("error", "Employee Required", "Please select an employee first."); return; }
     setFormLoading(true);
     try {
-      await api.post("/payroll", { employeeId:form.employeeId,month:form.month,financialYear:form.financialYear,basic:form.basic,hra:form.hra,da:form.da,allowance:form.allowance,bonus:form.bonus,pf:form.pf,esi:form.esi,professionalTax:form.professionalTax,incomeTax:form.incomeTax });
+      await api.post("/payroll", {
+        employeeId: form.employeeId,
+        month: form.month,
+        financialYear: form.financialYear,
+        basic: form.basic,
+        hra: form.hra,
+        da: form.da,
+        allowance: form.allowance,
+        medicalAllowance: form.medicalAllowance,
+        conveyanceAllowance: form.conveyanceAllowance,
+        bonus: form.bonus,
+        pf: form.pf,
+        esi: form.esi,
+        professionalTax: form.professionalTax,
+        incomeTax: form.incomeTax
+      });
       toast("success", "Payslip Generated", `Payslip for ${MONTH_NAMES[form.month-1]} ${form.financialYear} generated.`);
       setForm(f => ({ ...f, employeeId: "", bonus: 0 })); await fetchPayrolls();
     } catch (err: any) { toast("error", "Generation Failed", err.response?.data?.message || "Could not process payroll."); }
@@ -235,7 +394,7 @@ export const Payroll: React.FC = () => {
               <IndianRupee className="text-indigo-400" size={24} />
               {isHR ? "Payroll Registry" : "My Payslip Center"}
             </h1>
-            <p className="text-xs text-brand-300 mt-1 font-medium">{isHR ? "Assign salary templates and generate/dispatch corporate payslips" : "View your active salary template and generate monthly payslips"}</p>
+            <p className="text-xs text-brand-300 mt-1 font-medium">{isHR ? "Assign salary templates and generate corporate payslips for employees & administration" : "View your active salary template and generate monthly payslips"}</p>
           </div>
           <button
             onClick={fetchPayrolls}
@@ -267,80 +426,235 @@ export const Payroll: React.FC = () => {
             <div className="lg:col-span-1 space-y-4">
               <div className="glass rounded-3xl border border-brand-200 dark:border-brand-900 shadow-xl overflow-hidden">
                 <div className="flex border-b border-brand-100 dark:border-brand-900">
-                  {(["TEMPLATE","GENERATE"] as const).map(mode=>(
+                  {(["TEMPLATE","GENERATE","MY_PAYSLIP"] as const).map(mode=>(
                     <button key={mode} onClick={()=>setHrMode(mode)} className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 text-[10px] font-bold uppercase tracking-wider transition-all ${hrMode===mode?"bg-indigo-600 text-white":"text-brand-500 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-900/50"}`}>
-                      {mode==="TEMPLATE"?<><Layers size={11}/>Assign Template</>:<><FileText size={11}/>Generate Payslip</>}
+                      {mode==="TEMPLATE"?<><Layers size={11}/>Assign Template</>:mode==="GENERATE"?<><FileText size={11}/>Generate Payslip</>:<><Award size={11}/>My Payslip</>}
                     </button>
                   ))}
                 </div>
-                <div className="p-5 space-y-4">
-                  <div className="space-y-1.5">
-                    <label className={labelCls}>Select Employee</label>
-                    <select value={form.employeeId} onChange={e=>setForm({...form,employeeId:e.target.value})} className={inputCls}>
-                      <option value="">— Pick an employee —</option>
-                      {employees.map(emp=><option key={emp.employeeId} value={emp.employeeId}>{emp.firstName} {emp.lastName} ({emp.employeeId}) · {emp.designation}</option>)}
-                    </select>
-                  </div>
-                  {selectedEmployee?.salaryStructure&&form.employeeId&&(
-                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5 flex items-start gap-2">
-                      <BadgeCheck size={12} className="text-emerald-500 shrink-0 mt-0.5"/>
-                      <div><p className="text-[9px] font-bold text-emerald-600 uppercase">Template Already Assigned</p><p className="text-[10px] text-brand-500 mt-0.5">Basic: ₹{selectedEmployee.salaryStructure.basic.toLocaleString("en-IN")} · Net: ₹{calcNet(selectedEmployee.salaryStructure).toLocaleString("en-IN")}</p></div>
-                    </div>
-                  )}
-                  <div className="space-y-1.5">
-                    <label className={labelCls}>Salary Grade Template</label>
-                    <div className="relative">
-                      <button type="button" onClick={()=>setTemplatePickerOpen(v=>!v)} className={`${inputCls} text-left flex items-center justify-between`}>
-                        <span className={selectedTemplateKey?"text-brand-900 dark:text-white":"text-brand-400"}>{selectedTemplateKey?`${SALARY_TEMPLATES[selectedTemplateKey].icon} ${SALARY_TEMPLATES[selectedTemplateKey].label}`:"Select a grade template…"}</span>
-                        <ChevronDown size={13} className={`text-brand-400 transition-transform ${templatePickerOpen?"rotate-180":""}`}/>
-                      </button>
-                      {templatePickerOpen&&(
-                        <div className="absolute top-full left-0 right-0 mt-1 glass rounded-2xl border border-brand-200 dark:border-brand-800 shadow-2xl z-50 overflow-hidden max-h-72 overflow-y-auto">
-                          {Object.entries(SALARY_TEMPLATES).map(([key,tpl])=>(
-                            <button key={key} onClick={()=>applyTemplate(key)} className="w-full flex items-center justify-between px-3.5 py-2.5 hover:bg-indigo-600/10 transition-colors text-left border-b border-brand-100 dark:border-brand-900/50 last:border-0">
-                              <div className="flex items-center gap-2.5">
-                                <span className="text-base">{tpl.icon}</span>
-                                <div><p className="text-xs font-bold text-brand-900 dark:text-white">{tpl.label}</p><p className="text-[9px] text-brand-400">Basic ₹{tpl.values.basic.toLocaleString("en-IN")} · Net ₹{calcNet(tpl.values).toLocaleString("en-IN")}</p></div>
-                              </div>
-                              {selectedTemplateKey===key&&<Check size={12} className="text-indigo-600 shrink-0"/>}
-                            </button>
-                          ))}
+
+                {hrMode==="MY_PAYSLIP" ? (
+                  <div className="p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0"><FileText size={15} className="text-emerald-600"/></div>
+                        <div>
+                          <p className="text-[9px] font-bold text-brand-400 uppercase tracking-wider">Executive & Admin Center</p>
+                          <h3 className="text-sm font-bold text-brand-900 dark:text-white">Admin Payslip ({user?.employeeId})</h3>
                         </div>
-                      )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingMyTemplate(v => !v)}
+                        className="bg-indigo-600/10 hover:bg-indigo-600 text-indigo-600 hover:text-white border border-indigo-500/20 rounded-xl px-3 py-1.5 text-[10px] font-bold flex items-center gap-1.5 transition-all shadow-sm"
+                      >
+                        <PenTool size={11} />
+                        {editingMyTemplate ? "Close Editor" : "Edit My Template"}
+                      </button>
                     </div>
-                    {selectedTemplateKey&&<p className="text-[9px] text-indigo-600 font-semibold pl-1 flex items-center gap-1"><Sparkles size={9}/>Values auto-filled — adjust manually below</p>}
+
+                    {editingMyTemplate ? (
+                      <div className="space-y-4 border border-indigo-500/30 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-2xl p-4 animate-fade-in-up">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <PenTool size={12} /> Edit Your Salary Structure
+                          </p>
+                          <span className="text-[9px] text-brand-400 font-semibold">Locked to {user?.employeeId}</span>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className={labelCls}>Load Salary Grade Template</label>
+                          <div className="relative">
+                            <button type="button" onClick={() => setMyTemplatePickerOpen(v => !v)} className={`${inputCls} text-left flex items-center justify-between`}>
+                              <span className={myTemplateKey ? "text-brand-900 dark:text-white font-bold" : "text-brand-400"}>
+                                {myTemplateKey ? `${SALARY_TEMPLATES[myTemplateKey]?.icon} ${SALARY_TEMPLATES[myTemplateKey]?.label}` : "Select grade template..."}
+                              </span>
+                              <ChevronDown size={13} className={`text-brand-400 transition-transform ${myTemplatePickerOpen ? "rotate-180" : ""}`} />
+                            </button>
+                            {myTemplatePickerOpen && (
+                              <div className="absolute top-full left-0 right-0 mt-1 glass rounded-2xl border border-brand-200 dark:border-brand-800 shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto">
+                                {Object.entries(SALARY_TEMPLATES).map(([key, tpl]) => (
+                                  <button key={key} onClick={() => applyMyTemplate(key)} className="w-full flex items-center justify-between px-3 py-2 hover:bg-indigo-600/10 transition-colors text-left border-b border-brand-100 dark:border-brand-900/50 last:border-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm">{tpl.icon}</span>
+                                      <div><p className="text-xs font-bold text-brand-900 dark:text-white">{tpl.label}</p><p className="text-[8px] text-brand-400">Basic ₹{tpl.values.basic.toLocaleString("en-IN")}</p></div>
+                                    </div>
+                                    {myTemplateKey === key && <Check size={12} className="text-indigo-600 shrink-0" />}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 border-t border-brand-200 dark:border-brand-800 pt-3">
+                          <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1.5"><TrendingUp size={10}/>Earnings Components</p>
+                          <div className="grid grid-cols-2 gap-2.5">
+                            {[
+                              { k: "basic", l: "Basic Pay" },
+                              { k: "hra", l: "HRA" },
+                              { k: "da", l: "Dearness (DA)" },
+                              { k: "allowance", l: "Special Allowance" },
+                              { k: "medicalAllowance", l: "Medical Allowance" },
+                              { k: "conveyanceAllowance", l: "Conveyance Allow" },
+                            ].map(({ k, l }) => (
+                              <div key={k} className="space-y-1">
+                                <label className={labelCls}>{l}</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={(myTemplateForm as any)[k]}
+                                  onChange={e => setMyTemplateForm({ ...myTemplateForm, [k]: parseFloat(e.target.value) || 0 })}
+                                  className={inputCls}
+                                />
+                              </div>
+                            ))}
+                            <div className="col-span-2 space-y-1">
+                              <label className={labelCls}>Bonus / Incentive</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={myTemplateForm.bonus}
+                                onChange={e => setMyTemplateForm({ ...myTemplateForm, bonus: parseFloat(e.target.value) || 0 })}
+                                className={inputCls}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 border-t border-brand-200 dark:border-brand-800 pt-3">
+                          <p className="text-[9px] font-bold text-rose-500 uppercase tracking-wider flex items-center gap-1.5"><AlertCircle size={10}/>Deductions</p>
+                          <div className="grid grid-cols-2 gap-2.5">
+                            {[
+                              { k: "pf", l: "PF" },
+                              { k: "esi", l: "ESI" },
+                              { k: "professionalTax", l: "Prof. Tax" },
+                              { k: "incomeTax", l: "TDS / Income Tax" },
+                            ].map(({ k, l }) => (
+                              <div key={k} className="space-y-1">
+                                <label className={labelCls}>{l}</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={(myTemplateForm as any)[k]}
+                                  onChange={e => setMyTemplateForm({ ...myTemplateForm, [k]: parseFloat(e.target.value) || 0 })}
+                                  className={inputCls}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-brand-200 dark:border-brand-800 bg-white/60 dark:bg-brand-900/60 p-3">
+                          <SalaryBar
+                            earnings={myTemplateForm.basic + myTemplateForm.hra + myTemplateForm.da + myTemplateForm.allowance + myTemplateForm.medicalAllowance + myTemplateForm.conveyanceAllowance + myTemplateForm.bonus}
+                            deductions={myTemplateForm.pf + myTemplateForm.esi + myTemplateForm.professionalTax + myTemplateForm.incomeTax}
+                            net={Math.max(0, (myTemplateForm.basic + myTemplateForm.hra + myTemplateForm.da + myTemplateForm.allowance + myTemplateForm.medicalAllowance + myTemplateForm.conveyanceAllowance + myTemplateForm.bonus) - (myTemplateForm.pf + myTemplateForm.esi + myTemplateForm.professionalTax + myTemplateForm.incomeTax))}
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={formLoading}
+                          onClick={handleSaveMyTemplate}
+                          className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl py-2.5 text-xs font-bold uppercase tracking-wider transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2"
+                        >
+                          {formLoading ? <><span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"/>Saving…</> : <><BadgeCheck size={13}/>Save & Lock My Template</>}
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <SigningAlertBanner structure={myProfile?.salaryStructure || myTemplateForm} employeeName={`${myProfile?.firstName || ''} ${myProfile?.lastName || ''}`} isEmployee />
+
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                          <div className="space-y-1.5"><label className={labelCls}>Month</label><select value={form.month} onChange={e=>setForm({...form,month:parseInt(e.target.value)})} className={inputCls}>{MONTH_NAMES.map((n,i)=><option key={i+1} value={i+1}>{n}</option>)}</select></div>
+                          <div className="space-y-1.5"><label className={labelCls}>Fiscal Year</label><select value={form.financialYear} onChange={e=>setForm({...form,financialYear:e.target.value})} className={inputCls}>{FINANCIAL_YEARS.map(y=><option key={y}>{y}</option>)}</select></div>
+                        </div>
+
+                        <button onClick={handleGenerateMyPayslip} disabled={formLoading}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl py-3 text-xs font-bold uppercase tracking-wider transition-all hover:-translate-y-0.5 shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2">
+                          {formLoading?<><span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"/>Generating…</>:<><Mail size={13}/>Generate & Email My Payslip</>}
+                        </button>
+                      </>
+                    )}
                   </div>
-                  {hrMode==="GENERATE"&&(
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5"><label className={labelCls}>Month</label><select value={form.month} onChange={e=>setForm({...form,month:parseInt(e.target.value)})} className={inputCls}>{MONTH_NAMES.map((n,i)=><option key={i+1} value={i+1}>{n}</option>)}</select></div>
-                      <div className="space-y-1.5"><label className={labelCls}>Fiscal Year</label><select value={form.financialYear} onChange={e=>setForm({...form,financialYear:e.target.value})} className={inputCls}>{FINANCIAL_YEARS.map(y=><option key={y}>{y}</option>)}</select></div>
+                ) : (
+                  <div className="p-5 space-y-4">
+                    <div className="space-y-1.5">
+                      <label className={labelCls}>Select Employee / Administrator</label>
+                      <select value={form.employeeId} onChange={e => handleEmployeeSelect(e.target.value)} className={inputCls}>
+                        <option value="">— Pick an employee or administrator —</option>
+                        {employees.map(emp => {
+                          const isLead = ['OBI0001', 'OBI1117'].includes(emp.employeeId);
+                          return (
+                            <option key={emp.employeeId} value={emp.employeeId}>
+                              {isLead ? '👑 ' : ''}{emp.firstName} {emp.lastName} ({emp.employeeId}) · {emp.designation} {isLead ? '[Executive]' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </div>
-                  )}
-                  <div className="space-y-3 border-t border-brand-100 dark:border-brand-900 pt-4">
-                    <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1.5"><TrendingUp size={10}/>Earnings</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[{k:"basic",l:"Basic Pay"},{k:"hra",l:"HRA"},{k:"da",l:"Dearness"},{k:"allowance",l:"Special Allow"}].map(({k,l})=>(
-                        <div key={k} className="space-y-1"><label className={labelCls}>{l}</label><input type="number" min={0} value={(form as any)[k]} onChange={e=>setForm({...form,[k]:parseFloat(e.target.value)||0})} className={inputCls}/></div>
-                      ))}
-                      <div className="col-span-2 space-y-1"><label className={labelCls}>Bonus / Incentive</label><input type="number" min={0} value={form.bonus} onChange={e=>setForm({...form,bonus:parseFloat(e.target.value)||0})} className={inputCls}/></div>
+                    {selectedEmployee?.salaryStructure&&form.employeeId&&(
+                      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5 flex items-start gap-2">
+                        <BadgeCheck size={12} className="text-emerald-500 shrink-0 mt-0.5"/>
+                        <div><p className="text-[9px] font-bold text-emerald-600 uppercase">Template Already Assigned</p><p className="text-[10px] text-brand-500 mt-0.5">Basic: ₹{selectedEmployee.salaryStructure.basic.toLocaleString("en-IN")} · Net: ₹{calcNet(selectedEmployee.salaryStructure).toLocaleString("en-IN")}</p></div>
+                      </div>
+                    )}
+                    <div className="space-y-1.5">
+                      <label className={labelCls}>Salary Grade Template</label>
+                      <div className="relative">
+                        <button type="button" onClick={()=>setTemplatePickerOpen(v=>!v)} className={`${inputCls} text-left flex items-center justify-between`}>
+                          <span className={selectedTemplateKey?"text-brand-900 dark:text-white":"text-brand-400"}>{selectedTemplateKey?`${SALARY_TEMPLATES[selectedTemplateKey].icon} ${SALARY_TEMPLATES[selectedTemplateKey].label}`:"Select a grade template…"}</span>
+                          <ChevronDown size={13} className={`text-brand-400 transition-transform ${templatePickerOpen?"rotate-180":""}`}/>
+                        </button>
+                        {templatePickerOpen&&(
+                          <div className="absolute top-full left-0 right-0 mt-1 glass rounded-2xl border border-brand-200 dark:border-brand-800 shadow-2xl z-50 overflow-hidden max-h-72 overflow-y-auto">
+                            {Object.entries(SALARY_TEMPLATES).map(([key,tpl])=>(
+                              <button key={key} onClick={()=>applyTemplate(key)} className="w-full flex items-center justify-between px-3.5 py-2.5 hover:bg-indigo-600/10 transition-colors text-left border-b border-brand-100 dark:border-brand-900/50 last:border-0">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-base">{tpl.icon}</span>
+                                  <div><p className="text-xs font-bold text-brand-900 dark:text-white">{tpl.label}</p><p className="text-[9px] text-brand-400">Basic ₹{tpl.values.basic.toLocaleString("en-IN")} · Net ₹{calcNet(tpl.values).toLocaleString("en-IN")}</p></div>
+                                </div>
+                                {selectedTemplateKey===key&&<Check size={12} className="text-indigo-600 shrink-0"/>}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {selectedTemplateKey&&<p className="text-[9px] text-indigo-600 font-semibold pl-1 flex items-center gap-1"><Sparkles size={9}/>Values auto-filled — adjust manually below</p>}
                     </div>
+                    {hrMode==="GENERATE"&&(
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5"><label className={labelCls}>Month</label><select value={form.month} onChange={e=>setForm({...form,month:parseInt(e.target.value)})} className={inputCls}>{MONTH_NAMES.map((n,i)=><option key={i+1} value={i+1}>{n}</option>)}</select></div>
+                        <div className="space-y-1.5"><label className={labelCls}>Fiscal Year</label><select value={form.financialYear} onChange={e=>setForm({...form,financialYear:e.target.value})} className={inputCls}>{FINANCIAL_YEARS.map(y=><option key={y}>{y}</option>)}</select></div>
+                      </div>
+                    )}
+                    <div className="space-y-3 border-t border-brand-100 dark:border-brand-900 pt-4">
+                      <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1.5"><TrendingUp size={10}/>Earnings</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[{k:"basic",l:"Basic Pay"},{k:"hra",l:"HRA"},{k:"da",l:"Dearness (DA)"},{k:"allowance",l:"Special Allowance"},{k:"medicalAllowance",l:"Medical Allowance"},{k:"conveyanceAllowance",l:"Conveyance Allow"}].map(({k,l})=>(
+                          <div key={k} className="space-y-1"><label className={labelCls}>{l}</label><input type="number" min={0} value={(form as any)[k]} onChange={e=>setForm({...form,[k]:parseFloat(e.target.value)||0})} className={inputCls}/></div>
+                        ))}
+                        <div className="col-span-2 space-y-1"><label className={labelCls}>Bonus / Incentive</label><input type="number" min={0} value={form.bonus} onChange={e=>setForm({...form,bonus:parseFloat(e.target.value)||0})} className={inputCls}/></div>
+                      </div>
+                    </div>
+                    <div className="space-y-3 border-t border-brand-100 dark:border-brand-900 pt-4">
+                      <p className="text-[9px] font-bold text-rose-500 uppercase tracking-wider flex items-center gap-1.5"><AlertCircle size={10}/>Deductions</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[{k:"pf",l:"PF"},{k:"esi",l:"ESI"},{k:"professionalTax",l:"Prof. Tax"},{k:"incomeTax",l:"TDS / Income Tax"}].map(({k,l})=>(
+                          <div key={k} className="space-y-1"><label className={labelCls}>{l}</label><input type="number" min={0} value={(form as any)[k]} onChange={e=>setForm({...form,[k]:parseFloat(e.target.value)||0})} className={inputCls}/></div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-brand-200 dark:border-brand-800 bg-brand-50/80 dark:bg-brand-900/80 p-4"><SalaryBar earnings={earnings} deductions={deductions} net={netSalary}/></div>
+                    <button type="button" disabled={formLoading} onClick={hrMode==="TEMPLATE"?handleSetTemplate:handleGeneratePayroll}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-2xl py-3 text-xs font-bold uppercase tracking-wider transition-all hover:-translate-y-0.5 shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
+                      {formLoading?<><span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"/>Processing…</>:hrMode==="TEMPLATE"?<><BadgeCheck size={13}/>Lock Salary Template</>:<><Zap size={13}/>Generate Payslip</>}
+                    </button>
                   </div>
-                  <div className="space-y-3 border-t border-brand-100 dark:border-brand-900 pt-4">
-                    <p className="text-[9px] font-bold text-rose-500 uppercase tracking-wider flex items-center gap-1.5"><AlertCircle size={10}/>Deductions</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[{k:"pf",l:"PF"},{k:"esi",l:"ESI"},{k:"professionalTax",l:"Prof. Tax"},{k:"incomeTax",l:"TDS / Income Tax"}].map(({k,l})=>(
-                        <div key={k} className="space-y-1"><label className={labelCls}>{l}</label><input type="number" min={0} value={(form as any)[k]} onChange={e=>setForm({...form,[k]:parseFloat(e.target.value)||0})} className={inputCls}/></div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-brand-200 dark:border-brand-800 bg-brand-50/80 dark:bg-brand-900/80 p-4"><SalaryBar earnings={earnings} deductions={deductions} net={netSalary}/></div>
-                  <button type="button" disabled={formLoading} onClick={hrMode==="TEMPLATE"?handleSetTemplate:handleGeneratePayroll}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-2xl py-3 text-xs font-bold uppercase tracking-wider transition-all hover:-translate-y-0.5 shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
-                    {formLoading?<><span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"/>Processing…</>:hrMode==="TEMPLATE"?<><BadgeCheck size={13}/>Lock Salary Template</>:<><Zap size={13}/>Generate Payslip</>}
-                  </button>
-                </div>
+                )}
               </div>
-              {selectedEmployee?.salaryStructure&&form.employeeId&&(
+              {hrMode!=="MY_PAYSLIP"&&selectedEmployee?.salaryStructure&&form.employeeId&&(
                 <SigningAlertBanner structure={selectedEmployee.salaryStructure} employeeName={`${selectedEmployee.firstName} ${selectedEmployee.lastName}`}/>
               )}
             </div>

@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import api, { resolveImageUrl } from '../../services/api';
 import {
   Search, Plus, UserPlus, Eye, Edit2, Upload, FileText, X, Check, Trash2, CalendarDays,
-  Lock, Key, Shield, DollarSign, Mail, Phone, UserCheck, AlertCircle, Building2, MapPin
+  Lock, Key, Shield, DollarSign, Mail, Phone, UserCheck, AlertCircle, Building2, MapPin,
+  TrendingUp, Sparkles, BadgeCheck
 } from 'lucide-react';
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
@@ -35,8 +36,31 @@ interface Employee {
   professionalInfo?: {
     dateOfJoining?: string;
   };
-  rating?: number | { overallScore?: number; [key: string]: any };
+  salaryStructure?: {
+    basic: number;
+    hra: number;
+    da: number;
+    allowance: number;
+    medicalAllowance?: number;
+    conveyanceAllowance?: number;
+    bonus: number;
+    pf: number;
+    esi: number;
+    professionalTax: number;
+    incomeTax: number;
+  };
 }
+
+const SALARY_TEMPLATES: Record<string, { label: string; icon: string; values: any }> = {
+  INTERN:    { label: "Intern / Trainee",     icon: "🌱", values: { basic: 8000,   hra: 3200,   da: 1200,  allowance: 1000,  medicalAllowance: 500,  conveyanceAllowance: 500,  bonus: 0,     pf: 960,   esi: 150, professionalTax: 100, incomeTax: 0     } },
+  JUNIOR:    { label: "Junior Engineer",      icon: "💼", values: { basic: 18000,  hra: 7200,   da: 2700,  allowance: 2500,  medicalAllowance: 1250, conveyanceAllowance: 1600, bonus: 0,     pf: 2160,  esi: 300, professionalTax: 150, incomeTax: 500   } },
+  MID:       { label: "Mid-Level Engineer",   icon: "⚡", values: { basic: 30000,  hra: 12000,  da: 4500,  allowance: 4000,  medicalAllowance: 1500, conveyanceAllowance: 1600, bonus: 0,     pf: 3600,  esi: 525, professionalTax: 200, incomeTax: 1200  } },
+  SENIOR:    { label: "Senior Engineer",      icon: "🚀", values: { basic: 50000,  hra: 20000,  da: 7500,  allowance: 6000,  medicalAllowance: 2000, conveyanceAllowance: 2500, bonus: 2000,  pf: 6000,  esi: 0,   professionalTax: 200, incomeTax: 3500  } },
+  LEAD:      { label: "Tech Lead",            icon: "🎯", values: { basic: 70000,  hra: 28000,  da: 10500, allowance: 8000,  medicalAllowance: 2500, conveyanceAllowance: 3000, bonus: 3000,  pf: 8400,  esi: 0,   professionalTax: 200, incomeTax: 6000  } },
+  MANAGER:   { label: "Engineering Manager", icon: "🏆", values: { basic: 95000,  hra: 38000,  da: 14250, allowance: 10000, medicalAllowance: 3000, conveyanceAllowance: 3500, bonus: 5000,  pf: 11400, esi: 0,   professionalTax: 200, incomeTax: 10000 } },
+  DIRECTOR:  { label: "Director",             icon: "👑", values: { basic: 150000, hra: 60000,  da: 22500, allowance: 15000, medicalAllowance: 5000, conveyanceAllowance: 5000, bonus: 10000, pf: 18000, esi: 0,   professionalTax: 200, incomeTax: 18000 } },
+  EXECUTIVE: { label: "C-Level Executive",   icon: "🌟", values: { basic: 250000, hra: 100000, da: 37500, allowance: 25000, medicalAllowance: 10000, conveyanceAllowance: 10000, bonus: 20000, pf: 30000, esi: 0,   professionalTax: 200, incomeTax: 35000 } },
+};
 
 export const Employees: React.FC = () => {
   const { user } = useAuth();
@@ -109,9 +133,15 @@ export const Employees: React.FC = () => {
     try {
       const url = query ? `/reports/search?query=${query}` : '/employees';
       const res = await api.get(url);
-      const rawData = query ? res.data.data.employees : res.data.data;
-      const filtered = (rawData || []).filter((e: any) => !['OBI0001', 'OBI1117'].includes(e.employeeId));
-      setEmployees(filtered);
+      const rawList: Employee[] = query ? res.data.data.employees : res.data.data;
+      const sortedList = (rawList || []).slice().sort((a: any, b: any) => {
+        const aLead = ['OBI0001', 'OBI1117'].includes(a.employeeId);
+        const bLead = ['OBI0001', 'OBI1117'].includes(b.employeeId);
+        if (aLead && !bLead) return -1;
+        if (!aLead && bLead) return 1;
+        return (a.employeeId || '').localeCompare(b.employeeId || '');
+      });
+      setEmployees(sortedList);
     } catch (err) {
       console.error('Failed to load employee records:', err);
     } finally {
@@ -216,6 +246,18 @@ export const Employees: React.FC = () => {
   };
 
   const openEditModal = (emp: any) => {
+    const isLead = ['OBI0001', 'OBI1117'].includes(emp.employeeId);
+    const defaultBasic = isLead ? (emp.employeeId === 'OBI1117' ? 150000 : 250000) : 0;
+    const defaultHra = isLead ? (emp.employeeId === 'OBI1117' ? 60000 : 100000) : 0;
+    const defaultDa = isLead ? (emp.employeeId === 'OBI1117' ? 22500 : 37500) : 0;
+    const defaultAllowance = isLead ? (emp.employeeId === 'OBI1117' ? 15000 : 25000) : 0;
+    const defaultMedical = isLead ? (emp.employeeId === 'OBI1117' ? 5000 : 10000) : 0;
+    const defaultConveyance = isLead ? (emp.employeeId === 'OBI1117' ? 5000 : 10000) : 0;
+    const defaultBonus = isLead ? (emp.employeeId === 'OBI1117' ? 10000 : 20000) : 0;
+    const defaultPf = isLead ? (emp.employeeId === 'OBI1117' ? 18000 : 30000) : 0;
+    const defaultPt = isLead ? 200 : 0;
+    const defaultTax = isLead ? (emp.employeeId === 'OBI1117' ? 18000 : 35000) : 0;
+
     setEditEmp({
       employeeId: emp.employeeId,
       firstName: emp.firstName || '',
@@ -238,9 +280,17 @@ export const Employees: React.FC = () => {
       emergencyName: emp.emergencyContact?.name || '',
       emergencyRelationship: emp.emergencyContact?.relationship || '',
       emergencyPhone: emp.emergencyContact?.phone || '',
-      basicSalary: emp.salaryStructure?.basic || 0,
-      hra: emp.salaryStructure?.hra || 0,
-      allowance: emp.salaryStructure?.allowance || 0,
+      basicSalary: emp.salaryStructure?.basic ?? defaultBasic,
+      hra: emp.salaryStructure?.hra ?? defaultHra,
+      da: emp.salaryStructure?.da ?? defaultDa,
+      allowance: emp.salaryStructure?.allowance ?? defaultAllowance,
+      medicalAllowance: emp.salaryStructure?.medicalAllowance ?? defaultMedical,
+      conveyanceAllowance: emp.salaryStructure?.conveyanceAllowance ?? defaultConveyance,
+      bonus: emp.salaryStructure?.bonus ?? defaultBonus,
+      pf: emp.salaryStructure?.pf ?? defaultPf,
+      esi: emp.salaryStructure?.esi ?? 0,
+      professionalTax: emp.salaryStructure?.professionalTax ?? defaultPt,
+      incomeTax: emp.salaryStructure?.incomeTax ?? defaultTax,
     });
     setShowEditModal(true);
   };
@@ -281,25 +331,37 @@ export const Employees: React.FC = () => {
       if (editEmp.password && editEmp.password.trim() !== '') {
         payload.password = editEmp.password.trim();
       }
-      if (editEmp.basicSalary || editEmp.hra || editEmp.allowance) {
-        payload.salaryStructure = {
-          basic: Number(editEmp.basicSalary) || 0,
-          hra: Number(editEmp.hra) || 0,
-          da: 0,
-          allowance: Number(editEmp.allowance) || 0,
-          bonus: 0,
-          pf: 0,
-          esi: 0,
-          professionalTax: 0,
-          incomeTax: 0,
-        };
+
+      const salaryPayload = {
+        basic: Number(editEmp.basicSalary) || 0,
+        hra: Number(editEmp.hra) || 0,
+        da: Number(editEmp.da) || 0,
+        allowance: Number(editEmp.allowance) || 0,
+        medicalAllowance: Number(editEmp.medicalAllowance) || 0,
+        conveyanceAllowance: Number(editEmp.conveyanceAllowance) || 0,
+        bonus: Number(editEmp.bonus) || 0,
+        pf: Number(editEmp.pf) || 0,
+        esi: Number(editEmp.esi) || 0,
+        professionalTax: Number(editEmp.professionalTax) || 0,
+        incomeTax: Number(editEmp.incomeTax) || 0,
+      };
+
+      if (isSuperAdmin || user?.role === 'HR') {
+        payload.salaryStructure = salaryPayload;
       }
 
       await api.put(`/employees/${editEmp.employeeId}`, payload);
+      // Synchronize directly with salary-structure endpoint to guarantee persistence
+      if (isSuperAdmin || user?.role === 'HR') {
+        try {
+          await api.put(`/employees/${editEmp.employeeId}/salary-structure`, salaryPayload);
+        } catch {/**/}
+      }
+
       setShowEditModal(false);
       setEditEmp(null);
       await fetchEmployees();
-      alert({ title: 'Success', message: `Full profile and credentials updated successfully for ${editEmp.firstName} ${editEmp.lastName}`, variant: 'info' });
+      alert({ title: 'Success', message: `Profile & Payslip Template successfully updated for ${editEmp.firstName} ${editEmp.lastName} (${editEmp.employeeId})`, variant: 'info' });
     } catch (err: any) {
       alert({ title: 'Error', message: err.response?.data?.message || 'Failed to update employee', variant: 'error' });
     }
@@ -494,10 +556,10 @@ export const Employees: React.FC = () => {
                           <Eye size={14} />
                         </button>
 
-                        {/* Edit Button: Super Admins & HR can edit all staff; Team Leads can edit their department staff */}
+                        {/* Edit Button: Super Admins can edit everyone including leadership; HR can edit staff */}
                         {(() => {
                           const isRootAdmin = ['OBI0001', 'OBI1117'].includes(emp.employeeId);
-                          if (isRootAdmin) return null;
+                          if (isRootAdmin && !isSuperAdmin) return null;
 
                           const canEdit = isSuperAdmin || user?.role === 'HR' || 
                             (user?.role === 'TEAM_LEAD' && (
@@ -511,7 +573,7 @@ export const Employees: React.FC = () => {
                             <button
                               onClick={() => openEditModal(emp)}
                               className="p-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900 text-amber-600 rounded-xl transition-all"
-                              title="Edit Employee Information"
+                              title="Edit Employee & Payslip Template"
                             >
                               <Edit2 size={14} />
                             </button>
@@ -1274,41 +1336,199 @@ export const Employees: React.FC = () => {
                 </div>
               </div>
 
-              {/* 5. COMPENSATION & SALARY STRUCTURE */}
-              {isSuperAdmin && (
-                <div className="space-y-3 bg-brand-50/40 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-2xl p-4">
-                  <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <DollarSign size={13} /> Compensation Structure (₹ Monthly)
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Basic Monthly (₹)</label>
-                      <input
-                        type="number"
-                        value={editEmp.basicSalary}
-                        onChange={e => setEditEmp({ ...editEmp, basicSalary: e.target.value })}
-                        className="w-full bg-white dark:bg-brand-900/70 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
-                      />
+              {/* 5. COMPENSATION & PAYSLIP TEMPLATE STRUCTURE */}
+              {(isSuperAdmin || user?.role === 'HR') && (
+                <div className="space-y-4 bg-brand-50/50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-800 rounded-2xl p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-200/60 dark:border-brand-800/60 pb-3">
+                    <div>
+                      <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <DollarSign size={13} /> Payslip & Salary Template Structure (₹ Monthly)
+                      </h3>
+                      <p className="text-[10px] text-brand-500 font-medium mt-0.5">Customizable earnings and deductions applied automatically to generated corporate payslips</p>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">HRA (₹)</label>
-                      <input
-                        type="number"
-                        value={editEmp.hra}
-                        onChange={e => setEditEmp({ ...editEmp, hra: e.target.value })}
-                        className="w-full bg-white dark:bg-brand-900/70 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-brand-500 uppercase tracking-wider pl-1">Allowances (₹)</label>
-                      <input
-                        type="number"
-                        value={editEmp.allowance}
-                        onChange={e => setEditEmp({ ...editEmp, allowance: e.target.value })}
-                        className="w-full bg-white dark:bg-brand-900/70 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
-                      />
+                    <div className="flex items-center gap-2">
+                      <select
+                        onChange={(e) => {
+                          const tplKey = e.target.value;
+                          if (tplKey && SALARY_TEMPLATES[tplKey]) {
+                            const val = SALARY_TEMPLATES[tplKey].values;
+                            setEditEmp((prev: any) => ({
+                              ...prev,
+                              basicSalary: val.basic,
+                              hra: val.hra,
+                              da: val.da,
+                              allowance: val.allowance,
+                              medicalAllowance: val.medicalAllowance,
+                              conveyanceAllowance: val.conveyanceAllowance,
+                              bonus: val.bonus,
+                              pf: val.pf,
+                              esi: val.esi,
+                              professionalTax: val.professionalTax,
+                              incomeTax: val.incomeTax,
+                            }));
+                          }
+                        }}
+                        defaultValue=""
+                        className="bg-white dark:bg-brand-900 border border-brand-200 dark:border-brand-800 rounded-xl px-2.5 py-1.5 text-[10px] font-bold text-brand-950 dark:text-white outline-none focus:border-indigo-500"
+                      >
+                        <option value="">⚡ Load Preset Template…</option>
+                        {Object.entries(SALARY_TEMPLATES).map(([key, tpl]) => (
+                          <option key={key} value={key}>{tpl.icon} {tpl.label} (₹{tpl.values.basic.toLocaleString('en-IN')})</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
+
+                  {/* Earnings Breakdown */}
+                  <div className="space-y-2">
+                    <p className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                      <TrendingUp size={10} /> Monthly Earnings Breakdown
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-brand-500 uppercase tracking-wider pl-1">Basic Monthly (₹) *</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editEmp.basicSalary}
+                          onChange={e => setEditEmp({ ...editEmp, basicSalary: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-brand-500 uppercase tracking-wider pl-1">HRA (₹)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editEmp.hra}
+                          onChange={e => setEditEmp({ ...editEmp, hra: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-brand-500 uppercase tracking-wider pl-1">DA / Dearness (₹)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editEmp.da}
+                          onChange={e => setEditEmp({ ...editEmp, da: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-brand-500 uppercase tracking-wider pl-1">Special Allow. (₹)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editEmp.allowance}
+                          onChange={e => setEditEmp({ ...editEmp, allowance: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider pl-1">Medical Allow. (₹)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editEmp.medicalAllowance}
+                          onChange={e => setEditEmp({ ...editEmp, medicalAllowance: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider pl-1">Conveyance Allow. (₹)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editEmp.conveyanceAllowance}
+                          onChange={e => setEditEmp({ ...editEmp, conveyanceAllowance: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                        />
+                      </div>
+                      <div className="col-span-2 space-y-1">
+                        <label className="text-[9px] font-bold text-brand-500 uppercase tracking-wider pl-1">Bonus / Incentive (₹)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editEmp.bonus}
+                          onChange={e => setEditEmp({ ...editEmp, bonus: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Deductions Breakdown */}
+                  <div className="space-y-2 border-t border-brand-200/60 dark:border-brand-800/60 pt-3">
+                    <p className="text-[9px] font-bold text-rose-500 uppercase tracking-wider flex items-center gap-1">
+                      <AlertCircle size={10} /> Deductions Breakdown
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-brand-500 uppercase tracking-wider pl-1">Provident Fund (PF) (₹)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editEmp.pf}
+                          onChange={e => setEditEmp({ ...editEmp, pf: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-brand-500 uppercase tracking-wider pl-1">ESI (₹)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editEmp.esi}
+                          onChange={e => setEditEmp({ ...editEmp, esi: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-brand-500 uppercase tracking-wider pl-1">Prof. Tax (PT) (₹)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editEmp.professionalTax}
+                          onChange={e => setEditEmp({ ...editEmp, professionalTax: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-brand-500 uppercase tracking-wider pl-1">TDS / Income Tax (₹)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editEmp.incomeTax}
+                          onChange={e => setEditEmp({ ...editEmp, incomeTax: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Live Calculation Preview */}
+                  {(() => {
+                    const gross = (Number(editEmp.basicSalary) || 0) + (Number(editEmp.hra) || 0) + (Number(editEmp.da) || 0) + (Number(editEmp.allowance) || 0) + (Number(editEmp.medicalAllowance) || 0) + (Number(editEmp.conveyanceAllowance) || 0) + (Number(editEmp.bonus) || 0);
+                    const ded = (Number(editEmp.pf) || 0) + (Number(editEmp.esi) || 0) + (Number(editEmp.professionalTax) || 0) + (Number(editEmp.incomeTax) || 0);
+                    const net = Math.max(0, gross - ded);
+                    return (
+                      <div className="rounded-xl border border-brand-200 dark:border-brand-800 bg-white/70 dark:bg-brand-900/70 p-3 space-y-1.5">
+                        <div className="flex items-center justify-between text-[10px] font-bold">
+                          <span className="text-emerald-600">Gross Earnings: ₹{gross.toLocaleString('en-IN')}</span>
+                          <span className="text-rose-500">Total Deductions: ₹{ded.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-brand-100 dark:bg-brand-800 overflow-hidden flex">
+                          <div className="h-full bg-emerald-500" style={{ width: `${gross + ded > 0 ? (gross / (gross + ded)) * 100 : 50}%` }} />
+                          <div className="h-full bg-rose-500" style={{ width: `${gross + ded > 0 ? (ded / (gross + ded)) * 100 : 50}%` }} />
+                        </div>
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[9px] font-bold text-brand-500 uppercase tracking-wider">Estimated Net Take-Home:</span>
+                          <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">₹{net.toLocaleString('en-IN')} / month</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

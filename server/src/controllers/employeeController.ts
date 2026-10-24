@@ -421,10 +421,11 @@ export const getEmployeesList = async (req: Request, res: Response, next: NextFu
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
+    const excludeLeadership = req.query.excludeLeadership === 'true';
+    const where = excludeLeadership ? { employeeId: { notIn: ['OBI0001', 'OBI1117'] } } : {};
+
     const employees = await prisma.employee.findMany({
-      where: {
-        employeeId: { notIn: ['OBI0001', 'OBI1117'] },
-      },
+      where,
       include: {
         office: true,
         attendanceEnrollment: {
@@ -650,7 +651,7 @@ export const deleteEmployee = async (req: Request, res: Response, next: NextFunc
 export const updateSalaryStructure = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { employeeId } = req.params;
-    const { basic, hra, da, allowance, bonus, pf, esi, professionalTax, incomeTax } = req.body;
+    const { basic, hra, da, allowance, medicalAllowance, conveyanceAllowance, bonus, pf, esi, professionalTax, incomeTax } = req.body;
 
     const employee = await prisma.employee.findUnique({
       where: { employeeId },
@@ -668,6 +669,8 @@ export const updateSalaryStructure = async (req: Request, res: Response, next: N
           hra: Number(hra) || 0,
           da: Number(da) || 0,
           allowance: Number(allowance) || 0,
+          medicalAllowance: Number(medicalAllowance) || 0,
+          conveyanceAllowance: Number(conveyanceAllowance) || 0,
           bonus: Number(bonus) || 0,
           pf: Number(pf) || 0,
           esi: Number(esi) || 0,

@@ -204,15 +204,17 @@ type ProfessionalInfo {
 }
 
 type SalaryStructure {
-  basic           Float
-  hra             Float
-  da              Float
-  allowance       Float
-  bonus           Float
-  pf              Float
-  esi             Float
-  professionalTax Float
-  incomeTax       Float
+  basic               Float
+  hra                 Float
+  da                  Float
+  allowance           Float
+  medicalAllowance    Float? @default(0)
+  conveyanceAllowance Float? @default(0)
+  bonus               Float
+  pf                  Float
+  esi                 Float
+  professionalTax     Float
+  incomeTax           Float
 }
 
 type EmergencyContact {
@@ -350,19 +352,21 @@ model Payroll {
   month           Int
   financialYear   String
   payslipNumber   String   @unique
-  basic           Float
-  hra             Float
-  da              Float
-  allowance       Float
-  bonus           Float
-  pf              Float
-  esi             Float
-  professionalTax Float
-  incomeTax       Float
-  netSalary       Float
-  payslipPdfUrl   String?
-  status          String   @default("GENERATED")
-  createdAt       DateTime @default(now())
+  basic               Float
+  hra                 Float
+  da                  Float
+  allowance           Float
+  medicalAllowance    Float?   @default(0)
+  conveyanceAllowance Float?   @default(0)
+  bonus               Float
+  pf                  Float
+  esi                 Float
+  professionalTax     Float
+  incomeTax           Float
+  netSalary           Float
+  payslipPdfUrl       String?
+  status              String   @default("GENERATED")
+  createdAt           DateTime @default(now())
 }
 
 model Document {

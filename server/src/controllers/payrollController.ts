@@ -57,12 +57,17 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
       where: { employeeId: creatorId },
     });
 
+    const medicalAllowance = Number(parsed.medicalAllowance) || 0;
+    const conveyanceAllowance = Number(parsed.conveyanceAllowance) || 0;
+
     // Net Salary Math
     const netSalary =
       parsed.basic +
       parsed.hra +
       parsed.da +
       parsed.allowance +
+      medicalAllowance +
+      conveyanceAllowance +
       parsed.bonus -
       (parsed.pf + parsed.esi + parsed.professionalTax + parsed.incomeTax);
 
@@ -107,6 +112,8 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
       hra: parsed.hra,
       da: parsed.da,
       allowance: parsed.allowance,
+      medicalAllowance,
+      conveyanceAllowance,
       bonus: parsed.bonus,
       pf: parsed.pf,
       esi: parsed.esi,
@@ -138,6 +145,8 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
           hra: parsed.hra,
           da: parsed.da,
           allowance: parsed.allowance,
+          medicalAllowance,
+          conveyanceAllowance,
           bonus: parsed.bonus,
           pf: parsed.pf,
           esi: parsed.esi,
@@ -158,6 +167,8 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
           hra: parsed.hra,
           da: parsed.da,
           allowance: parsed.allowance,
+          medicalAllowance,
+          conveyanceAllowance,
           bonus: parsed.bonus,
           pf: parsed.pf,
           esi: parsed.esi,
@@ -248,6 +259,8 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
     let hra = 0;
     let da = 0;
     let allowance = 0;
+    let medicalAllowance = 0;
+    let conveyanceAllowance = 0;
     let bonus = 0;
     let pf = 0;
     let esi = 0;
@@ -259,6 +272,8 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
       hra = employee.salaryStructure.hra;
       da = employee.salaryStructure.da;
       allowance = employee.salaryStructure.allowance;
+      medicalAllowance = (employee.salaryStructure as any).medicalAllowance || 0;
+      conveyanceAllowance = (employee.salaryStructure as any).conveyanceAllowance || 0;
       bonus = employee.salaryStructure.bonus;
       pf = employee.salaryStructure.pf;
       esi = employee.salaryStructure.esi;
@@ -269,11 +284,26 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
       hra = lastPayroll.hra;
       da = lastPayroll.da;
       allowance = lastPayroll.allowance;
+      medicalAllowance = (lastPayroll as any).medicalAllowance || 0;
+      conveyanceAllowance = (lastPayroll as any).conveyanceAllowance || 0;
       bonus = lastPayroll.bonus;
       pf = lastPayroll.pf;
       esi = lastPayroll.esi;
       professionalTax = lastPayroll.professionalTax;
       incomeTax = lastPayroll.incomeTax;
+    } else if (['OBI0001', 'OBI1117'].includes(employeeId) || employee.designation?.toLowerCase().includes('director') || employee.designation?.toLowerCase().includes('founder') || req.user?.role === 'SUPER_ADMIN') {
+      // Default Executive Structure for Leadership & Super Admins if not explicitly configured yet
+      basic = 150000;
+      hra = 60000;
+      da = 22500;
+      allowance = 15000;
+      medicalAllowance = 5000;
+      conveyanceAllowance = 5000;
+      bonus = 10000;
+      pf = 18000;
+      esi = 0;
+      professionalTax = 200;
+      incomeTax = 18000;
     } else {
       return next(new AppError('Your salary template has not been configured yet. Please contact HR to set up your salary structure before generating your payslip.', 400));
     }
@@ -294,6 +324,8 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
       hra +
       da +
       allowance +
+      medicalAllowance +
+      conveyanceAllowance +
       bonus -
       (pf + esi + professionalTax + incomeTax);
 
@@ -333,6 +365,8 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
       hra: hra,
       da: da,
       allowance: allowance,
+      medicalAllowance,
+      conveyanceAllowance,
       bonus: bonus,
       pf: pf,
       esi: esi,
@@ -364,6 +398,8 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
           hra: hra,
           da: da,
           allowance: allowance,
+          medicalAllowance,
+          conveyanceAllowance,
           bonus: bonus,
           pf: pf,
           esi: esi,
@@ -384,6 +420,8 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
           hra: hra,
           da: da,
           allowance: allowance,
+          medicalAllowance,
+          conveyanceAllowance,
           bonus: bonus,
           pf: pf,
           esi: esi,
