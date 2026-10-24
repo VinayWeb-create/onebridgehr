@@ -12,7 +12,7 @@ interface PayrollRecord {
   id: string; employeeId: string; month: number; financialYear: string;
   payslipNumber: string; basic: number; hra: number; da: number;
   allowance: number; medicalAllowance?: number; conveyanceAllowance?: number; bonus: number; pf: number; esi: number;
-  professionalTax: number; incomeTax: number; netSalary: number;
+  professionalTax: number; incomeTax: number; otherDeductions?: number; netSalary: number;
   payslipPdfUrl?: string; status: string;
   employee?: { firstName: string; lastName: string; department: string; designation: string };
 }
@@ -24,23 +24,24 @@ interface SalaryStructure {
   basic: number; hra: number; da: number; allowance: number;
   medicalAllowance: number; conveyanceAllowance: number; bonus: number;
   pf: number; esi: number; professionalTax: number; incomeTax: number;
+  otherDeductions: number;
 }
 interface ToastMsg { id: string; type: "success" | "error" | "info"; title: string; message: string; }
 
 const SALARY_TEMPLATES: Record<string, { label: string; icon: string; color: string; values: SalaryStructure }> = {
-  INTERN:    { label: "Intern / Trainee",     icon: "🌱", color: "from-green-500/20 to-emerald-500/10 border-green-500/30",     values: { basic: 8000,   hra: 3200,   da: 1200,  allowance: 1000,  medicalAllowance: 500,  conveyanceAllowance: 500,  bonus: 0,     pf: 960,   esi: 150, professionalTax: 100, incomeTax: 0     } },
-  JUNIOR:    { label: "Junior Engineer",      icon: "💼", color: "from-blue-500/20 to-sky-500/10 border-blue-500/30",           values: { basic: 18000,  hra: 7200,   da: 2700,  allowance: 2500,  medicalAllowance: 1250, conveyanceAllowance: 1600, bonus: 0,     pf: 2160,  esi: 300, professionalTax: 150, incomeTax: 500   } },
-  MID:       { label: "Mid-Level Engineer",   icon: "⚡", color: "from-violet-500/20 to-purple-500/10 border-violet-500/30",    values: { basic: 30000,  hra: 12000,  da: 4500,  allowance: 4000,  medicalAllowance: 1500, conveyanceAllowance: 1600, bonus: 0,     pf: 3600,  esi: 525, professionalTax: 200, incomeTax: 1200  } },
-  SENIOR:    { label: "Senior Engineer",      icon: "🚀", color: "from-orange-500/20 to-amber-500/10 border-orange-500/30",    values: { basic: 50000,  hra: 20000,  da: 7500,  allowance: 6000,  medicalAllowance: 2000, conveyanceAllowance: 2500, bonus: 2000,  pf: 6000,  esi: 0,   professionalTax: 200, incomeTax: 3500  } },
-  LEAD:      { label: "Tech Lead",            icon: "🎯", color: "from-rose-500/20 to-pink-500/10 border-rose-500/30",         values: { basic: 70000,  hra: 28000,  da: 10500, allowance: 8000,  medicalAllowance: 2500, conveyanceAllowance: 3000, bonus: 3000,  pf: 8400,  esi: 0,   professionalTax: 200, incomeTax: 6000  } },
-  MANAGER:   { label: "Engineering Manager", icon: "🏆", color: "from-yellow-500/20 to-amber-500/10 border-yellow-500/30",   values: { basic: 95000,  hra: 38000,  da: 14250, allowance: 10000, medicalAllowance: 3000, conveyanceAllowance: 3500, bonus: 5000,  pf: 11400, esi: 0,   professionalTax: 200, incomeTax: 10000 } },
-  DIRECTOR:  { label: "Director",             icon: "👑", color: "from-indigo-500/20 to-blue-500/10 border-indigo-500/30",     values: { basic: 150000, hra: 60000,  da: 22500, allowance: 15000, medicalAllowance: 5000, conveyanceAllowance: 5000, bonus: 10000, pf: 18000, esi: 0,   professionalTax: 200, incomeTax: 18000 } },
-  EXECUTIVE: { label: "C-Level Executive",   icon: "🌟", color: "from-fuchsia-500/20 to-violet-500/10 border-fuchsia-500/30", values: { basic: 250000, hra: 100000, da: 37500, allowance: 25000, medicalAllowance: 10000, conveyanceAllowance: 10000, bonus: 20000, pf: 30000, esi: 0,   professionalTax: 200, incomeTax: 35000 } },
+  INTERN:    { label: "Intern / Trainee",     icon: "🌱", color: "from-green-500/20 to-emerald-500/10 border-green-500/30",     values: { basic: 8000,   hra: 3200,   da: 1200,  allowance: 1000,  medicalAllowance: 500,  conveyanceAllowance: 500,  bonus: 0,     pf: 960,   esi: 150, professionalTax: 100, incomeTax: 0,     otherDeductions: 0 } },
+  JUNIOR:    { label: "Junior Engineer",      icon: "💼", color: "from-blue-500/20 to-sky-500/10 border-blue-500/30",           values: { basic: 18000,  hra: 7200,   da: 2700,  allowance: 2500,  medicalAllowance: 1250, conveyanceAllowance: 1600, bonus: 0,     pf: 2160,  esi: 300, professionalTax: 150, incomeTax: 500,   otherDeductions: 0 } },
+  MID:       { label: "Mid-Level Engineer",   icon: "⚡", color: "from-violet-500/20 to-purple-500/10 border-violet-500/30",    values: { basic: 30000,  hra: 12000,  da: 4500,  allowance: 4000,  medicalAllowance: 1500, conveyanceAllowance: 1600, bonus: 0,     pf: 3600,  esi: 525, professionalTax: 200, incomeTax: 1200,  otherDeductions: 0 } },
+  SENIOR:    { label: "Senior Engineer",      icon: "🚀", color: "from-orange-500/20 to-amber-500/10 border-orange-500/30",    values: { basic: 50000,  hra: 20000,  da: 7500,  allowance: 6000,  medicalAllowance: 2000, conveyanceAllowance: 2500, bonus: 2000,  pf: 6000,  esi: 0,   professionalTax: 200, incomeTax: 3500,  otherDeductions: 0 } },
+  LEAD:      { label: "Tech Lead",            icon: "🎯", color: "from-rose-500/20 to-pink-500/10 border-rose-500/30",         values: { basic: 70000,  hra: 28000,  da: 10500, allowance: 8000,  medicalAllowance: 2500, conveyanceAllowance: 3000, bonus: 3000,  pf: 8400,  esi: 0,   professionalTax: 200, incomeTax: 6000,  otherDeductions: 0 } },
+  MANAGER:   { label: "Engineering Manager", icon: "🏆", color: "from-yellow-500/20 to-amber-500/10 border-yellow-500/30",   values: { basic: 95000,  hra: 38000,  da: 14250, allowance: 10000, medicalAllowance: 3000, conveyanceAllowance: 3500, bonus: 5000,  pf: 11400, esi: 0,   professionalTax: 200, incomeTax: 10000, otherDeductions: 0 } },
+  DIRECTOR:  { label: "Director",             icon: "👑", color: "from-indigo-500/20 to-blue-500/10 border-indigo-500/30",     values: { basic: 150000, hra: 60000,  da: 22500, allowance: 15000, medicalAllowance: 5000, conveyanceAllowance: 5000, bonus: 10000, pf: 18000, esi: 0,   professionalTax: 200, incomeTax: 18000, otherDeductions: 0 } },
+  EXECUTIVE: { label: "C-Level Executive",   icon: "🌟", color: "from-fuchsia-500/20 to-violet-500/10 border-fuchsia-500/30", values: { basic: 250000, hra: 100000, da: 37500, allowance: 25000, medicalAllowance: 10000, conveyanceAllowance: 10000, bonus: 20000, pf: 30000, esi: 0,   professionalTax: 200, incomeTax: 35000, otherDeductions: 0 } },
 };
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const FINANCIAL_YEARS = ["2024-2025","2025-2026","2026-2027","2027-2028"];
-const calcNet = (s: SalaryStructure) => Math.max(0, s.basic + s.hra + s.da + s.allowance + (s.medicalAllowance || 0) + (s.conveyanceAllowance || 0) + s.bonus - (s.pf + s.esi + s.professionalTax + s.incomeTax));
+const calcNet = (s: SalaryStructure) => Math.max(0, s.basic + s.hra + s.da + s.allowance + (s.medicalAllowance || 0) + (s.conveyanceAllowance || 0) + s.bonus - (s.pf + s.esi + s.professionalTax + s.incomeTax + (s.otherDeductions || 0)));
 
 const ToastContainer: React.FC<{ toasts: ToastMsg[]; remove: (id: string) => void }> = ({ toasts, remove }) => (
   <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-3 pointer-events-none">
@@ -81,7 +82,7 @@ const SalaryBar: React.FC<{ earnings: number; deductions: number; net: number }>
 const SigningAlertBanner: React.FC<{ structure: SalaryStructure; templateKey?: string|null; employeeName?: string; isEmployee?: boolean }> = ({ structure, templateKey, employeeName, isEmployee }) => {
   const tpl = templateKey ? SALARY_TEMPLATES[templateKey] : null;
   const earnings = structure.basic + structure.hra + structure.da + structure.allowance + (structure.medicalAllowance || 0) + (structure.conveyanceAllowance || 0) + structure.bonus;
-  const deductions = structure.pf + structure.esi + structure.professionalTax + structure.incomeTax;
+  const deductions = structure.pf + structure.esi + structure.professionalTax + structure.incomeTax + (structure.otherDeductions || 0);
   return (
     <div className={`rounded-2xl border bg-gradient-to-br p-4 space-y-3 ${tpl?tpl.color:"from-indigo-500/20 to-orange-500/10 border-indigo-500/30"}`}>
       <div className="flex items-start justify-between gap-2">
@@ -150,7 +151,8 @@ export const Payroll: React.FC = () => {
     pf: 0,
     esi: 0,
     professionalTax: 0,
-    incomeTax: 0
+    incomeTax: 0,
+    otherDeductions: 0,
   });
 
   const toast = useCallback((type: ToastMsg["type"], title: string, message: string) => {
@@ -198,6 +200,7 @@ export const Payroll: React.FC = () => {
     esi: 0,
     professionalTax: 200,
     incomeTax: 18000,
+    otherDeductions: 0,
   });
 
   const fetchMyProfile = useCallback(async () => {
@@ -221,6 +224,7 @@ export const Payroll: React.FC = () => {
         esi: myProfile.salaryStructure.esi || 0,
         professionalTax: myProfile.salaryStructure.professionalTax || 0,
         incomeTax: myProfile.salaryStructure.incomeTax || 0,
+        otherDeductions: (myProfile.salaryStructure as any).otherDeductions || 0,
       });
     } else if (['OBI0001', 'OBI1117'].includes(user?.employeeId || '')) {
       const isDirector = user?.employeeId === 'OBI1117';
@@ -277,6 +281,7 @@ export const Payroll: React.FC = () => {
         esi: emp.salaryStructure?.esi || 0,
         professionalTax: emp.salaryStructure?.professionalTax || 0,
         incomeTax: emp.salaryStructure?.incomeTax || 0,
+        otherDeductions: (emp.salaryStructure as any)?.otherDeductions || 0,
       }));
     } else if (['OBI0001', 'OBI1117'].includes(empId) || emp?.designation?.toLowerCase().includes('director') || emp?.designation?.toLowerCase().includes('founder')) {
       const isDirector = empId === 'OBI1117';
@@ -292,14 +297,14 @@ export const Payroll: React.FC = () => {
         ...f,
         employeeId: empId,
         basic: 0, hra: 0, da: 0, allowance: 0, medicalAllowance: 0, conveyanceAllowance: 0,
-        bonus: 0, pf: 0, esi: 0, professionalTax: 0, incomeTax: 0
+        bonus: 0, pf: 0, esi: 0, professionalTax: 0, incomeTax: 0, otherDeductions: 0
       }));
     }
   };
 
   const selectedEmployee = employees.find(e => e.employeeId === form.employeeId);
   const earnings = form.basic + form.hra + form.da + form.allowance + form.medicalAllowance + form.conveyanceAllowance + form.bonus;
-  const deductions = form.pf + form.esi + form.professionalTax + form.incomeTax;
+  const deductions = form.pf + form.esi + form.professionalTax + form.incomeTax + form.otherDeductions;
   const netSalary = Math.max(0, earnings - deductions);
 
   const handleSetTemplate = async () => {
@@ -317,7 +322,8 @@ export const Payroll: React.FC = () => {
         pf: form.pf,
         esi: form.esi,
         professionalTax: form.professionalTax,
-        incomeTax: form.incomeTax
+        incomeTax: form.incomeTax,
+        otherDeductions: form.otherDeductions
       });
       toast("success", "Template Saved", `Salary template locked to ${form.employeeId}. Applied from first payslip.`);
       await fetchEmployees(); setForm(f => ({ ...f, employeeId: "" })); setSelectedTemplateKey("");
@@ -343,7 +349,8 @@ export const Payroll: React.FC = () => {
         pf: form.pf,
         esi: form.esi,
         professionalTax: form.professionalTax,
-        incomeTax: form.incomeTax
+        incomeTax: form.incomeTax,
+        otherDeductions: form.otherDeductions
       });
       toast("success", "Payslip Generated", `Payslip for ${MONTH_NAMES[form.month-1]} ${form.financialYear} generated.`);
       setForm(f => ({ ...f, employeeId: "", bonus: 0 })); await fetchPayrolls();
@@ -530,6 +537,7 @@ export const Payroll: React.FC = () => {
                               { k: "esi", l: "ESI" },
                               { k: "professionalTax", l: "Prof. Tax" },
                               { k: "incomeTax", l: "TDS / Income Tax" },
+                              { k: "otherDeductions", l: "Other Deductions" },
                             ].map(({ k, l }) => (
                               <div key={k} className="space-y-1">
                                 <label className={labelCls}>{l}</label>
@@ -548,8 +556,8 @@ export const Payroll: React.FC = () => {
                         <div className="rounded-xl border border-brand-200 dark:border-brand-800 bg-white/60 dark:bg-brand-900/60 p-3">
                           <SalaryBar
                             earnings={myTemplateForm.basic + myTemplateForm.hra + myTemplateForm.da + myTemplateForm.allowance + myTemplateForm.medicalAllowance + myTemplateForm.conveyanceAllowance + myTemplateForm.bonus}
-                            deductions={myTemplateForm.pf + myTemplateForm.esi + myTemplateForm.professionalTax + myTemplateForm.incomeTax}
-                            net={Math.max(0, (myTemplateForm.basic + myTemplateForm.hra + myTemplateForm.da + myTemplateForm.allowance + myTemplateForm.medicalAllowance + myTemplateForm.conveyanceAllowance + myTemplateForm.bonus) - (myTemplateForm.pf + myTemplateForm.esi + myTemplateForm.professionalTax + myTemplateForm.incomeTax))}
+                            deductions={myTemplateForm.pf + myTemplateForm.esi + myTemplateForm.professionalTax + myTemplateForm.incomeTax + (myTemplateForm.otherDeductions || 0)}
+                            net={Math.max(0, (myTemplateForm.basic + myTemplateForm.hra + myTemplateForm.da + myTemplateForm.allowance + myTemplateForm.medicalAllowance + myTemplateForm.conveyanceAllowance + myTemplateForm.bonus) - (myTemplateForm.pf + myTemplateForm.esi + myTemplateForm.professionalTax + myTemplateForm.incomeTax + (myTemplateForm.otherDeductions || 0)))}
                           />
                         </div>
 
@@ -641,7 +649,7 @@ export const Payroll: React.FC = () => {
                     <div className="space-y-3 border-t border-brand-100 dark:border-brand-900 pt-4">
                       <p className="text-[9px] font-bold text-rose-500 uppercase tracking-wider flex items-center gap-1.5"><AlertCircle size={10}/>Deductions</p>
                       <div className="grid grid-cols-2 gap-3">
-                        {[{k:"pf",l:"PF"},{k:"esi",l:"ESI"},{k:"professionalTax",l:"Prof. Tax"},{k:"incomeTax",l:"TDS / Income Tax"}].map(({k,l})=>(
+                        {[{k:"pf",l:"PF"},{k:"esi",l:"ESI"},{k:"professionalTax",l:"Prof. Tax"},{k:"incomeTax",l:"TDS / Income Tax"},{k:"otherDeductions",l:"Other Deductions"}].map(({k,l})=>(
                           <div key={k} className="space-y-1"><label className={labelCls}>{l}</label><input type="number" min={0} value={(form as any)[k]} onChange={e=>setForm({...form,[k]:parseFloat(e.target.value)||0})} className={inputCls}/></div>
                         ))}
                       </div>

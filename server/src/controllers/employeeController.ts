@@ -651,7 +651,7 @@ export const deleteEmployee = async (req: Request, res: Response, next: NextFunc
 export const updateSalaryStructure = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { employeeId } = req.params;
-    const { basic, hra, da, allowance, medicalAllowance, conveyanceAllowance, bonus, pf, esi, professionalTax, incomeTax } = req.body;
+    const { basic, hra, da, allowance, medicalAllowance, conveyanceAllowance, bonus, pf, esi, professionalTax, incomeTax, otherDeductions } = req.body;
 
     const employee = await prisma.employee.findUnique({
       where: { employeeId },
@@ -676,6 +676,7 @@ export const updateSalaryStructure = async (req: Request, res: Response, next: N
           esi: Number(esi) || 0,
           professionalTax: Number(professionalTax) || 0,
           incomeTax: Number(incomeTax) || 0,
+          otherDeductions: Number(otherDeductions) || 0,
         },
       },
     });

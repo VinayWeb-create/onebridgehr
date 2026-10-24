@@ -215,6 +215,7 @@ type SalaryStructure {
   esi                 Float
   professionalTax     Float
   incomeTax           Float
+  otherDeductions     Float? @default(0)
 }
 
 type EmergencyContact {
@@ -363,6 +364,7 @@ model Payroll {
   esi                 Float
   professionalTax     Float
   incomeTax           Float
+  otherDeductions     Float?   @default(0)
   netSalary           Float
   payslipPdfUrl       String?
   status              String   @default("GENERATED")

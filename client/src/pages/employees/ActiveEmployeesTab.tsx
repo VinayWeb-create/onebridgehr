@@ -48,19 +48,20 @@ interface Employee {
     esi: number;
     professionalTax: number;
     incomeTax: number;
+    otherDeductions?: number;
   };
   rating?: number | { overallScore?: number; [key: string]: any };
 }
 
 const SALARY_TEMPLATES: Record<string, { label: string; icon: string; values: any }> = {
-  INTERN:    { label: "Intern / Trainee",     icon: "🌱", values: { basic: 8000,   hra: 3200,   da: 1200,  allowance: 1000,  medicalAllowance: 500,  conveyanceAllowance: 500,  bonus: 0,     pf: 960,   esi: 150, professionalTax: 100, incomeTax: 0     } },
-  JUNIOR:    { label: "Junior Engineer",      icon: "💼", values: { basic: 18000,  hra: 7200,   da: 2700,  allowance: 2500,  medicalAllowance: 1250, conveyanceAllowance: 1600, bonus: 0,     pf: 2160,  esi: 300, professionalTax: 150, incomeTax: 500   } },
-  MID:       { label: "Mid-Level Engineer",   icon: "⚡", values: { basic: 30000,  hra: 12000,  da: 4500,  allowance: 4000,  medicalAllowance: 1500, conveyanceAllowance: 1600, bonus: 0,     pf: 3600,  esi: 525, professionalTax: 200, incomeTax: 1200  } },
-  SENIOR:    { label: "Senior Engineer",      icon: "🚀", values: { basic: 50000,  hra: 20000,  da: 7500,  allowance: 6000,  medicalAllowance: 2000, conveyanceAllowance: 2500, bonus: 2000,  pf: 6000,  esi: 0,   professionalTax: 200, incomeTax: 3500  } },
-  LEAD:      { label: "Tech Lead",            icon: "🎯", values: { basic: 70000,  hra: 28000,  da: 10500, allowance: 8000,  medicalAllowance: 2500, conveyanceAllowance: 3000, bonus: 3000,  pf: 8400,  esi: 0,   professionalTax: 200, incomeTax: 6000  } },
-  MANAGER:   { label: "Engineering Manager", icon: "🏆", values: { basic: 95000,  hra: 38000,  da: 14250, allowance: 10000, medicalAllowance: 3000, conveyanceAllowance: 3500, bonus: 5000,  pf: 11400, esi: 0,   professionalTax: 200, incomeTax: 10000 } },
-  DIRECTOR:  { label: "Director",             icon: "👑", values: { basic: 150000, hra: 60000,  da: 22500, allowance: 15000, medicalAllowance: 5000, conveyanceAllowance: 5000, bonus: 10000, pf: 18000, esi: 0,   professionalTax: 200, incomeTax: 18000 } },
-  EXECUTIVE: { label: "C-Level Executive",   icon: "🌟", values: { basic: 250000, hra: 100000, da: 37500, allowance: 25000, medicalAllowance: 10000, conveyanceAllowance: 10000, bonus: 20000, pf: 30000, esi: 0,   professionalTax: 200, incomeTax: 35000 } },
+  INTERN:    { label: "Intern / Trainee",     icon: "🌱", values: { basic: 8000,   hra: 3200,   da: 1200,  allowance: 1000,  medicalAllowance: 500,  conveyanceAllowance: 500,  bonus: 0,     pf: 960,   esi: 150, professionalTax: 100, incomeTax: 0,     otherDeductions: 0 } },
+  JUNIOR:    { label: "Junior Engineer",      icon: "💼", values: { basic: 18000,  hra: 7200,   da: 2700,  allowance: 2500,  medicalAllowance: 1250, conveyanceAllowance: 1600, bonus: 0,     pf: 2160,  esi: 300, professionalTax: 150, incomeTax: 500,   otherDeductions: 0 } },
+  MID:       { label: "Mid-Level Engineer",   icon: "⚡", values: { basic: 30000,  hra: 12000,  da: 4500,  allowance: 4000,  medicalAllowance: 1500, conveyanceAllowance: 1600, bonus: 0,     pf: 3600,  esi: 525, professionalTax: 200, incomeTax: 1200,  otherDeductions: 0 } },
+  SENIOR:    { label: "Senior Engineer",      icon: "🚀", values: { basic: 50000,  hra: 20000,  da: 7500,  allowance: 6000,  medicalAllowance: 2000, conveyanceAllowance: 2500, bonus: 2000,  pf: 6000,  esi: 0,   professionalTax: 200, incomeTax: 3500,  otherDeductions: 0 } },
+  LEAD:      { label: "Tech Lead",            icon: "🎯", values: { basic: 70000,  hra: 28000,  da: 10500, allowance: 8000,  medicalAllowance: 2500, conveyanceAllowance: 3000, bonus: 3000,  pf: 8400,  esi: 0,   professionalTax: 200, incomeTax: 6000,  otherDeductions: 0 } },
+  MANAGER:   { label: "Engineering Manager", icon: "🏆", values: { basic: 95000,  hra: 38000,  da: 14250, allowance: 10000, medicalAllowance: 3000, conveyanceAllowance: 3500, bonus: 5000,  pf: 11400, esi: 0,   professionalTax: 200, incomeTax: 10000, otherDeductions: 0 } },
+  DIRECTOR:  { label: "Director",             icon: "👑", values: { basic: 150000, hra: 60000,  da: 22500, allowance: 15000, medicalAllowance: 5000, conveyanceAllowance: 5000, bonus: 10000, pf: 18000, esi: 0,   professionalTax: 200, incomeTax: 18000, otherDeductions: 0 } },
+  EXECUTIVE: { label: "C-Level Executive",   icon: "🌟", values: { basic: 250000, hra: 100000, da: 37500, allowance: 25000, medicalAllowance: 10000, conveyanceAllowance: 10000, bonus: 20000, pf: 30000, esi: 0,   professionalTax: 200, incomeTax: 35000, otherDeductions: 0 } },
 };
 
 export const Employees: React.FC = () => {
@@ -292,6 +293,7 @@ export const Employees: React.FC = () => {
       esi: emp.salaryStructure?.esi ?? 0,
       professionalTax: emp.salaryStructure?.professionalTax ?? defaultPt,
       incomeTax: emp.salaryStructure?.incomeTax ?? defaultTax,
+      otherDeductions: emp.salaryStructure?.otherDeductions ?? 0,
     });
     setShowEditModal(true);
   };
@@ -345,6 +347,7 @@ export const Employees: React.FC = () => {
         esi: Number(editEmp.esi) || 0,
         professionalTax: Number(editEmp.professionalTax) || 0,
         incomeTax: Number(editEmp.incomeTax) || 0,
+        otherDeductions: Number(editEmp.otherDeductions) || 0,
       };
 
       if (isSuperAdmin || user?.role === 'HR') {
@@ -1366,6 +1369,7 @@ export const Employees: React.FC = () => {
                               esi: val.esi,
                               professionalTax: val.professionalTax,
                               incomeTax: val.incomeTax,
+                              otherDeductions: val.otherDeductions || 0,
                             }));
                           }
                         }}
@@ -1464,7 +1468,7 @@ export const Employees: React.FC = () => {
                     <p className="text-[9px] font-bold text-rose-500 uppercase tracking-wider flex items-center gap-1">
                       <AlertCircle size={10} /> Deductions Breakdown
                     </p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-brand-500 uppercase tracking-wider pl-1">Provident Fund (PF) (₹)</label>
                         <input
@@ -1505,13 +1509,23 @@ export const Employees: React.FC = () => {
                           className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
                         />
                       </div>
+                      <div className="space-y-1 col-span-2 sm:col-span-1">
+                        <label className="text-[9px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider pl-1">Other Deductions (₹)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editEmp.otherDeductions}
+                          onChange={e => setEditEmp({ ...editEmp, otherDeductions: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-white dark:bg-brand-900/80 border border-brand-200 dark:border-brand-800 rounded-xl py-2 px-3 text-xs outline-none focus:border-indigo-500 text-brand-950 dark:text-white font-mono"
+                        />
+                      </div>
                     </div>
                   </div>
 
                   {/* Live Calculation Preview */}
                   {(() => {
                     const gross = (Number(editEmp.basicSalary) || 0) + (Number(editEmp.hra) || 0) + (Number(editEmp.da) || 0) + (Number(editEmp.allowance) || 0) + (Number(editEmp.medicalAllowance) || 0) + (Number(editEmp.conveyanceAllowance) || 0) + (Number(editEmp.bonus) || 0);
-                    const ded = (Number(editEmp.pf) || 0) + (Number(editEmp.esi) || 0) + (Number(editEmp.professionalTax) || 0) + (Number(editEmp.incomeTax) || 0);
+                    const ded = (Number(editEmp.pf) || 0) + (Number(editEmp.esi) || 0) + (Number(editEmp.professionalTax) || 0) + (Number(editEmp.incomeTax) || 0) + (Number(editEmp.otherDeductions) || 0);
                     const net = Math.max(0, gross - ded);
                     return (
                       <div className="rounded-xl border border-brand-200 dark:border-brand-800 bg-white/70 dark:bg-brand-900/70 p-3 space-y-1.5">

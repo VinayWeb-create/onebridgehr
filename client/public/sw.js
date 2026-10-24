@@ -10,7 +10,7 @@
  *  - Web Push notifications scaffold for HRMS events (attendance, leaves, payroll)
  */
 
-const CACHE_VERSION = 'onebridge-hrms-v4.1.0';
+const CACHE_VERSION = 'onebridge-hrms-v4.2.0';
 const STATIC_CACHE = `onebridge-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `onebridge-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `onebridge-api-${CACHE_VERSION}`;

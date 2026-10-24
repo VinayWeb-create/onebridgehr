@@ -51,6 +51,7 @@ interface PayslipData {
   esi: number;
   professionalTax: number;
   incomeTax: number;
+  otherDeductions?: number;
   netSalary: number;
   qrCodeBase64: string; // Base64 QR code
   signatureBase64?: string; // Optional digital signature PNG base64
@@ -329,7 +330,7 @@ class PdfService {
         { l: 'Employees State Insurance (ESI)', v: data.esi },
         { l: 'Professional Tax (PT)', v: data.professionalTax },
         { l: 'Income Tax (TDS)', v: data.incomeTax },
-        { l: 'Voluntary PF / Other Deductions', v: 0 },
+        { l: 'Other Deductions', v: data.otherDeductions || 0 },
         { l: 'Loss of Pay (LOP) Deduction', v: 0 },
         { l: 'Other Statutory Deductions', v: 0 },
       ];
@@ -394,48 +395,28 @@ class PdfService {
 
       tblY += 24;
 
-      // --- 7. Dual Verification & Authorized Signatory Block ---
-      const authBoxH = 88;
+      // --- 7. Digital Verification Card (Official Corporate Format - No Physical Stamp/Signature) ---
+      const authBoxH = 65;
 
-      // Left Box: QR & Digital Verification Card
-      doc.rect(35, tblY, 258, authBoxH).fill(cLight).strokeColor(cBorder).lineWidth(1).stroke();
+      doc.rect(35, tblY, 525, authBoxH).fill(cLight).strokeColor(cBorder).lineWidth(1).stroke();
+      doc.rect(35, tblY, 3.5, authBoxH).fill(cAccent);
+
       if (data.qrCodeBase64) {
         try {
           const qrBuf = Buffer.from(data.qrCodeBase64.replace(/^data:image\/png;base64,/, ''), 'base64');
-          doc.image(qrBuf, 44, tblY + 11, { width: 62, height: 62 });
-        } catch (e) {}
-      }
-      doc.fillColor(cDark).font('Helvetica-Bold').fontSize(7.5).text('DIGITAL VERIFICATION', 116, tblY + 12);
-      doc.fillColor(cMuted).font('Helvetica').fontSize(6.5).text('Scan QR to authenticate employee profile integrity and payslip validity via OneBridge portal.', 116, tblY + 23, { width: 168 });
-      doc.fillColor('#16a34a').font('Helvetica-Bold').fontSize(6.8).text('✓ System Verified & Encrypted', 116, tblY + 58);
-
-      // Right Box: Official Seal & Authorized Signatory Card
-      doc.rect(302, tblY, 258, authBoxH).fill(cLight).strokeColor(cBorder).lineWidth(1).stroke();
-
-      // Embed Official Company Seal
-      if (stampPath && fs.existsSync(stampPath)) {
-        try {
-          doc.image(stampPath, 310, tblY + 12, { width: 58, height: 58 });
+          doc.image(qrBuf, 46, tblY + 8, { width: 50, height: 50 });
         } catch (e) {}
       }
 
-      // Embed Digital Signature
-      if (sigPath && fs.existsSync(sigPath)) {
-        try {
-          doc.image(sigPath, 400, tblY + 8, { width: 80, height: 30 });
-        } catch (e) {}
-      } else if (data.signatureBase64) {
-        try {
-          const sigBuf = Buffer.from(data.signatureBase64.replace(/^data:image\/png;base64,/, ''), 'base64');
-          doc.image(sigBuf, 400, tblY + 8, { width: 80, height: 30 });
-        } catch (e) {}
-      }
-
-      // Signatory Lines & Labels
-      doc.strokeColor(cBorderDark).lineWidth(0.8).moveTo(390, tblY + 45).lineTo(545, tblY + 45).stroke();
-      doc.fillColor(cDark).font('Helvetica-Bold').fontSize(7).text('Authorized Signatory', 390, tblY + 49, { align: 'center', width: 155 });
-      doc.fillColor(cText).font('Helvetica').fontSize(6.8).text('Mr. Uday Kumar CH  •  HR Director', 390, tblY + 59, { align: 'center', width: 155 });
-      doc.fillColor(cMuted).font('Helvetica').fontSize(6.2).text('OneBridge Infotech Private Limited', 390, tblY + 69, { align: 'center', width: 155 });
+      doc.fillColor(cDark).font('Helvetica-Bold').fontSize(8).text('OFFICIAL DIGITAL PAYROLL AUTHENTICATION', 108, tblY + 12);
+      doc.fillColor(cMuted).font('Helvetica').fontSize(6.8).text(
+        'This payroll statement is electronically generated, authenticated, and cryptographically logged in the OneBridge HRMS core.\n' +
+        'Scan the QR code to verify employee record authenticity. Certified computer-generated document requiring no physical seal or signature.',
+        108,
+        tblY + 24,
+        { width: 440, lineGap: 2 }
+      );
+      doc.fillColor('#16a34a').font('Helvetica-Bold').fontSize(7).text('✓ System Verified & Encrypted • OneBridge Infotech Private Limited', 108, tblY + 50);
 
       tblY += authBoxH + 8;
 

@@ -59,6 +59,7 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
 
     const medicalAllowance = Number(parsed.medicalAllowance) || 0;
     const conveyanceAllowance = Number(parsed.conveyanceAllowance) || 0;
+    const otherDeductions = Number(parsed.otherDeductions) || 0;
 
     // Net Salary Math
     const netSalary =
@@ -69,7 +70,7 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
       medicalAllowance +
       conveyanceAllowance +
       parsed.bonus -
-      (parsed.pf + parsed.esi + parsed.professionalTax + parsed.incomeTax);
+      (parsed.pf + parsed.esi + parsed.professionalTax + parsed.incomeTax + otherDeductions);
 
     // Format payslip number: PS-OBI0001-202607 (year + 2-digit month)
     const formattedMonth = month.toString().padStart(2, '0');
@@ -119,6 +120,7 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
       esi: parsed.esi,
       professionalTax: parsed.professionalTax,
       incomeTax: parsed.incomeTax,
+      otherDeductions,
       netSalary,
       qrCodeBase64: qrCodeBase64 || '',
       signatureBase64: hrSigBase64,
@@ -152,6 +154,7 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
           esi: parsed.esi,
           professionalTax: parsed.professionalTax,
           incomeTax: parsed.incomeTax,
+          otherDeductions,
           netSalary,
           payslipPdfUrl: pdfUrl,
         },
@@ -174,6 +177,7 @@ export const generatePayroll = async (req: Request, res: Response, next: NextFun
           esi: parsed.esi,
           professionalTax: parsed.professionalTax,
           incomeTax: parsed.incomeTax,
+          otherDeductions,
           netSalary,
           payslipPdfUrl: pdfUrl,
         },
@@ -266,6 +270,7 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
     let esi = 0;
     let professionalTax = 0;
     let incomeTax = 0;
+    let otherDeductions = 0;
 
     if (employee.salaryStructure && employee.salaryStructure.basic > 0) {
       basic = employee.salaryStructure.basic;
@@ -279,6 +284,7 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
       esi = employee.salaryStructure.esi;
       professionalTax = employee.salaryStructure.professionalTax;
       incomeTax = employee.salaryStructure.incomeTax;
+      otherDeductions = (employee.salaryStructure as any).otherDeductions || 0;
     } else if (lastPayroll && lastPayroll.basic > 0) {
       basic = lastPayroll.basic;
       hra = lastPayroll.hra;
@@ -291,6 +297,7 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
       esi = lastPayroll.esi;
       professionalTax = lastPayroll.professionalTax;
       incomeTax = lastPayroll.incomeTax;
+      otherDeductions = (lastPayroll as any).otherDeductions || 0;
     } else if (['OBI0001', 'OBI1117'].includes(employeeId) || employee.designation?.toLowerCase().includes('director') || employee.designation?.toLowerCase().includes('founder') || req.user?.role === 'SUPER_ADMIN') {
       // Default Executive Structure for Leadership & Super Admins if not explicitly configured yet
       basic = 150000;
@@ -304,6 +311,7 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
       esi = 0;
       professionalTax = 200;
       incomeTax = 18000;
+      otherDeductions = 0;
     } else {
       return next(new AppError('Your salary template has not been configured yet. Please contact HR to set up your salary structure before generating your payslip.', 400));
     }
@@ -327,7 +335,7 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
       medicalAllowance +
       conveyanceAllowance +
       bonus -
-      (pf + esi + professionalTax + incomeTax);
+      (pf + esi + professionalTax + incomeTax + otherDeductions);
 
     const formattedMonth = parsedMonth.toString().padStart(2, '0');
     const cleanYear = financialYear.split('-')[0];
@@ -372,6 +380,7 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
       esi: esi,
       professionalTax: professionalTax,
       incomeTax: incomeTax,
+      otherDeductions,
       netSalary,
       qrCodeBase64: qrCodeBase64 || '',
       signatureBase64: hrSigBase64,
@@ -405,6 +414,7 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
           esi: esi,
           professionalTax: professionalTax,
           incomeTax: incomeTax,
+          otherDeductions,
           netSalary,
           payslipPdfUrl: pdfUrl,
         },
@@ -427,6 +437,7 @@ export const generateMyPayslip = async (req: Request, res: Response, next: NextF
           esi: esi,
           professionalTax: professionalTax,
           incomeTax: incomeTax,
+          otherDeductions,
           netSalary,
           payslipPdfUrl: pdfUrl,
         },

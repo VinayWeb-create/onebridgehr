@@ -109,6 +109,7 @@ export const updateEmployeeSchema = z.object({
     esi: z.number().optional(),
     professionalTax: z.number().optional(),
     incomeTax: z.number().optional(),
+    otherDeductions: z.number().optional(),
   }).optional(),
   emergencyContact: emergencyContactSchema.optional(),
   education: z.array(educationSchema).optional(),
@@ -185,6 +186,7 @@ export const payrollSchema = z.object({
   esi: z.number().min(0),
   professionalTax: z.number().min(0),
   incomeTax: z.number().min(0),
+  otherDeductions: z.number().min(0).default(0).optional(),
 });
 
 export const attendanceCodeSchema = z.object({
