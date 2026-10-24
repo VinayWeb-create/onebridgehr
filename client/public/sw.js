@@ -10,15 +10,13 @@
  *  - Web Push notifications scaffold for HRMS events (attendance, leaves, payroll)
  */
 
-const CACHE_VERSION = 'onebridge-hrms-v4.0.0';
+const CACHE_VERSION = 'onebridge-hrms-v4.1.0';
 const STATIC_CACHE = `onebridge-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `onebridge-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `onebridge-api-${CACHE_VERSION}`;
 
-// Pre-cached essential static assets
+// Pre-cached essential static assets (offline fallback & branding)
 const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
   '/offline.html',
   '/manifest.json',
   '/favicon.png',
@@ -55,7 +53,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((name) => {
-          if (!name.includes('v4.0.0')) {
+          if (!name.includes('v4.1.0')) {
             console.log('[Onebridge PWA SW] Purging obsolete cache:', name);
             return caches.delete(name);
           }

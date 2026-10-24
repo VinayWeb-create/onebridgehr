@@ -49,6 +49,7 @@ interface Employee {
     professionalTax: number;
     incomeTax: number;
   };
+  rating?: number | { overallScore?: number; [key: string]: any };
 }
 
 const SALARY_TEMPLATES: Record<string, { label: string; icon: string; values: any }> = {
