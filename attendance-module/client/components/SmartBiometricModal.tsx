@@ -1,0 +1,593 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import {
+  Scan,
+  Crosshair,
+  AlertTriangle,
+  AlertOctagon,
+  CheckCircle2,
+  ShieldCheck,
+  X,
+  RefreshCw,
+  MapPin,
+  ExternalLink,
+  Smartphone,
+  Laptop,
+} from 'lucide-react';
+import api from '../services/api';
+import { getClientDeviceInfo } from '../utils/deviceFingerprint';
+import { extractFaceEmbeddingFromCanvas, LivenessDetector, detectFacesInCanvas } from '../utils/faceBiometrics';
+import type { FaceAnalysisResult } from '../utils/faceBiometrics';
+import { getResilientPosition, getFriendlyGpsErrorMessage } from '../utils/geolocation';
+import { BiometricFaceScannerHUD } from './BiometricFaceScannerHUD';
+
+interface SmartBiometricModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  action: 'CHECK_IN' | 'CHECK_OUT';
+  officeName?: string;
+  onSuccess: (data: any) => void;
+  onViolationLocked?: () => void;
+}
+
+export const SmartBiometricModal: React.FC<SmartBiometricModalProps> = ({
+  isOpen,
+  onClose,
+  action,
+  officeName = 'OneBridge Infotech HQ',
+  onSuccess,
+  onViolationLocked,
+}) => {
+  const navigate = useNavigate();
+
+  const [livenessStatus, setLivenessStatus] = useState<string>('Initializing camera...');
+  const [livenessScore, setLivenessScore] = useState<number>(0);
+  const [livenessPassed, setLivenessPassed] = useState<boolean>(false);
+  const [verifying, setVerifying] = useState<boolean>(false);
+  const [faceAnalysis, setFaceAnalysis] = useState<FaceAnalysisResult | null>(null);
+
+  // Warning state from server
+  const [warningData, setWarningData] = useState<{
+    count: number;
+    max: number;
+    remaining: number;
+    message: string;
+    isLockedAbsent: boolean;
+    canRegisterDevice?: boolean;
+    deviceId?: string;
+    deviceName?: string;
+  } | null>(null);
+  const [registeringDevice, setRegisteringDevice] = useState<boolean>(false);
+
+  // Success state
+  const [successData, setSuccessData] = useState<any | null>(null);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const livenessDetectorRef = useRef<LivenessDetector>(new LivenessDetector());
+  const animFrameRef = useRef<number | null>(null);
+  const isVerifyingRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setWarningData(null);
+      setSuccessData(null);
+      setLivenessPassed(false);
+      setLivenessScore(0);
+      setVerifying(false);
+      isVerifyingRef.current = false;
+      livenessDetectorRef.current.reset();
+
+      setTimeout(() => {
+        openCamera();
+      }, 100);
+    } else {
+      stopCamera();
+    }
+
+    return () => {
+      stopCamera();
+    };
+  }, [isOpen]);
+
+  const openCamera = async () => {
+    try {
+      setLivenessStatus('Connecting to camera...');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      runLivenessLoop();
+    } catch (err: any) {
+      setLivenessStatus('Camera access denied or unavailable: ' + err.message);
+    }
+  };
+
+  const stopCamera = () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const runLivenessLoop = () => {
+    if (!videoRef.current || !streamRef.current) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 240;
+    const ctx = canvas.getContext('2d');
+
+    let frameSkipCounter = 0;
+
+    const checkFrame = () => {
+      if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) return;
+
+      if (ctx && videoRef.current.videoWidth) {
+        ctx.drawImage(videoRef.current, 0, 0, 320, 240);
+        const result = livenessDetectorRef.current.processFrame(canvas);
+
+        setLivenessScore(result.score);
+        setLivenessStatus(result.instruction);
+
+        frameSkipCounter++;
+        if (frameSkipCounter % 3 === 0) {
+          const analysis = detectFacesInCanvas(canvas);
+          setFaceAnalysis(analysis);
+        }
+
+        if (result.passed && !isVerifyingRef.current) {
+          setLivenessPassed(true);
+          isVerifyingRef.current = true;
+          triggerServerVerification();
+          return;
+        }
+      }
+
+      animFrameRef.current = requestAnimationFrame(checkFrame);
+    };
+
+    animFrameRef.current = requestAnimationFrame(checkFrame);
+  };
+
+  const triggerServerVerification = () => {
+    if (!videoRef.current) return;
+    setVerifying(true);
+    setLivenessStatus('Liveness verified! Capturing face embedding & GPS...');
+
+    // 1. Capture 128-dim embedding
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth || 640;
+    canvas.height = videoRef.current.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+    const faceCheck = detectFacesInCanvas(canvas);
+    if (faceCheck.multipleFaces || faceCheck.faceCount > 1) {
+      setWarningData({
+        count: 1,
+        max: 3,
+        remaining: 2,
+        message: 'Only one employee should be visible.',
+        isLockedAbsent: false,
+      });
+      setVerifying(false);
+      return;
+    }
+    if (faceCheck.noFace || faceCheck.faceCount === 0) {
+      setWarningData({
+        count: 1,
+        max: 3,
+        remaining: 2,
+        message: 'No face detected. Please face the camera directly.',
+        isLockedAbsent: false,
+      });
+      setVerifying(false);
+      return;
+    }
+    if (faceCheck.maskDetected) {
+      setWarningData({
+        count: 1,
+        max: 3,
+        remaining: 2,
+        message: 'Face mask detected. Please remove your mask for attendance verification.',
+        isLockedAbsent: false,
+      });
+      setVerifying(false);
+      return;
+    }
+    if (faceCheck.spoofDetected) {
+      setWarningData({
+        count: 1,
+        max: 3,
+        remaining: 2,
+        message: faceCheck.spoofReason || 'Spoof attempt detected. Please face the camera directly.',
+        isLockedAbsent: false,
+      });
+      setVerifying(false);
+      return;
+    }
+
+    const liveEmbedding = extractFaceEmbeddingFromCanvas(canvas, faceCheck.primaryFaceBox);
+    const liveFaceImage = canvas.toDataURL('image/jpeg', 0.90);
+
+    // 2. Fetch GPS
+    if (!navigator.geolocation) {
+      setWarningData({
+        count: 1,
+        max: 3,
+        remaining: 2,
+        message: 'Geolocation is not supported by your browser.',
+        isLockedAbsent: false,
+      });
+      setVerifying(false);
+      return;
+    }
+
+    getResilientPosition(
+      async (pos) => {
+        try {
+          const deviceInfo = getClientDeviceInfo();
+
+          const payload = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            gpsAccuracy: pos.coords.accuracy,
+            faceEmbedding: liveEmbedding,
+            liveFaceImage,
+            livenessScore: 0.95,
+            livenessPassed: true,
+            deviceId: deviceInfo.deviceId,
+            deviceName: deviceInfo.deviceName,
+            browser: deviceInfo.browser,
+            os: deviceInfo.os,
+            forcedAction: action,
+          };
+
+          const res = await api.post('/attendance/smart/verify-and-mark', payload);
+
+          if (res.data.status === 'success') {
+            setSuccessData(res.data);
+            setVerifying(false);
+            setTimeout(() => {
+              onSuccess(res.data);
+              onClose();
+            }, 1800);
+          }
+        } catch (err: any) {
+          setVerifying(false);
+          const data = err.response?.data;
+
+          if (data?.rescanRequired) {
+            setWarningData({
+              count: 0,
+              max: 3,
+              remaining: 3,
+              message: data.message || 'Face scan borderline. Please scan again with direct lighting.',
+              isLockedAbsent: false,
+            });
+            isVerifyingRef.current = false;
+            setLivenessPassed(false);
+            setLivenessStatus(data.message || 'Please scan again');
+            return;
+          }
+
+          if (data?.canRegisterDevice) {
+            setWarningData({
+              count: 0,
+              max: 2,
+              remaining: 1,
+              message: data.message || 'New device detected. You can register up to 2 devices for attendance.',
+              isLockedAbsent: false,
+              canRegisterDevice: true,
+              deviceId: data.deviceId,
+              deviceName: data.deviceName,
+            });
+            isVerifyingRef.current = false;
+            return;
+          }
+
+          if (data?.enrollmentPending) {
+            setWarningData({
+              count: 0,
+              max: 3,
+              remaining: 3,
+              message: data.message || 'First-time face enrollment required.',
+              isLockedAbsent: false,
+            });
+            return;
+          }
+
+          if (data?.markedAbsent || data?.isLockedAbsent || data?.warningCount >= 3) {
+            setWarningData({
+              count: 3,
+              max: 3,
+              remaining: 0,
+              message: data.message || 'Exceeded 3 warnings. You have been automatically marked ABSENT for today.',
+              isLockedAbsent: true,
+            });
+            onViolationLocked?.();
+            return;
+          }
+
+          if (data?.warningCount) {
+            setWarningData({
+              count: data.warningCount,
+              max: data.maxWarnings || 3,
+              remaining: data.remainingAttempts !== undefined ? data.remainingAttempts : Math.max(0, 3 - data.warningCount),
+              message: data.message || 'Verification failed.',
+              isLockedAbsent: false,
+            });
+            return;
+          }
+
+          // Generic error fallback
+          setWarningData({
+            count: 1,
+            max: 3,
+            remaining: 2,
+            message: err.response?.data?.message || err.message || 'Verification failed. Please try again.',
+            isLockedAbsent: false,
+          });
+        }
+      },
+      (geoErr) => {
+        setVerifying(false);
+        setWarningData({
+          count: 1,
+          max: 3,
+          remaining: 2,
+          message: getFriendlyGpsErrorMessage(geoErr),
+          isLockedAbsent: false,
+        });
+      }
+    );
+  };
+
+  const handleRetry = () => {
+    setWarningData(null);
+    setLivenessPassed(false);
+    setLivenessScore(0);
+    setVerifying(false);
+    isVerifyingRef.current = false;
+    livenessDetectorRef.current.reset();
+    runLivenessLoop();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-brand-950 text-white rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-indigo-500/30 shadow-2xl relative space-y-6"
+      >
+        {/* Modal Header */}
+        <div className="flex justify-between items-center pb-3 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-600 rounded-2xl shadow-md shadow-indigo-600/30">
+              <Scan size={20} className="text-white" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold flex items-center gap-2">
+                {action === 'CHECK_IN' ? 'Clock In Biometric Verification' : 'Clock Out Biometric Verification'}
+              </h3>
+              <p className="text-xs text-brand-400 flex items-center gap-1">
+                <MapPin size={12} className="text-emerald-400" />
+                {officeName}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-brand-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Live Camera View with Pro-Level Biometric Face Tracking HUD */}
+        <div className="relative bg-black rounded-3xl overflow-hidden aspect-[4/3] border-2 border-cyan-500/40 shadow-2xl flex items-center justify-center">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover transform -scale-x-100"
+          />
+
+          {/* Holographic Face Tracking HUD */}
+          <BiometricFaceScannerHUD
+            faceBox={faceAnalysis?.primaryFaceBox}
+            videoWidth={videoRef.current?.videoWidth || 640}
+            videoHeight={videoRef.current?.videoHeight || 480}
+            livenessPassed={livenessPassed}
+            livenessScore={livenessScore}
+            livenessStatus={livenessStatus}
+            verifying={verifying}
+            lightingQuality={faceAnalysis?.lightingQuality}
+            lightingBrightness={faceAnalysis?.lightingBrightness}
+            faceAlignment={faceAnalysis?.faceAlignment}
+            multipleFaces={faceAnalysis?.multipleFaces}
+            noFace={faceAnalysis?.noFace}
+          />
+
+          {/* Success Overlay Animation */}
+          <AnimatePresence>
+            {successData && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="absolute inset-0 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center space-y-3"
+              >
+                <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center text-emerald-400 shadow-xl">
+                  <CheckCircle2 size={36} />
+                </div>
+                <h4 className="text-lg font-black text-white">Verified Successfully!</h4>
+                <p className="text-xs text-brand-300 font-medium">
+                  {successData.message}
+                </p>
+                {successData.data?.verification && (
+                  <div className="flex gap-4 text-[11px] text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-3 py-1.5 rounded-xl">
+                    <span>Match: {successData.data.verification.faceMatchScore}%</span>
+                    <span>•</span>
+                    <span>Distance: {successData.data.verification.distanceMeters}m</span>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Liveness Progress Bar */}
+        {!warningData && !successData && (
+          <div className="space-y-2">
+            <div className="h-1.5 w-full bg-brand-900 rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 ${
+                  livenessPassed ? 'bg-emerald-500' : 'bg-indigo-500'
+                }`}
+                style={{ width: `${Math.min(100, Math.round(livenessScore * 100))}%` }}
+              />
+            </div>
+            <div className="flex justify-between items-center text-xs text-brand-400">
+              <span>Align face inside oval frame</span>
+              {verifying && (
+                <span className="text-indigo-400 font-bold flex items-center gap-1.5">
+                  <RefreshCw size={12} className="animate-spin" />
+                  Verifying Face & Geofence...
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* WARNING SYSTEM NOTIFICATION CARD */}
+        <AnimatePresence>
+          {warningData && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`p-4 rounded-2xl border text-xs space-y-3 ${
+                warningData.isLockedAbsent
+                  ? 'bg-rose-950/80 border-rose-500 text-rose-100 shadow-lg shadow-rose-950/50'
+                  : 'bg-amber-950/80 border-amber-500 text-amber-100 shadow-lg shadow-amber-950/50'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`p-2 rounded-xl shrink-0 ${
+                    warningData.isLockedAbsent ? 'bg-rose-600 text-white' : 'bg-amber-600 text-white'
+                  }`}
+                >
+                  {warningData.isLockedAbsent ? (
+                    <AlertOctagon size={20} />
+                  ) : (
+                    <AlertTriangle size={20} />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <h4 className="font-extrabold uppercase tracking-wider text-[11px]">
+                      {warningData.isLockedAbsent
+                        ? '3 Warnings Exceeded — Automatically Marked ABSENT'
+                        : `Security Warning ${warningData.count} of ${warningData.max}`}
+                    </h4>
+                    {!warningData.isLockedAbsent && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-black text-[10px]">
+                        {warningData.remaining} attempt(s) left
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] leading-relaxed opacity-90">{warningData.message}</p>
+                </div>
+              </div>
+
+              {/* Action Buttons inside Warning Box */}
+              <div className="flex gap-2 pt-2 border-t border-white/10">
+                {warningData.canRegisterDevice ? (
+                  <button
+                    onClick={async () => {
+                      try {
+                        setRegisteringDevice(true);
+                        const dev = getClientDeviceInfo();
+                        await api.post('/attendance/devices/register', {
+                          deviceId: dev.deviceId,
+                          deviceName: dev.deviceName,
+                          browser: dev.browser,
+                          os: dev.os,
+                        });
+                        setWarningData(null);
+                        handleRetry();
+                      } catch (e: any) {
+                        alert(e.response?.data?.message || 'Failed to authorize device');
+                      } finally {
+                        setRegisteringDevice(false);
+                      }
+                    }}
+                    disabled={registeringDevice}
+                    className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg transition-all"
+                  >
+                    <Smartphone size={16} />
+                    <span>{registeringDevice ? 'Authorizing Device...' : '+ Authorize This Device as 2nd Attendance Device'}</span>
+                  </button>
+                ) : warningData.message.includes('enrollment required') || warningData.count === 0 ? (
+                  <button
+                    onClick={() => {
+                      onClose();
+                      navigate('/attendance/enrollment');
+                    }}
+                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2"
+                  >
+                    <span>Go to Face Biometric Setup</span>
+                    <ExternalLink size={14} />
+                  </button>
+                ) : warningData.isLockedAbsent ? (
+                  <button
+                    onClick={onClose}
+                    className="w-full py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-xl font-bold"
+                  >
+                    Acknowledged (Marked Absent)
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleRetry}
+                    className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw size={14} />
+                    <span>Retry Verification ({warningData.remaining} left)</span>
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Modal Footer Controls */}
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl border border-white/10 text-brand-400 hover:text-white text-xs font-bold transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+export default SmartBiometricModal;

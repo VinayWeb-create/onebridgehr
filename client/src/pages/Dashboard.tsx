@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import GoogleDriveCard from '../components/GoogleDriveCard';
 import SmartBiometricModal from '../components/SmartBiometricModal';
+import PlannerDashboardWidgets from '../modules/planner/components/DashboardWidgets';
 
 const COLORS = ['#f97316', '#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444'];
 const CHART_COLORS = {
@@ -409,6 +410,9 @@ export const Dashboard: React.FC = () => {
             Refresh Analytics
           </button>
         </div>
+
+        {/* Smart Tasks & Reminders widgets */}
+        <PlannerDashboardWidgets />
 
         {/* Top KPI Cards Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1420,6 +1424,9 @@ export const Dashboard: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Smart Tasks & Reminders widgets */}
+      <PlannerDashboardWidgets />
 
       {/* Team Lead Department Management Hub (Exclusive to Team Leads for their Department) */}
       {empData.teamOverview && (

@@ -10,10 +10,11 @@
  *  - Web Push notifications scaffold for HRMS events (attendance, leaves, payroll)
  */
 
-const CACHE_VERSION = 'onebridge-hrms-v4.2.0';
+const CACHE_VERSION = 'onebridge-hrms-v4.3.0';
 const STATIC_CACHE = `onebridge-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `onebridge-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `onebridge-api-${CACHE_VERSION}`;
+const PLANNER_CONFIG_CACHE = 'onebridge-planner-config';
 
 // Pre-cached essential static assets (offline fallback & branding)
 const PRECACHE_ASSETS = [
@@ -53,7 +54,8 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((name) => {
-          if (!name.includes('v4.1.0')) {
+          // Keep only caches of the current version (the planner config cache is version-independent)
+          if (!name.includes(CACHE_VERSION) && name !== PLANNER_CONFIG_CACHE) {
             console.log('[Onebridge PWA SW] Purging obsolete cache:', name);
             return caches.delete(name);
           }
@@ -191,7 +193,7 @@ self.addEventListener('fetch', (event) => {
 // Background Sync Listener (Attendance & Offline mutations queue)
 self.addEventListener('sync', (event) => {
   console.log('[Onebridge PWA SW] Background sync event received:', event.tag);
-  if (event.tag === 'sync-attendance' || event.tag === 'sync-offline-requests') {
+  if (event.tag === 'sync-attendance' || event.tag === 'sync-offline-requests' || event.tag === 'sync-planner') {
     event.waitUntil(
       self.clients.matchAll().then((clients) => {
         clients.forEach((client) => {
@@ -208,6 +210,18 @@ self.addEventListener('sync', (event) => {
 // Push Notifications Architecture (Attendance reminders, Leave approvals, Payroll, Announcements)
 // Push Notifications Architecture (Attendance reminders, Leave approvals, Payroll, Announcements)
 self.addEventListener('push', (event) => {
+  // Smart Tasks reminders have their own rich handling (actions, badge, in-app hand-off)
+  let peek = null;
+  try {
+    peek = event.data ? event.data.json() : null;
+  } catch (e) {
+    peek = null;
+  }
+  if (peek && peek.data && peek.data.planner) {
+    event.waitUntil(handlePlannerPush(peek));
+    return;
+  }
+
   let data = {
     title: 'Onebridge HRMS Notification',
     body: 'You have a new update in your HR portal.',
@@ -263,6 +277,12 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
+  const pdata = event.notification.data || {};
+  if (pdata.planner) {
+    event.waitUntil(handlePlannerClick(event.action, pdata));
+    return;
+  }
+
   if (event.action === 'close') return;
 
   let targetUrl = event.notification.data?.url || '/attendance?action=checkout';
@@ -291,5 +311,157 @@ self.addEventListener('notificationclick', (event) => {
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+});
+
+
+// ===========================================================================
+// Smart Tasks & Reminders — push, actions, badge, dismiss tracking
+// ===========================================================================
+
+async function plannerApiBase() {
+  try {
+    const cache = await caches.open(PLANNER_CONFIG_CACHE);
+    const res = await cache.match('/__planner_config__');
+    if (res) {
+      const cfg = await res.json();
+      if (cfg && cfg.apiBase) return cfg.apiBase;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  return null;
+}
+
+async function postToClients(message) {
+  const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  list.forEach((c) => c.postMessage(message));
+  return list;
+}
+
+async function handlePlannerPush(payload) {
+  const d = payload.data || {};
+  if (typeof payload.badgeCount === 'number' && self.navigator && 'setAppBadge' in self.navigator) {
+    self.navigator.setAppBadge(payload.badgeCount).catch(() => {});
+  }
+
+  // If the app is open and visible, show the polished in-app toast instead of a duplicate OS banner.
+  const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  const visible = windows.filter((c) => c.visibilityState === 'visible');
+  if (visible.length > 0) {
+    visible.forEach((c) =>
+      c.postMessage({
+        type: 'PLANNER_REMINDER',
+        reminder: {
+          reminderId: d.reminderId,
+          taskId: d.taskId || null,
+          title: String(payload.title || '').replace(/^\S+\s/, ''),
+          body: payload.body,
+          priority: d.priority || 'MEDIUM',
+          dueAt: d.dueAt || null,
+          kind: payload.type || 'PLANNER_TASK_REMINDER',
+          url: payload.url || '/planner',
+          silent: !!payload.silent,
+        },
+      })
+    );
+    return;
+  }
+
+  return self.registration.showNotification(payload.title || 'OneBridge reminder', {
+    body: payload.body,
+    icon: payload.icon || '/icons/icon-192x192.png',
+    badge: payload.badge || '/icons/icon-96x96.png',
+    tag: payload.tag || 'planner-' + Date.now(),
+    renotify: true,
+    requireInteraction: !!payload.requireInteraction,
+    silent: !!payload.silent,
+    vibrate: payload.silent ? undefined : [200, 100, 200],
+    timestamp: Date.now(),
+    actions: payload.actions || [],
+    data: {
+      planner: true,
+      url: payload.url || '/planner',
+      reminderId: d.reminderId,
+      taskId: d.taskId || null,
+      actionToken: d.actionToken || null,
+    },
+  });
+}
+
+async function plannerAction(pdata, action, snooze) {
+  const apiBase = await plannerApiBase();
+  if (!apiBase || !pdata.actionToken) return false;
+  try {
+    const res = await fetch(apiBase + '/planner/reminders/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: pdata.actionToken, action: action, snooze: snooze }),
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function openOrFocus(url) {
+  const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const client of list) {
+    if (client.url.includes(self.location.origin) && 'focus' in client) {
+      if ('navigate' in client) await client.navigate(url).catch(() => {});
+      return client.focus();
+    }
+  }
+  if (self.clients.openWindow) return self.clients.openWindow(url);
+}
+
+async function handlePlannerClick(action, pdata) {
+  const taskUrl = pdata.taskId ? '/planner?task=' + encodeURIComponent(pdata.taskId) : pdata.url || '/planner';
+
+  if (action === 'planner-complete' || action === 'planner-snooze') {
+    const apiAction = action === 'planner-complete' ? 'COMPLETE' : 'SNOOZE';
+    const ok = await plannerAction(pdata, apiAction, '10');
+    if (ok) {
+      await postToClients({ type: 'PLANNER_ACTION_DONE', action: apiAction, taskId: pdata.taskId });
+      return self.registration.showNotification(apiAction === 'COMPLETE' ? '✅ Task completed' : '⏰ Snoozed for 10 minutes', {
+        body: apiAction === 'COMPLETE' ? 'Nice work!' : "We'll remind you again shortly.",
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/icon-96x96.png',
+        tag: 'planner-ack',
+        silent: true,
+        requireInteraction: false,
+      });
+    }
+    // Offline or token expired: let the app finish the action (it queues offline changes).
+    const q = apiAction === 'COMPLETE' ? '&action=complete' : '&action=snooze&reminder=' + encodeURIComponent(pdata.reminderId || '');
+    return openOrFocus(taskUrl + q);
+  }
+
+  plannerAction(pdata, 'OPEN');
+  return openOrFocus(taskUrl);
+}
+
+// Swipe-away / close = "Dismiss"
+self.addEventListener('notificationclose', (event) => {
+  const pdata = (event.notification && event.notification.data) || {};
+  if (pdata.planner && pdata.actionToken) {
+    event.waitUntil(plannerAction(pdata, 'DISMISS'));
+  }
+});
+
+// The app tells the worker where the API lives (the API is on a different origin in production).
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'PLANNER_CONFIG' && event.data.apiBase) {
+    event.waitUntil(
+      caches.open(PLANNER_CONFIG_CACHE).then((cache) =>
+        cache.put(
+          '/__planner_config__',
+          new Response(JSON.stringify({ apiBase: event.data.apiBase }), { headers: { 'Content-Type': 'application/json' } })
+        )
+      )
+    );
+  }
+  if (event.data && event.data.type === 'PLANNER_CLEAR_BADGE' && self.navigator && 'clearAppBadge' in self.navigator) {
+    self.navigator.clearAppBadge().catch(() => {});
   }
 });

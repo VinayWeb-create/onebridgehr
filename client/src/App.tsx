@@ -15,6 +15,7 @@ import AttendanceEnrollment from './pages/attendance/AttendanceEnrollment';
 import AttendanceSetup from './pages/attendance/AttendanceSetup';
 import Leaves from './pages/Leaves';
 import Tasks from './pages/Tasks';
+import PlannerPage from './modules/planner/PlannerPage';
 import Payroll from './pages/Payroll';
 import IdCard from './pages/IdCard';
 import Profile from './pages/Profile';
@@ -138,6 +139,9 @@ export const App: React.FC = () => {
                 <Route path="/attendance/setup" element={<ProtectedRoute requiredRoles={['SUPER_ADMIN', 'HR']}><AttendanceSetup /></ProtectedRoute>} />
                 <Route path="/leaves" element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
                 <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
+                {/* Smart Tasks & Reminders (My Planner) */}
+                <Route path="/planner" element={<ProtectedRoute><PlannerPage /></ProtectedRoute>} />
+                <Route path="/planner/calendar" element={<ProtectedRoute><PlannerPage /></ProtectedRoute>} />
                 <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
                 <Route path="/onboarding/my-documents" element={<ProtectedRoute><OnboardingSection /></ProtectedRoute>} />
                 <Route path="/onboarding/*" element={<Navigate to="/employees" replace />} />

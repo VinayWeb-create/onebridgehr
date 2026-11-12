@@ -331,6 +331,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         return { label: 'HR Update', bg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' };
       case 'ANNOUNCEMENTS':
         return { label: 'Announcement', bg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' };
+      case 'TASKS':
+        return { label: 'Task', bg: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20' };
       default:
         return { label: 'Alert', bg: 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border-brand-500/20' };
     }

@@ -38,6 +38,8 @@ import notificationRoutes from './routes/notificationRoutes';
 import { googleOAuth } from './services/googleOAuth';
 import { AiAgentOrchestrator } from './services/ai/aiAgentOrchestrator';
 import { startShiftReminderScheduler } from './services/shiftReminderScheduler';
+import plannerRoutes from './modules/planner/routes';
+import { plannerScheduler } from './modules/planner/engine/scheduler';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -155,6 +157,7 @@ app.use('/api/automations', automationRoutes);
 app.use('/api/ai', aiAgentRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/planner', plannerRoutes); // Smart Tasks & Reminders module
 
 // Fallback Route
 app.use('*', (req, res) => {
@@ -195,6 +198,7 @@ const startServer = async () => {
     });
     startOnboardingScheduler();
     startShiftReminderScheduler();
+    plannerScheduler.start();
   } catch (error) {
     console.error('Failed to start server services:', error);
     process.exit(1);

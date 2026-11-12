@@ -9,7 +9,9 @@
     "dev": "ts-node src/index.ts",
     "prisma:generate": "prisma generate --schema=../prisma/schema.prisma",
     "prisma:db": "prisma db push --schema=../prisma/schema.prisma",
-    "seed": "ts-node src/seed.ts"
+    "seed": "ts-node src/seed.ts",
+    "test": "node --no-experimental-strip-types --test --require ./src/modules/planner/tests/register.js \"src/**/*.test.ts\"",
+    "test:planner": "node --no-experimental-strip-types --test --require ./src/modules/planner/tests/register.js \"src/modules/planner/tests/*.test.ts\""
   },
   "dependencies": {
     "@prisma/client": "^5.12.1",

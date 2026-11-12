@@ -1,0 +1,184 @@
+// ============================================================================
+// ATTENDANCE & BIOMETRIC TRACKING SCHEMA
+// Compatible with Prisma (MongoDB or PostgreSQL/MySQL with slight ID adjustments)
+// Note: If using PostgreSQL/MySQL, change `@map("_id") @db.ObjectId` to `@default(uuid())` or `@default(autoincrement())`
+// and `type BreakSession` to a separate `model BreakSession`.
+// ============================================================================
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  HOLIDAY
+  WORK_FROM_HOME
+  REMOTE
+  ON_LEAVE
+}
+
+// -------------------------------------------------------------
+// Daily Attendance Record
+// -------------------------------------------------------------
+model Attendance {
+  id                 String           @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId         String           // Foreign key referencing Employee / User model
+  date               DateTime
+  checkIn            DateTime?
+  checkOut           DateTime?
+  breaks             BreakSession[]   // In MongoDB: embedded document array. In SQL: convert to separate table.
+  status             AttendanceStatus @default(ABSENT)
+  overtimeMinutes    Int              @default(0)
+  lateMinutes        Int              @default(0)
+  latitude           Float?
+  longitude          Float?
+  workFromHome       Boolean          @default(false)
+  officeId           String?
+  officeName         String?
+  gpsAccuracy        Float?
+  distanceFromOffice Float?
+  faceMatchScore     Float?
+  livenessResult     String?
+  deviceId           String?
+  browser            String?
+  operatingSystem    String?
+  verificationStatus String?
+  createdAt          DateTime         @default(now())
+
+  @@index([employeeId, date])
+}
+
+// Embedded Break Session (For MongoDB)
+type BreakSession {
+  start DateTime
+  end   DateTime?
+}
+
+// -------------------------------------------------------------
+// Geofenced Office Locations
+// -------------------------------------------------------------
+model OfficeLocation {
+  id           String                 @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  branch       String
+  latitude     Float
+  longitude    Float
+  radiusMeters Float                  @default(200)
+  timeZone     String                 @default("Asia/Kolkata")
+  status       String                 @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  enrollments  AttendanceEnrollment[]
+}
+
+// -------------------------------------------------------------
+// Attendance Policies & Shift Configurations
+// -------------------------------------------------------------
+model AttendancePolicy {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  name                 String
+  isDefault            Boolean  @default(false)
+  gpsVerification      Boolean  @default(true)
+  faceVerification     Boolean  @default(true)
+  livenessDetection    Boolean  @default(true)
+  deviceRegistration   Boolean  @default(true)
+  graceTimeMinutes     Int      @default(15)
+  lateThresholdMinutes Int      @default(30)
+  halfDayHours         Float    @default(4.5)
+  fullDayHours         Float    @default(9.0)
+  workingHoursStart    String   @default("09:30")
+  workingHoursEnd      String   @default("18:30")
+  shifts               Json?    // Optional shifts: [{ name: "Morning", start: "09:00", end: "18:00" }]
+  allowedOfficeIds     String[] // Applicable office IDs
+  department           String?  // null for all, or specific department name
+  employeeIds          String[] // specific employee overrides
+  status               String   @default("ACTIVE")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+// -------------------------------------------------------------
+// Biometric Face & Device Enrollment
+// -------------------------------------------------------------
+model AttendanceEnrollment {
+  id                    String          @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId            String          @unique
+  officeId              String?         @db.ObjectId
+  office                OfficeLocation? @relation(fields: [officeId], references: [id])
+  faceTemplateEncrypted String?         // AES-256-GCM encrypted 128-D vector string
+  facePhotoThumbnails   String[]        // Base64 thumbnail or URI preview of face angles
+  deviceId              String?
+  deviceName            String?
+  browser               String?
+  operatingSystem       String?
+  enrolledAt            DateTime?
+  status                String          @default("PENDING") // PENDING, COMPLETED, RESET
+  enrolledLatitude      Float?
+  enrolledLongitude     Float?
+  notes                 String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+}
+
+// -------------------------------------------------------------
+// Registered / Authorized Hardware Devices
+// -------------------------------------------------------------
+model RegisteredDevice {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId   String
+  deviceId     String
+  deviceName   String
+  browser      String
+  os           String
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  registeredAt DateTime @default(now())
+  lastUsedAt   DateTime @default(now())
+
+  @@index([employeeId, deviceId])
+}
+
+// -------------------------------------------------------------
+// Verification Audit Trail
+// -------------------------------------------------------------
+model AttendanceVerificationLog {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId         String
+  employeeName       String?
+  department         String?
+  officeName         String?
+  eventType          String   // "CHECK_IN", "CHECK_OUT", "ENROLLMENT"
+  latitude           Float?
+  longitude          Float?
+  gpsAccuracy        Float?
+  distanceFromOffice Float?
+  faceMatchScore     Float?
+  livenessResult     String?  // "PASSED", "FAILED", "SKIPPED"
+  deviceId           String?
+  browser            String?
+  operatingSystem    String?
+  status             String   // "SUCCESS", "FAILED", "OUTSIDE_GEOFENCE", "FACE_MISMATCH", "DEVICE_MISMATCH"
+  failureReason      String?
+  serverTimestamp    DateTime @default(now())
+  createdAt          DateTime @default(now())
+
+  @@index([employeeId, createdAt])
+  @@index([status, createdAt])
+}
+
+// -------------------------------------------------------------
+// Fallback Daily Attendance Code (Optional PIN/QR punch-in)
+// -------------------------------------------------------------
+model AttendanceCode {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  code      String   @unique
+  date      DateTime
+  createdBy String
+  isActive  Boolean  @default(true)
+  usedBy    String[]
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([date, isActive])
+}
+

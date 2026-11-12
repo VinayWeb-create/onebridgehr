@@ -47,11 +47,14 @@ import {
   Sliders,
   Download,
   CheckCircle2,
+  BellRing,
+  CalendarRange,
 } from 'lucide-react';
 import api, { resolveImageUrl } from '../services/api';
 import { triggerPwaInstall, usePwaInstall } from '../components/PwaInstallPrompt';
 import { sendTestPushNotification, subscribeToPushNotifications } from '../registerServiceWorker';
 import NotificationCenter from '../components/NotificationCenter';
+import PlannerProvider from '../modules/planner/PlannerProvider';
 
 interface NotificationToast {
   id: string;
@@ -250,6 +253,18 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       name: 'Tasks',
       path: '/tasks',
       icon: CheckSquare,
+      roles: ['SUPER_ADMIN', 'HR', 'TEAM_LEAD', 'EMPLOYEE'],
+    },
+    {
+      name: 'Tasks & Reminders',
+      path: '/planner',
+      icon: BellRing,
+      roles: ['SUPER_ADMIN', 'HR', 'TEAM_LEAD', 'EMPLOYEE'],
+    },
+    {
+      name: 'Calendar',
+      path: '/planner/calendar',
+      icon: CalendarRange,
       roles: ['SUPER_ADMIN', 'HR', 'TEAM_LEAD', 'EMPLOYEE'],
     },
     {
@@ -879,6 +894,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
               </div>
             </div>
           )}
+          <PlannerProvider>
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -890,6 +906,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
               {children}
             </motion.div>
           </AnimatePresence>
+          </PlannerProvider>
         </main>
       </div>
 

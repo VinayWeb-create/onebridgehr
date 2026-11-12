@@ -1452,3 +1452,252 @@ model AttendanceVerificationLog {
 
 
 
+
+// ===========================================================================
+// SMART TASKS & REMINDERS (My Planner) MODULE
+// Self-contained collections prefixed `planner_` so the legacy `Task` model and
+// every existing module stay untouched. Enumerations are stored as strings so
+// the module can evolve without enum migrations on MongoDB.
+// ===========================================================================
+
+model PlannerTask {
+  id                String     @id @default(auto()) @map("_id") @db.ObjectId
+  title             String
+  description       String?
+  category          String     @default("WORK")    // PERSONAL, WORK, PROJECT, CLIENT_FOLLOWUP, MEETING_REMINDER, CALL_REMINDER, DOCUMENT_REMINDER, TRAINING_REMINDER, BIRTHDAY_REMINDER, ANNIVERSARY_REMINDER, CUSTOM
+  priority          String     @default("MEDIUM")  // LOW, MEDIUM, HIGH, CRITICAL
+  status            String     @default("PENDING") // PENDING, IN_PROGRESS, REVIEW, COMPLETED, CANCELLED, ARCHIVED (OVERDUE is derived)
+  ownerId           String                         // Employee.employeeId of the creator
+  assigneeIds       String[]   @default([])        // Employee.employeeId values the task is shared with
+  projectName       String?
+  tags              String[]   @default([])
+  labelIds          String[]   @default([])
+  color             String?
+  dueAt             DateTime?                      // UTC instant (due date + due time)
+  allDay            Boolean    @default(false)
+  timezone          String     @default("Asia/Kolkata")
+  reminderOffsets   Int[]      @default([])        // minutes before dueAt (0 = at due time)
+  customReminderAts DateTime[]
+  estimatedMinutes  Int?
+  location          String?
+  position          Float      @default(0)         // Kanban ordering inside a column
+  source            String     @default("MANUAL")  // MANUAL, QUICK_ADD, MEETING, RECURRENCE, SYSTEM
+  sourceRefId       String?                        // e.g. Meeting.id
+  seriesId          String?    @db.ObjectId        // PlannerTaskRecurrence.id
+  occurrenceAt      DateTime?
+  clientRequestId   String?                        // idempotency key for offline-created tasks
+  completedAt       DateTime?
+  archivedAt        DateTime?
+  cancelledAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([ownerId, status])
+  @@index([assigneeIds])
+  @@index([dueAt, status])
+  @@index([seriesId, occurrenceAt])
+  @@index([source, sourceRefId])
+  @@index([ownerId, clientRequestId])
+  @@map("planner_tasks")
+}
+
+model PlannerTaskChecklistItem {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  taskId      String    @db.ObjectId
+  title       String
+  isCompleted Boolean   @default(false)
+  position    Int       @default(0)
+  completedAt DateTime?
+  completedBy String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([taskId, position])
+  @@map("planner_task_checklists")
+}
+
+model PlannerTaskComment {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId     String   @db.ObjectId
+  authorId   String
+  authorName String
+  content    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([taskId, createdAt])
+  @@map("planner_task_comments")
+}
+
+model PlannerTaskAttachment {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId     String   @db.ObjectId
+  fileName   String
+  fileUrl    String
+  mimeType   String?
+  sizeBytes  Int?
+  uploadedBy String
+  createdAt  DateTime @default(now())
+
+  @@index([taskId])
+  @@map("planner_task_attachments")
+}
+
+/// One row per reminder delivery (SCHEDULED -> SENDING -> SENT / FAILED).
+/// `dedupeKey` is unique so a reminder can never be scheduled or sent twice,
+/// even with several server instances running the scheduler concurrently.
+model PlannerTaskNotification {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  dedupeKey     String    @unique
+  taskId        String?   @db.ObjectId
+  employeeId    String
+  kind          String    // OFFSET, CUSTOM, SNOOZE, MEETING, COMPANY
+  offsetMinutes Int?
+  fireAt        DateTime
+  deliverAt     DateTime  // fireAt adjusted for quiet hours / DND / working days
+  status        String    @default("SCHEDULED") // SCHEDULED, SENDING, SENT, FAILED, CANCELLED, DISMISSED, SKIPPED
+  channels      String[]  @default([])
+  attempts      Int       @default(0)
+  lastError     String?
+  nextRetryAt   DateTime?
+  sentAt        DateTime?
+  actedAt       DateTime?
+  action        String?   // COMPLETE, SNOOZE, OPEN, DISMISS
+  title         String?
+  message       String?
+  mandatory     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, deliverAt])
+  @@index([taskId, status])
+  @@index([employeeId, createdAt])
+  @@map("planner_task_notifications")
+}
+
+model PlannerTaskRecurrence {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  templateTaskId   String    @db.ObjectId
+  ownerId          String
+  frequency        String    // DAILY, WEEKDAYS, WEEKLY, MONTHLY, YEARLY, CUSTOM
+  interval         Int       @default(1)
+  unit             String    @default("DAY") // DAY, WEEK, MONTH, YEAR (CUSTOM only)
+  daysOfWeek       Int[]     @default([])    // 0=Sun..6=Sat (WEEKLY)
+  timezone         String    @default("Asia/Kolkata")
+  anchorAt         DateTime
+  endsAt           DateTime?
+  maxOccurrences   Int?
+  generatedCount   Int       @default(1)
+  lastOccurrenceAt DateTime?
+  nextOccurrenceAt DateTime?
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([isActive, nextOccurrenceAt])
+  @@index([templateTaskId])
+  @@map("planner_task_recurrence")
+}
+
+model PlannerNotificationPreference {
+  id                     String    @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId             String    @unique
+  timezone               String    @default("Asia/Kolkata")
+  soundEnabled           Boolean   @default(true)
+  sound                  String    @default("chime")
+  defaultReminderOffsets Int[]     @default([15])
+  workingHoursStart      String    @default("09:00")
+  workingHoursEnd        String    @default("18:30")
+  workingDays            Int[]     @default([1, 2, 3, 4, 5, 6])
+  onlyDuringWorkingHours Boolean   @default(false)
+  dndEnabled             Boolean   @default(false)
+  dndUntil               DateTime?
+  quietHoursEnabled      Boolean   @default(false)
+  quietHoursStart        String    @default("22:00")
+  quietHoursEnd          String    @default("07:00")
+  weekendReminders       Boolean   @default(true)
+  channelInApp           Boolean   @default(true)
+  channelPush            Boolean   @default(true)
+  channelBrowser         Boolean   @default(true)
+  channelEmail           Boolean   @default(false)
+  channelWhatsapp        Boolean   @default(false)
+  channelSms             Boolean   @default(false)
+  defaultSnoozeMinutes   Int       @default(10)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@map("planner_notification_preferences")
+}
+
+model PlannerTaskHistory {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId    String   @db.ObjectId
+  actorId   String
+  action    String   // CREATED, UPDATED, STATUS_CHANGED, ASSIGNED, CHECKLIST, COMMENTED, ATTACHMENT, SNOOZED, DELETED
+  field     String?
+  fromValue String?
+  toValue   String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([actorId, createdAt])
+  @@map("planner_task_history")
+}
+
+model PlannerTaskLabel {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  ownerId   String
+  name      String
+  color     String   @default("#6366f1")
+  createdAt DateTime @default(now())
+
+  @@unique([ownerId, name])
+  @@map("planner_task_labels")
+}
+
+/// Company-wide planner settings (single row, key = DEFAULT)
+model PlannerAdminConfig {
+  id                     String   @id @default(auto()) @map("_id") @db.ObjectId
+  key                    String   @unique @default("DEFAULT")
+  companyTimezone        String   @default("Asia/Kolkata")
+  defaultReminderOffsets Int[]    @default([15])
+  workingHoursStart      String   @default("09:00")
+  workingHoursEnd        String   @default("18:30")
+  workingDays            Int[]    @default([1, 2, 3, 4, 5, 6])
+  notificationSound      String   @default("chime")
+  quietHoursEnabled      Boolean  @default(false)
+  quietHoursStart        String   @default("22:00")
+  quietHoursEnd          String   @default("07:00")
+  weekendReminders       Boolean  @default(true)
+  respectHolidays        Boolean  @default(true)
+  meetingReminderOffsets Int[]    @default([1440, 60])
+  mandatoryCategories    String[] @default([])
+  maxDeliveryAttempts    Int      @default(5)
+  updatedBy              String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@map("planner_admin_config")
+}
+
+/// Admin-configured recurring company reminders (attendance, timesheet, daily report...)
+model PlannerCompanyReminder {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  message     String
+  kind        String   @default("CUSTOM") // CHECK_IN, LUNCH_START, BREAK_END, CHECK_OUT, TIMESHEET, DAILY_REPORT, CUSTOM
+  time        String   // HH:mm in companyTimezone
+  daysOfWeek  Int[]    @default([1, 2, 3, 4, 5, 6])
+  targetRoles String[] @default([]) // empty = everyone
+  departments String[] @default([]) // empty = every department
+  mandatory   Boolean  @default(false) // bypasses employee DND / quiet hours
+  isActive    Boolean  @default(true)
+  actionUrl   String?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@map("planner_company_reminders")
+}

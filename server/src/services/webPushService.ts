@@ -26,6 +26,10 @@ export interface PushNotificationPayload {
   type?: 'TASK_ASSIGNED' | 'CHECKOUT_REMINDER' | 'GENERAL' | string;
   actions?: Array<{ action: string; title: string }>;
   requireInteraction?: boolean;
+  /** Optional extras (additive, used by the Smart Tasks module). */
+  silent?: boolean;
+  badgeCount?: number;
+  data?: Record<string, unknown>;
 }
 
 export class WebPushService {
@@ -112,6 +116,9 @@ export class WebPushService {
           { action: 'open', title: 'Open HRMS' },
           { action: 'close', title: 'Dismiss' },
         ],
+        ...(payload.silent !== undefined ? { silent: payload.silent } : {}),
+        ...(payload.badgeCount !== undefined ? { badgeCount: payload.badgeCount } : {}),
+        ...(payload.data ? { data: payload.data } : {}),
       });
 
       let sent = 0;
